@@ -145,6 +145,19 @@ export default function App() {
     reloadData();
   }, [reloadData]);
 
+  // First launch or post-factory-reset walkthrough trigger
+  useEffect(() => {
+    try {
+      const isFirstLaunch = localStorage.getItem('a_plus_first_launch');
+      if (isFirstLaunch === 'true') {
+        localStorage.removeItem('a_plus_first_launch');
+        setOnboardingWizardOpen(true);
+      }
+    } catch {
+      // Ignore localStorage access issues
+    }
+  }, []);
+
   // Service Worker for offline PWA with proactive update checking
   useEffect(() => {
     if ('serviceWorker' in navigator && process.env.NODE_ENV !== 'development') {
@@ -1060,7 +1073,11 @@ export default function App() {
           {/* TAB: SETTINGS */}
           {activeTab === 'settings' && (
             <ErrorBoundary fallbackTitle="Settings Error" onReset={reloadData}>
-              <SettingsView settings={settings} onUpdateSettings={handleUpdateSettings} />
+              <SettingsView
+                settings={settings}
+                onUpdateSettings={handleUpdateSettings}
+                onReloadData={reloadData}
+              />
             </ErrorBoundary>
           )}
         </main>

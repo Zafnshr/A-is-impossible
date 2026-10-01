@@ -482,6 +482,150 @@ class IndexedDBStorage {
     if (sessions) await putAll('sessions', sessions);
     if (trash) await putAll('trash', trash);
   }
+
+  // --- Data Management & Danger Zone Operations ---
+
+  /**
+   * 1. RESET STUDY PROGRESS:
+   * Clears: attempts history, session state, streaks, accuracy statistics, and deck score records.
+   * Keeps: profiles, decks, questions, personal notes, favorites, and flagged questions.
+   */
+  async resetStudyProgress(profileId: string = 'workspace'): Promise<void> {
+    // 1. Clear all attempts for this profile
+    const attempts = await this.getAttemptsByProfile(profileId);
+    for (const att of attempts) {
+      await this.transaction('attempts', 'readwrite', (store) => store.delete(att.id));
+    }
+
+    // 2. Clear active study session
+    await this.clearActiveSession(profileId);
+
+    // 3. Reset deck performance scores & timestamps
+    const decks = await this.getDecks();
+    for (const d of decks) {
+      delete d.latestScore;
+      delete d.bestScore;
+      delete d.averageScore;
+      delete d.lastOpenedAt;
+      d.updatedAt = Date.now();
+      await this.saveDeck(d);
+    }
+
+    // 4. Reset question statuses: preserve isFavorite, isFlagged, and userNote, but reset incorrect & attempts
+    const statuses = await this.getAllStatusForProfile(profileId);
+    for (const s of statuses) {
+      s.isIncorrect = false;
+      s.attemptsCount = 0;
+      delete s.lastAttemptAt;
+      delete s.lastAttemptCorrect;
+      await this.saveQuestionStatus(s);
+    }
+  }
+
+  /**
+   * 2. DELETE CURRENT PROFILE:
+   * Removes profile, progress, analytics, favorites, flags, incorrect questions, notes, and settings.
+   */
+  async deleteCurrentProfile(profileId: string = 'workspace'): Promise<void> {
+    // Delete profile
+    await this.transaction('profiles', 'readwrite', (store) => store.delete(profileId));
+
+    // Delete settings
+    await this.transaction('settings', 'readwrite', (store) => store.delete(profileId));
+
+    // Delete active sessions
+    await this.clearActiveSession(profileId);
+
+    // Delete attempts
+    const attempts = await this.getAttemptsByProfile(profileId);
+    for (const att of attempts) {
+      await this.transaction('attempts', 'readwrite', (store) => store.delete(att.id));
+    }
+
+    // Delete question status records
+    const statuses = await this.getAllStatusForProfile(profileId);
+    for (const s of statuses) {
+      await this.transaction('question_status', 'readwrite', (store) =>
+        store.delete([s.profileId, s.questionId])
+      );
+    }
+
+    // Delete trash items
+    await this.clearTrash(profileId);
+  }
+
+  /**
+   * 3. DELETE ALL DECKS:
+   * Removes all lecture decks, questions, active sessions, and question associations.
+   * Keeps profile and preferences.
+   */
+  async deleteAllDecks(): Promise<void> {
+    const db = await this.getDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['decks', 'questions', 'sessions', 'attempts', 'question_status'], 'readwrite');
+      tx.objectStore('decks').clear();
+      tx.objectStore('questions').clear();
+      tx.objectStore('sessions').clear();
+      tx.objectStore('attempts').clear();
+      tx.objectStore('question_status').clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+
+    // Also clear trash items
+    try {
+      const dbInstance = await this.getDB();
+      const tx = dbInstance.transaction('trash', 'readwrite');
+      tx.objectStore('trash').clear();
+      await new Promise((resolve) => {
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
+    } catch {
+      // Ignore trash clear error
+    }
+  }
+
+  /**
+   * 4. FACTORY RESET PLATFORM:
+   * Completely wipes IndexedDB, profiles, decks, questions, attempts, settings, and cache.
+   * Restores platform to pristine first-launch state.
+   */
+  async factoryResetPlatform(): Promise<void> {
+    // 1. Close current connection
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+      this.initPromise = null;
+    }
+
+    // 2. Delete IndexedDB database
+    await new Promise((resolve) => {
+      const req = indexedDB.deleteDatabase(DB_NAME);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(true);
+      req.onblocked = () => resolve(true);
+    });
+
+    // 3. Clear LocalStorage and SessionStorage
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem('a_plus_first_launch', 'true');
+    } catch {
+      // Ignore storage errors
+    }
+
+    // 4. Clear Cache Storage
+    if ('caches' in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch {
+        // Ignore cache clear error
+      }
+    }
+  }
 }
 
 export const dbService = new IndexedDBStorage();
