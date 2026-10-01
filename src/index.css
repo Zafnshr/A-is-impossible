@@ -390,18 +390,31 @@
 }
 
 /* Dialog & Modal Overlays */
+.theme-light .bg-slate-950\/95,
+.theme-light .bg-slate-950\/90,
 .theme-light .bg-slate-950\/85,
 .theme-light .bg-slate-950\/80,
+.theme-light .bg-slate-950\/75,
 .theme-light .bg-slate-950\/70,
-.theme-light .bg-slate-950\/60 {
+.theme-light .bg-slate-950\/60,
+.theme-light .bg-slate-950\/50 {
   background-color: rgba(15, 23, 42, 0.45) !important;
 }
 
-/* Tooltip popup in Light Mode */
+/* Tooltip popups in Light Mode */
+.theme-light [role="tooltip"],
+.theme-light .ui-tooltip-bubble {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
+}
+
 .theme-light [data-tooltip]:hover::after {
-  background: #1e293b !important;
-  color: #f8fafc !important;
-  border-color: #334155 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12) !important;
 }
 
 /* High Contrast Mode */

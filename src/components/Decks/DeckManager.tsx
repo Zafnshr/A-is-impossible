@@ -511,86 +511,86 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
 
       {/* Create Deck Modal */}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
           <form
             onSubmit={handleSaveCreate}
-            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl"
+            className="w-full max-w-md bg-surface border border-subtle rounded-2xl p-6 space-y-4 shadow-2xl"
           >
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Plus className="w-4 h-4 text-cyan-400" /> Create New Lecture Deck
+            <h3 className="text-base font-bold text-primary flex items-center gap-2">
+              <Plus className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> Create New Lecture Deck
             </h3>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Academic Year</label>
+                <label className="block text-secondary mb-1 font-medium">Academic Year</label>
                 <input
                   type="text"
                   value={formYear}
                   onChange={(e) => setFormYear(e.target.value)}
                   placeholder="e.g. Year 2"
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Module Name</label>
+                <label className="block text-secondary mb-1 font-medium">Module Name</label>
                 <input
                   type="text"
                   value={formModule}
                   onChange={(e) => setFormModule(e.target.value)}
                   placeholder="e.g. CVS, Respiratory, GIT"
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Subject</label>
+                <label className="block text-secondary mb-1 font-medium">Subject</label>
                 <input
                   type="text"
                   value={formSubject}
                   onChange={(e) => setFormSubject(e.target.value)}
                   placeholder="e.g. Physiology, Pharmacology, Pathology"
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Lecture Name</label>
+                <label className="block text-secondary mb-1 font-medium">Lecture Name</label>
                 <input
                   type="text"
                   value={formLectureName}
                   onChange={(e) => setFormLectureName(e.target.value)}
                   placeholder="e.g. Cardiac Output & Venous Return"
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Description / Notes (Optional)</label>
+                <label className="block text-secondary mb-1 font-medium">Description / Notes (Optional)</label>
                 <textarea
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Key concepts or high-yield references..."
-                  className="w-full h-16 p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full h-16 p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-2 border-t border-subtle">
               <button
                 type="button"
                 onClick={() => setCreateModalOpen(false)}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                className="px-3 py-1.5 rounded-lg text-xs text-secondary hover:text-primary transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition"
               >
                 Create Deck
               </button>
@@ -601,81 +601,81 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
 
       {/* Edit Deck Modal */}
       {editDeck && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
           <form
             onSubmit={handleSaveEdit}
-            className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl"
+            className="w-full max-w-md bg-surface border border-subtle rounded-2xl p-6 space-y-4 shadow-2xl"
           >
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Edit2 className="w-4 h-4 text-cyan-400" /> Edit Deck Details
+            <h3 className="text-base font-bold text-primary flex items-center gap-2">
+              <Edit2 className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> Edit Deck Details
             </h3>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Lecture Name</label>
+                <label className="block text-secondary mb-1 font-medium">Lecture Name</label>
                 <input
                   type="text"
                   value={formLectureName}
                   onChange={(e) => setFormLectureName(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Subject</label>
+                <label className="block text-secondary mb-1 font-medium">Subject</label>
                 <input
                   type="text"
                   value={formSubject}
                   onChange={(e) => setFormSubject(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Module</label>
+                <label className="block text-secondary mb-1 font-medium">Module</label>
                 <input
                   type="text"
                   value={formModule}
                   onChange={(e) => setFormModule(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Academic Year</label>
+                <label className="block text-secondary mb-1 font-medium">Academic Year</label>
                 <input
                   type="text"
                   value={formYear}
                   onChange={(e) => setFormYear(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Description</label>
+                <label className="block text-secondary mb-1 font-medium">Description / Notes</label>
                 <textarea
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  className="w-full h-16 p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full h-16 p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-2 border-t border-subtle">
               <button
                 type="button"
                 onClick={() => setEditDeck(null)}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                className="px-3 py-1.5 rounded-lg text-xs text-secondary hover:text-primary transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition"
               >
                 Save Changes
               </button>
@@ -686,55 +686,55 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
 
       {/* Move Deck Modal */}
       {moveDeck && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <MoveRight className="w-4 h-4 text-cyan-400" /> Move Deck
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm bg-surface border border-subtle rounded-2xl p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-primary flex items-center gap-2">
+              <MoveRight className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> Move Deck
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-secondary">
               Move &ldquo;{moveDeck.lectureName}&rdquo; to a new location:
             </p>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Target Year</label>
+                <label className="block text-secondary mb-1 font-medium">Target Year</label>
                 <input
                   type="text"
                   value={moveYear}
                   onChange={(e) => setMoveYear(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-slate-400 mb-1">Target Module</label>
+                <label className="block text-secondary mb-1 font-medium">Target Module</label>
                 <input
                   type="text"
                   value={moveModule}
                   onChange={(e) => setMoveModule(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-slate-400 mb-1">Target Subject</label>
+                <label className="block text-secondary mb-1 font-medium">Target Subject</label>
                 <input
                   type="text"
                   value={moveSubject}
                   onChange={(e) => setMoveSubject(e.target.value)}
-                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                  className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-2 border-t border-subtle">
               <button
                 onClick={() => setMoveDeck(null)}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                className="px-3 py-1.5 rounded-lg text-xs text-secondary hover:text-primary transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveMove}
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition"
               >
                 Move Deck
               </button>
@@ -745,37 +745,37 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
 
       {/* Merge Modal */}
       {mergeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <GitMerge className="w-4 h-4 text-cyan-400" /> Merge Selected Decks
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm bg-surface border border-subtle rounded-2xl p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-primary flex items-center gap-2">
+              <GitMerge className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> Merge Selected Decks
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-secondary">
               Combine questions from {selectedDeckIds.length} decks into one unified lecture deck.
             </p>
 
             <div className="text-xs">
-              <label className="block text-slate-400 mb-1">New Merged Lecture Title</label>
+              <label className="block text-secondary mb-1 font-medium">New Merged Lecture Title</label>
               <input
                 type="text"
                 value={mergeTitle}
                 onChange={(e) => setMergeTitle(e.target.value)}
                 placeholder="e.g. Comprehensive CVS Review"
-                className="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                className="w-full p-2 bg-subtle border border-subtle rounded-lg text-primary focus:border-cyan-500 focus:outline-none"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-2 border-t border-subtle">
               <button
                 onClick={() => setMergeModalOpen(false)}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                className="px-3 py-1.5 rounded-lg text-xs text-secondary hover:text-primary transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handlePerformMerge}
                 disabled={!mergeTitle.trim()}
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-bold text-xs"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-bold text-xs shadow-sm transition"
               >
                 Confirm Merge
               </button>

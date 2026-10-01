@@ -75,32 +75,76 @@ export const Tooltip: React.FC<TooltipProps> = ({
     });
   }, [side]);
 
+  const autoHideTimerRef = useRef<number | null>(null);
+
+  const clearAutoHideTimer = () => {
+    if (autoHideTimerRef.current !== null) {
+      window.clearTimeout(autoHideTimerRef.current);
+      autoHideTimerRef.current = null;
+    }
+  };
+
+  const isCoarseTouchDevice = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  }, []);
+
+  const showTooltip = () => {
+    // On coarse touch devices, suppress tooltips on action buttons (non-iconOnly) to avoid sticky tap bubbles
+    if (!iconOnly && isCoarseTouchDevice()) {
+      return;
+    }
+    updatePosition();
+    setVisible(true);
+
+    clearAutoHideTimer();
+    // Auto-dismiss after 2.5 seconds on touch devices
+    if (isCoarseTouchDevice() || iconOnly) {
+      autoHideTimerRef.current = window.setTimeout(() => {
+        setVisible(false);
+      }, 2500);
+    }
+  };
+
+  const hideTooltip = () => {
+    clearAutoHideTimer();
+    setVisible(false);
+  };
+
   useEffect(() => {
     if (!visible) return;
 
     updatePosition();
 
-    const handleScrollOrResize = () => {
-      updatePosition();
+    // Global outside click / touch listener to dismiss tooltip immediately
+    const handleOutsideInteraction = (e: Event) => {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
+        hideTooltip();
+      }
     };
 
+    const handleScrollOrResize = () => {
+      // If user scrolls on touch device, dismiss immediately
+      if (isCoarseTouchDevice()) {
+        hideTooltip();
+      } else {
+        updatePosition();
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideInteraction, { capture: true });
+    document.addEventListener('touchstart', handleOutsideInteraction, { capture: true, passive: true });
     window.addEventListener('scroll', handleScrollOrResize, { passive: true, capture: true });
     window.addEventListener('resize', handleScrollOrResize, { passive: true });
 
     return () => {
+      clearAutoHideTimer();
+      document.removeEventListener('pointerdown', handleOutsideInteraction, { capture: true });
+      document.removeEventListener('touchstart', handleOutsideInteraction, { capture: true });
       window.removeEventListener('scroll', handleScrollOrResize, { capture: true });
       window.removeEventListener('resize', handleScrollOrResize);
     };
-  }, [visible, updatePosition]);
-
-  const showTooltip = () => {
-    updatePosition();
-    setVisible(true);
-  };
-
-  const hideTooltip = () => {
-    setVisible(false);
-  };
+  }, [visible, updatePosition, isCoarseTouchDevice]);
 
   const getTransform = () => {
     switch (coords.effectiveSide) {
@@ -131,7 +175,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
           zIndex: 99999,
           pointerEvents: 'none',
         }}
-        className="max-w-[280px] sm:max-w-xs px-3 py-1.5 text-[11px] font-medium text-slate-100 bg-slate-900/95 border border-slate-700/90 rounded-lg shadow-2xl backdrop-blur-md whitespace-normal break-words text-center leading-relaxed transition-all duration-150 animate-in fade-in zoom-in-95"
+        className="ui-tooltip-bubble max-w-[280px] sm:max-w-xs px-3 py-1.5 text-[11px] font-medium text-slate-900 dark:text-slate-100 bg-white/98 dark:bg-slate-900/95 border border-slate-200/90 dark:border-slate-700/90 rounded-lg shadow-xl dark:shadow-2xl backdrop-blur-md whitespace-normal break-words text-center leading-relaxed transition-all duration-150 animate-in fade-in zoom-in-95 ring-1 ring-slate-900/5 dark:ring-0"
       >
         {content}
       </div>,
@@ -151,6 +195,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
           onMouseLeave={hideTooltip}
           onFocus={showTooltip}
           onBlur={hideTooltip}
+          onClickCapture={hideTooltip}
           tabIndex={0}
           role="button"
           aria-label={content}
@@ -173,6 +218,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
+        onClickCapture={hideTooltip}
       >
         {children}
       </span>

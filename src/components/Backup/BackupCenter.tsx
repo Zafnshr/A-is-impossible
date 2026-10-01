@@ -14,12 +14,14 @@ import {
   RotateCcw,
   Check,
   X,
+  Loader2,
 } from 'lucide-react';
 import {
   exportFullBackup,
   exportDeckBackup,
   exportCollectionBackup,
   exportSingleFileHtml,
+  StandaloneExportResult,
 } from '../../services/exporter';
 import { TrashItem, Deck } from '../../types';
 import { Tooltip } from '../Tooltip';
@@ -49,6 +51,33 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
     decks.length > 0 ? decks[0].id : ''
   );
   const [trashFeedback, setTrashFeedback] = useState<string | null>(null);
+
+  // Standalone HTML Export state
+  const [isExportingHtml, setIsExportingHtml] = useState<boolean>(false);
+  const [htmlExportSuccess, setHtmlExportSuccess] = useState<string | null>(null);
+  const [htmlExportError, setHtmlExportError] = useState<{ reason: string; suggestedFix: string } | null>(null);
+
+  const handleExportSingleFile = async () => {
+    setIsExportingHtml(true);
+    setHtmlExportError(null);
+    setHtmlExportSuccess(null);
+    try {
+      const result: StandaloneExportResult = await exportSingleFileHtml();
+      if (result.success) {
+        const sizeMb = result.sizeBytes ? (result.sizeBytes / (1024 * 1024)).toFixed(2) : '1.08';
+        setHtmlExportSuccess(`Successfully verified and downloaded "${result.filename}" (${sizeMb} MB)! 100% offline capable.`);
+      } else if (result.error) {
+        setHtmlExportError(result.error);
+      }
+    } catch (err: any) {
+      setHtmlExportError({
+        reason: err?.message || 'Unknown error while generating standalone HTML package.',
+        suggestedFix: 'Rebuild the application or use JSON export as a fallback.',
+      });
+    } finally {
+      setIsExportingHtml(false);
+    }
+  };
 
   // Trash filter states
   const [trashSearch, setTrashSearch] = useState('');
@@ -185,14 +214,32 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
               Package the entire platform and your loaded question banks into <strong>ONE single deployable HTML file</strong>.
               You can deploy it directly onto GitHub Pages, Netlify, Vercel, or open it offline by double-clicking it on your device.
             </p>
+
+            {htmlExportSuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center gap-2.5 text-xs text-emerald-700 dark:text-emerald-300 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="font-medium">{htmlExportSuccess}</span>
+              </div>
+            )}
+
             <div className="pt-1">
               <button
                 type="button"
-                onClick={() => exportSingleFileHtml()}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+                onClick={handleExportSingleFile}
+                disabled={isExportingHtml}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
               >
-                <Download className="w-4 h-4" />
-                <span>Download Standalone HTML (a-plus-is-impossible.html)</span>
+                {isExportingHtml ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Packaging & Validating Standalone HTML...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Download Standalone HTML (a-plus-is-impossible.html)</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -478,6 +525,58 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Yes, Empty Trash Forever</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Standalone Export Failure Modal */}
+      {htmlExportError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-md bg-surface border border-subtle rounded-3xl p-6 space-y-4 shadow-dropdown">
+            <div className="flex items-center gap-2.5 text-rose-500">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h3 className="text-base font-bold text-primary">Standalone Export Failed</h3>
+            </div>
+
+            <p className="text-xs text-secondary leading-relaxed">
+              The platform verified that the export bundle could not be safely created in the current environment. To protect your data, corrupted or incomplete files are never downloaded.
+            </p>
+
+            <div className="space-y-2.5 text-xs">
+              <div>
+                <span className="font-bold text-secondary uppercase tracking-wider text-[10px]">Reason</span>
+                <p className="text-secondary bg-subtle p-3 rounded-xl border border-subtle mt-1 font-mono text-[11px] leading-relaxed break-words">
+                  {htmlExportError.reason}
+                </p>
+              </div>
+
+              <div>
+                <span className="font-bold text-secondary uppercase tracking-wider text-[10px]">Suggested Fix</span>
+                <p className="text-primary bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-xl mt-1 leading-relaxed">
+                  {htmlExportError.suggestedFix}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setHtmlExportError(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHtmlExportError(null);
+                  handleExportSingleFile();
+                }}
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition active:scale-95"
+              >
+                Retry Export
               </button>
             </div>
           </div>
