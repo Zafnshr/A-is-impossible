@@ -1,0 +1,432 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Custom subtle modern scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.28);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.48);
+  }
+
+  /* ==========================================================================
+     DESIGN TOKENS SYSTEM: First-Class Dark and First-Class Light Modes
+     ========================================================================== */
+
+  :root,
+  .theme-dark {
+    /* Backgrounds & Canvas */
+    --bg-canvas: #090d16;
+    --bg-surface: #0f172a;
+    --bg-surface-elevated: #162032;
+    --bg-subtle: #1e293b;
+    --bg-card: #0f172a;
+    --bg-hover: #1e293b;
+    --bg-active: rgba(6, 182, 212, 0.16);
+
+    /* Borders */
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --border-active: #06b6d4;
+
+    /* Typography */
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    /* Structural Shell */
+    --topbar-bg: rgba(9, 13, 22, 0.88);
+    --topbar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-bg: #090d16;
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+
+    /* Inputs & Controls */
+    --input-bg: #0b1120;
+    --input-border: rgba(255, 255, 255, 0.12);
+    --input-text: #f8fafc;
+    --input-placeholder: #64748b;
+
+    /* Badges & Accents */
+    --badge-cyan-bg: rgba(6, 182, 212, 0.14);
+    --badge-cyan-text: #38bdf8;
+    --badge-cyan-border: rgba(6, 182, 212, 0.3);
+
+    --badge-emerald-bg: rgba(16, 185, 129, 0.14);
+    --badge-emerald-text: #34d399;
+    --badge-emerald-border: rgba(16, 185, 129, 0.3);
+
+    --badge-amber-bg: rgba(245, 158, 11, 0.14);
+    --badge-amber-text: #fbbf24;
+    --badge-amber-border: rgba(245, 158, 11, 0.3);
+
+    --badge-rose-bg: rgba(244, 63, 94, 0.14);
+    --badge-rose-text: #fb7185;
+    --badge-rose-border: rgba(244, 63, 94, 0.3);
+
+    /* Shadows & Overlays */
+    --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+    --shadow-dropdown: 0 10px 30px -5px rgba(0, 0, 0, 0.7);
+    --dialog-overlay: rgba(0, 0, 0, 0.75);
+
+    color-scheme: dark;
+  }
+
+  .theme-light {
+    /* Backgrounds & Canvas */
+    --bg-canvas: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #ffffff;
+    --bg-subtle: #f1f5f9;
+    --bg-card: #ffffff;
+    --bg-hover: #f1f5f9;
+    --bg-active: #e0f2fe;
+
+    /* Borders */
+    --border-subtle: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --border-active: #0891b2;
+
+    /* Typography */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+
+    /* Structural Shell */
+    --topbar-bg: rgba(255, 255, 255, 0.94);
+    --topbar-border: #e2e8f0;
+    --sidebar-bg: #ffffff;
+    --sidebar-border: #e2e8f0;
+
+    /* Inputs & Controls */
+    --input-bg: #ffffff;
+    --input-border: #cbd5e1;
+    --input-text: #0f172a;
+    --input-placeholder: #94a3b8;
+
+    /* Badges & Accents */
+    --badge-cyan-bg: #ecfeff;
+    --badge-cyan-text: #0284c7;
+    --badge-cyan-border: #a5f3fc;
+
+    --badge-emerald-bg: #ecfdf5;
+    --badge-emerald-text: #059669;
+    --badge-emerald-border: #a7f3d0;
+
+    --badge-amber-bg: #fffbeb;
+    --badge-amber-text: #d97706;
+    --badge-amber-border: #fde68a;
+
+    --badge-rose-bg: #fff1f2;
+    --badge-rose-text: #e11d48;
+    --badge-rose-border: #fecdd3;
+
+    /* Shadows & Overlays */
+    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    --shadow-dropdown: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+    --dialog-overlay: rgba(15, 23, 42, 0.45);
+
+    color-scheme: light;
+  }
+}
+
+/* ==========================================================================
+   SEMANTIC UTILITY CLASSES (Design Token Bindings)
+   ========================================================================== */
+
+.bg-canvas {
+  background-color: var(--bg-canvas) !important;
+}
+
+.bg-surface {
+  background-color: var(--bg-surface) !important;
+}
+
+.bg-surface-elevated {
+  background-color: var(--bg-surface-elevated) !important;
+}
+
+.bg-subtle {
+  background-color: var(--bg-subtle) !important;
+}
+
+.bg-card {
+  background-color: var(--bg-card) !important;
+}
+
+.border-subtle {
+  border-color: var(--border-subtle) !important;
+}
+
+.border-strong {
+  border-color: var(--border-strong) !important;
+}
+
+.text-primary {
+  color: var(--text-primary) !important;
+}
+
+.text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+.text-muted {
+  color: var(--text-muted) !important;
+}
+
+.shadow-card {
+  box-shadow: var(--shadow-card) !important;
+}
+
+.shadow-dropdown {
+  box-shadow: var(--shadow-dropdown) !important;
+}
+
+/* ==========================================================================
+   LIGHT THEME FIRST-CLASS REFINEMENT RULES
+   Ensures complete elimination of dark-mode artifacts, low contrast,
+   and muddy surfaces across ALL screens.
+   ========================================================================== */
+
+.theme-light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Card surfaces */
+.theme-light .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
+
+.theme-light .bg-slate-950,
+.theme-light .bg-slate-950\/95,
+.theme-light .bg-slate-950\/90,
+.theme-light .bg-slate-950\/85,
+.theme-light .bg-slate-950\/80,
+.theme-light .bg-slate-950\/60,
+.theme-light .bg-slate-950\/50,
+.theme-light .bg-slate-950\/40 {
+  background-color: #f8fafc !important;
+}
+
+.theme-light .bg-slate-850,
+.theme-light .bg-slate-800,
+.theme-light .bg-slate-800\/80,
+.theme-light .bg-slate-800\/60,
+.theme-light .bg-slate-800\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Borders */
+.theme-light .border-slate-800,
+.theme-light .border-slate-800\/80,
+.theme-light .border-slate-800\/60,
+.theme-light .border-slate-800\/50,
+.theme-light .border-slate-800\/40,
+.theme-light .border-slate-800\/30 {
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .border-slate-700,
+.theme-light .border-slate-700\/80 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Typography Hierarchy in Light Mode */
+.theme-light .text-white {
+  color: #0f172a !important;
+}
+
+.theme-light .text-slate-100 {
+  color: #0f172a !important;
+}
+
+.theme-light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+.theme-light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.theme-light .text-slate-400 {
+  color: #64748b !important;
+}
+
+.theme-light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Hover States in Light Mode */
+.theme-light .hover\:bg-slate-900:hover,
+.theme-light .hover\:bg-slate-850:hover,
+.theme-light .hover\:bg-slate-800:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.theme-light .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+.theme-light .hover\:text-slate-200:hover,
+.theme-light .hover\:text-slate-100:hover {
+  color: #0f172a !important;
+}
+
+/* Inputs, Textareas, Selects in Light Mode */
+.theme-light input,
+.theme-light textarea,
+.theme-light select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light input::placeholder,
+.theme-light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.theme-light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.theme-light kbd {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Header & Sidebar in Light Mode */
+.theme-light header {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Badges & Pills in Light Mode */
+.theme-light .bg-cyan-950,
+.theme-light .bg-cyan-950\/60,
+.theme-light .bg-cyan-950\/50,
+.theme-light .bg-cyan-950\/40,
+.theme-light .bg-cyan-950\/30,
+.theme-light .bg-cyan-950\/20 {
+  background-color: #ecfeff !important;
+  border-color: #a5f3fc !important;
+  color: #0284c7 !important;
+}
+
+.theme-light .text-cyan-300,
+.theme-light .text-cyan-400 {
+  color: #0284c7 !important;
+}
+
+.theme-light .bg-emerald-950,
+.theme-light .bg-emerald-950\/60,
+.theme-light .bg-emerald-950\/40,
+.theme-light .bg-emerald-950\/20 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #059669 !important;
+}
+
+.theme-light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+.theme-light .bg-amber-950,
+.theme-light .bg-amber-950\/60,
+.theme-light .bg-amber-950\/40,
+.theme-light .bg-amber-950\/30,
+.theme-light .bg-amber-950\/20 {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #d97706 !important;
+}
+
+.theme-light .text-amber-300,
+.theme-light .text-amber-400 {
+  color: #d97706 !important;
+}
+
+.theme-light .bg-rose-950,
+.theme-light .bg-rose-950\/60,
+.theme-light .bg-rose-950\/40,
+.theme-light .bg-rose-950\/30,
+.theme-light .bg-rose-950\/20 {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #e11d48 !important;
+}
+
+.theme-light .text-rose-300,
+.theme-light .text-rose-400 {
+  color: #e11d48 !important;
+}
+
+/* Dialog & Modal Overlays */
+.theme-light .bg-slate-950\/85,
+.theme-light .bg-slate-950\/80,
+.theme-light .bg-slate-950\/70,
+.theme-light .bg-slate-950\/60 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
+
+/* Tooltip popup in Light Mode */
+.theme-light [data-tooltip]:hover::after {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+/* High Contrast Mode */
+.high-contrast {
+  --tw-border-opacity: 1 !important;
+  font-weight: 500 !important;
+}
+
+.theme-dark.high-contrast .border-slate-800,
+.theme-dark.high-contrast .border-slate-700,
+.theme-dark.high-contrast .border-subtle {
+  border-color: #ffffff !important;
+}
+
+.theme-light.high-contrast .border-slate-800,
+.theme-light.high-contrast .border-slate-700,
+.theme-light.high-contrast .border-subtle {
+  border-color: #0f172a !important;
+}
+
+/* Pulse animation for active timer */
+@keyframes timerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-timer-pulse {
+  animation: timerPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

@@ -1,0 +1,424 @@
+import React from 'react';
+import {
+  Play,
+  RotateCcw,
+  CheckCircle2,
+  TrendingUp,
+  Clock,
+  Flame,
+  FolderTree,
+  Star,
+  Flag,
+  XCircle,
+  ArrowRight,
+  BookOpen,
+  Calendar,
+  Layers,
+  Sparkles,
+} from 'lucide-react';
+import {
+  Deck,
+  StudySessionState,
+  UserAttemptRecord,
+  QuestionUserStatus,
+  Question,
+} from '../../types';
+import { Tooltip } from '../Tooltip';
+
+interface DashboardViewProps {
+  decks: Deck[];
+  questions: Question[];
+  activeSession: StudySessionState | null;
+  attempts: UserAttemptRecord[];
+  statuses: QuestionUserStatus[];
+  onStartDeck: (deckId: string) => void;
+  onResumeSession: () => void;
+  onOpenDeckDetail: (deck: Deck) => void;
+  onNavigateTab: (tab: any) => void;
+  onCreateDeckPrompt: () => void;
+}
+
+export const DashboardView: React.FC<DashboardViewProps> = ({
+  decks,
+  questions,
+  activeSession,
+  attempts,
+  statuses,
+  onStartDeck,
+  onResumeSession,
+  onOpenDeckDetail,
+  onNavigateTab,
+  onCreateDeckPrompt,
+}) => {
+  // Statistics calculations
+  const totalAttempts = attempts.length;
+  const correctAttempts = attempts.filter((a) => a.isCorrect).length;
+  const accuracyPercentage =
+    totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
+  const uniqueQuestionsSolved = new Set(attempts.map((a) => a.questionId)).size;
+
+  const totalStudySeconds = attempts.reduce((acc, a) => acc + (a.timeSpentSeconds || 15), 0);
+  const studyMins = Math.round(totalStudySeconds / 60);
+
+  // Streaks calculation
+  const calculateStreak = () => {
+    if (attempts.length === 0) return { current: 0, longest: 0 };
+    const dateStrings = Array.from(
+      new Set(attempts.map((a) => new Date(a.timestamp).toISOString().slice(0, 10)))
+    ).sort();
+
+    let current = 0;
+    let longest = 0;
+    let temp = 0;
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    for (let i = 0; i < dateStrings.length; i++) {
+      if (i === 0) temp = 1;
+      else {
+        const prev = new Date(dateStrings[i - 1]).getTime();
+        const curr = new Date(dateStrings[i]).getTime();
+        const diff = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
+        if (diff === 1) temp++;
+        else temp = 1;
+      }
+      if (temp > longest) longest = temp;
+    }
+
+    if (dateStrings.includes(today) || dateStrings.includes(yesterday)) {
+      current = temp;
+    }
+    return { current: Math.max(1, current), longest: Math.max(1, longest) };
+  };
+
+  const streak = calculateStreak();
+
+  const favoriteCount = statuses.filter((s) => s.isFavorite).length;
+  const flaggedCount = statuses.filter((s) => s.isFlagged).length;
+  const incorrectCount = statuses.filter((s) => s.isIncorrect).length;
+
+  // Recent decks sorted by lastOpenedAt or createdAt
+  const recentDecks = [...decks]
+    .sort((a, b) => (b.lastOpenedAt || b.updatedAt) - (a.lastOpenedAt || a.updatedAt))
+    .slice(0, 4);
+
+  return (
+    <div className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8">
+      {/* 1. CONTINUE LEARNING (STRICT ORDER 1) */}
+      <section className="space-y-3">
+        <h2 className="text-xs font-bold text-secondary uppercase tracking-wider">
+          1. Continue Learning
+        </h2>
+
+        {activeSession ? (
+          /* Ongoing active session */
+          <div className="p-6 rounded-2xl bg-surface border border-cyan-500/30 shadow-card space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                    Active Study Session
+                  </span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-primary tracking-tight">
+                  {activeSession.sessionTitle}
+                </h3>
+                <p className="text-xs text-secondary">
+                  Question {activeSession.currentIndex + 1} of {activeSession.questionIds.length} ·{' '}
+                  {Object.keys(activeSession.submittedQuestions).length} answered so far
+                </p>
+              </div>
+
+              <Tooltip content="Resume active study session right where you left off">
+                <button
+                  onClick={onResumeSession}
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 shrink-0"
+                >
+                  <Play className="w-4 h-4 fill-slate-950" />
+                  <span>Resume Session</span>
+                </button>
+              </Tooltip>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="w-full h-2 rounded-full bg-subtle border border-subtle overflow-hidden">
+                <div
+                  className="h-full bg-cyan-500 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.round(
+                      ((activeSession.currentIndex + 1) / activeSession.questionIds.length) * 100
+                    )}%`,
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-[11px] font-mono text-secondary">
+                <span>
+                  {Math.round(
+                    ((activeSession.currentIndex + 1) / activeSession.questionIds.length) * 100
+                  )}
+                  % Completed
+                </span>
+                <span>
+                  Timer:{' '}
+                  {Math.floor(activeSession.timerSeconds / 60)
+                    .toString()
+                    .padStart(2, '0')}
+                  :
+                  {(activeSession.timerSeconds % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : recentDecks.length > 0 ? (
+          /* No active session: quick resume most recent deck */
+          <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-[11px] font-mono uppercase text-cyan-600 dark:text-cyan-400 font-bold">
+                Pick Up Where You Left Off
+              </div>
+              <h3 className="text-base font-bold text-primary">{recentDecks[0].lectureName}</h3>
+              <p className="text-xs text-secondary">
+                {recentDecks[0].year} · {recentDecks[0].module} · {recentDecks[0].subject} (
+                {recentDecks[0].questionCount} Questions)
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onOpenDeckDetail(recentDecks[0])}
+                className="px-4 py-2 rounded-xl bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-primary border border-subtle text-xs font-semibold transition"
+              >
+                Deck Details
+              </button>
+              <button
+                onClick={() => onStartDeck(recentDecks[0].id)}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition"
+              >
+                <Play className="w-3.5 h-3.5 fill-slate-950" />
+                <span>Start Session</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Empty state */
+          <div className="p-8 text-center rounded-2xl bg-surface border border-dashed border-subtle space-y-3">
+            <FolderTree className="w-10 h-10 text-cyan-500 mx-auto" />
+            <h3 className="text-sm font-bold text-primary">Your Question Bank is Ready</h3>
+            <p className="text-xs text-secondary max-w-md mx-auto">
+              Import a Word document, JSON file, or paste your medical lecture questions to start
+              practicing.
+            </p>
+            <button
+              onClick={onCreateDeckPrompt}
+              className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition"
+            >
+              Import or Create First Deck
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* 2. RECENT DECKS (STRICT ORDER 2) */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold text-secondary uppercase tracking-wider">
+            2. Recent Lecture Decks
+          </h2>
+          {decks.length > 0 && (
+            <button
+              onClick={() => onNavigateTab('library')}
+              className="text-xs text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-semibold"
+            >
+              <span>View Library Explorer</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {recentDecks.length === 0 ? (
+          <div className="p-6 text-center rounded-2xl bg-subtle border border-subtle text-xs text-secondary">
+            No lecture decks added yet. Decks you create or study will appear here.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {recentDecks.map((deck) => (
+              <div
+                key={deck.id}
+                onClick={() => onOpenDeckDetail(deck)}
+                className="p-4 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition cursor-pointer flex flex-col justify-between space-y-3 shadow-card"
+              >
+                <div>
+                  <div className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold truncate">
+                    {deck.year} · {deck.module}
+                  </div>
+                  <h4 className="text-sm font-bold text-primary mt-1 line-clamp-1">
+                    {deck.lectureName}
+                  </h4>
+                  <div className="text-[11px] text-secondary mt-0.5 line-clamp-1">{deck.subject}</div>
+                </div>
+
+                <div className="pt-2 border-t border-subtle flex items-center justify-between text-[11px]">
+                  <span className="font-mono text-secondary">{deck.questionCount} Qs</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                    {deck.latestScore !== undefined ? `${deck.latestScore}%` : 'Not started'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 3. STATISTICS CARDS (STRICT ORDER 3) */}
+      <section className="space-y-3">
+        <h2 className="text-xs font-bold text-secondary uppercase tracking-wider">
+          3. Study Statistics
+        </h2>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* Questions Solved */}
+          <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
+            <div className="flex items-center justify-between text-xs text-secondary">
+              <span>Questions Solved</span>
+              <CheckCircle2 className="w-4 h-4 text-cyan-500" />
+            </div>
+            <div className="text-xl font-black text-primary">{uniqueQuestionsSolved}</div>
+            <div className="text-[11px] font-mono text-muted">{totalAttempts} attempts</div>
+          </div>
+
+          {/* Accuracy */}
+          <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
+            <div className="flex items-center justify-between text-xs text-secondary">
+              <span>Accuracy</span>
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{accuracyPercentage}%</div>
+            <div className="text-[11px] font-mono text-muted">
+              {correctAttempts} of {totalAttempts}
+            </div>
+          </div>
+
+          {/* Study Time */}
+          <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
+            <div className="flex items-center justify-between text-xs text-secondary">
+              <span>Study Time</span>
+              <Clock className="w-4 h-4 text-cyan-500" />
+            </div>
+            <div className="text-xl font-black text-primary">{studyMins}m</div>
+            <div className="text-[11px] font-mono text-muted">
+              {(totalStudySeconds / 3600).toFixed(1)} hrs
+            </div>
+          </div>
+
+          {/* Current & Longest Streak */}
+          <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
+            <div className="flex items-center justify-between text-xs text-secondary">
+              <span>Current Streak</span>
+              <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
+            </div>
+            <div className="text-xl font-black text-amber-600 dark:text-amber-400">{streak.current} Days</div>
+            <div className="text-[11px] font-mono text-muted">Longest: {streak.longest}d</div>
+          </div>
+
+          {/* Total Decks */}
+          <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
+            <div className="flex items-center justify-between text-xs text-secondary">
+              <span>Total Decks</span>
+              <FolderTree className="w-4 h-4 text-muted" />
+            </div>
+            <div className="text-xl font-black text-primary">{decks.length}</div>
+            <div className="text-[11px] font-mono text-muted">
+              {questions.length} total questions
+            </div>
+          </div>
+        </div>
+
+        {/* Collections Breakdown Row */}
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => onNavigateTab('collections')}
+            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"
+          >
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+              <span className="text-xs font-semibold text-primary">Favorites</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400">{favoriteCount}</span>
+          </button>
+
+          <button
+            onClick={() => onNavigateTab('collections')}
+            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"
+          >
+            <div className="flex items-center gap-2">
+              <Flag className="w-4 h-4 text-amber-500 fill-amber-500" />
+              <span className="text-xs font-semibold text-primary">Flagged</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400">{flaggedCount}</span>
+          </button>
+
+          <button
+            onClick={() => onNavigateTab('collections')}
+            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"
+          >
+            <div className="flex items-center gap-2">
+              <XCircle className="w-4 h-4 text-rose-500" />
+              <span className="text-xs font-semibold text-primary">Incorrect Questions</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">{incorrectCount}</span>
+          </button>
+        </div>
+      </section>
+
+      {/* 4. ANALYTICS (STRICT ORDER 4) */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold text-secondary uppercase tracking-wider">
+            4. Performance & Trends
+          </h2>
+          <button
+            onClick={() => onNavigateTab('analytics')}
+            className="text-xs text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-semibold"
+          >
+            <span>Full Analytics Dashboard</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-primary">Daily Consistency (Last 30 Days)</span>
+            <span className="text-secondary font-mono">{totalAttempts} total records logged</span>
+          </div>
+
+          {/* Simple 30-day mini consistency dots */}
+          <div className="grid grid-cols-15 sm:grid-cols-30 gap-1.5 pt-1">
+            {Array.from({ length: 30 }).map((_, idx) => {
+              const dayDate = new Date(Date.now() - (29 - idx) * 86400000)
+                .toISOString()
+                .slice(0, 10);
+              const dayAttempts = attempts.filter(
+                (a) => new Date(a.timestamp).toISOString().slice(0, 10) === dayDate
+              );
+              const hasActivity = dayAttempts.length > 0;
+
+              return (
+                <Tooltip key={idx} content={`${dayDate}: ${dayAttempts.length} questions attempted`}>
+                  <div
+                    className={`aspect-square rounded-sm border ${
+                      hasActivity
+                        ? 'bg-cyan-500 border-cyan-400'
+                        : 'bg-subtle border-subtle'
+                    }`}
+                  />
+                </Tooltip>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};

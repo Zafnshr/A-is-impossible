@@ -1,0 +1,153 @@
+import React from 'react';
+import {
+  Sun,
+  Moon,
+  Contrast,
+  Command,
+  Clock,
+  Search,
+  Sparkles,
+} from 'lucide-react';
+import { UserSettings } from '../types';
+import { Tooltip } from './Tooltip';
+
+interface NavbarProps {
+  settings: UserSettings;
+  saveStatus?: 'saving' | 'saved';
+  lastSavedAt?: number;
+  activeTimerText?: string;
+  isTimerRunning?: boolean;
+  onOpenGlobalSearch: () => void;
+  onOpenHelp: () => void;
+  onStartTour: () => void;
+  onUpdateSettings: (newSettings: Partial<UserSettings>) => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({
+  settings,
+  activeTimerText,
+  isTimerRunning,
+  onOpenGlobalSearch,
+  onStartTour,
+  onUpdateSettings,
+}) => {
+  const toggleTheme = () => {
+    const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
+    onUpdateSettings({ theme: nextTheme });
+  };
+
+  const toggleHighContrast = () => {
+    onUpdateSettings({ highContrast: !settings.highContrast });
+  };
+
+  return (
+    <header className="sticky top-0 z-40 w-full h-15 border-b border-subtle bg-surface/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-4 transition-colors">
+      {/* Brand & Academic Breadcrumb */}
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center font-black text-cyan-500 text-sm tracking-tight shadow-sm">
+            A+
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-sm sm:text-base tracking-tight text-primary flex items-center gap-1.5">
+                A+ is Impossible
+              </span>
+              <span className="hidden md:inline-flex text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-subtle border border-subtle text-cyan-600 dark:text-cyan-400">
+                Medical Q-Bank
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted">
+              <span>Egyptian Medical Curriculum</span>
+              <span>·</span>
+              <span className="font-semibold text-primary">Year 2</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Center: Global Search Bar */}
+      <div className="flex items-center gap-3 flex-1 max-w-md mx-2 sm:mx-6">
+        <Tooltip content="Global Search: questions, choices, lectures, modules, notes (Ctrl + K)" className="w-full">
+          <button
+            type="button"
+            onClick={onOpenGlobalSearch}
+            className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-subtle hover:bg-subtle/80 border border-subtle text-xs text-secondary hover:text-primary transition-all shadow-sm focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            aria-label="Global Search"
+          >
+            <div className="flex items-center gap-2.5 truncate">
+              <Search className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+              <span className="truncate text-muted text-xs">Search questions, choices, notes...</span>
+            </div>
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface text-muted border border-subtle shrink-0">
+              <Command className="w-2.5 h-2.5" /> K
+            </kbd>
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* Right Controls */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Active Timer Badge if present */}
+        {activeTimerText && (
+          <Tooltip content="Active study session timer">
+            <div
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono border ${
+                isTimerRunning
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                  : 'bg-subtle border-subtle text-muted'
+              }`}
+            >
+              <Clock className={`w-3.5 h-3.5 ${isTimerRunning ? 'animate-timer-pulse text-amber-500' : ''}`} />
+              <span>{activeTimerText}</span>
+            </div>
+          </Tooltip>
+        )}
+
+        {/* Walkthrough */}
+        <Tooltip content="Interactive feature walkthrough tour">
+          <button
+            type="button"
+            onClick={onStartTour}
+            className="hidden xl:flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-secondary hover:text-primary hover:bg-subtle transition"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Tour</span>
+          </button>
+        </Tooltip>
+
+        {/* High-Contrast Toggle */}
+        <Tooltip content={settings.highContrast ? 'Disable High Contrast' : 'Enable High Contrast'}>
+          <button
+            type="button"
+            onClick={toggleHighContrast}
+            className={`p-2 rounded-lg border text-xs transition ${
+              settings.highContrast
+                ? 'bg-cyan-500/15 border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                : 'bg-subtle border-subtle text-muted hover:text-primary'
+            }`}
+            aria-label="Toggle High Contrast"
+          >
+            <Contrast className="w-4 h-4" />
+          </button>
+        </Tooltip>
+
+        {/* Theme Toggle (Dark/Light) */}
+        <Tooltip content={`Switch to ${settings.theme === 'dark' ? 'Light' : 'Dark'} Mode`}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-2 rounded-lg bg-subtle border border-subtle text-muted hover:text-primary transition"
+            aria-label="Toggle Theme"
+          >
+            {settings.theme === 'dark' ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-cyan-600" />
+            )}
+          </button>
+        </Tooltip>
+      </div>
+    </header>
+  );
+};

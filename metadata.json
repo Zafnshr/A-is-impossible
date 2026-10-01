@@ -1,0 +1,6 @@
+{
+  "name": "A+ is Impossible",
+  "description": "Medical question-bank & study platform for Egyptian medical students with offline IndexedDB storage, high-yield analytics, and rich deck import.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
