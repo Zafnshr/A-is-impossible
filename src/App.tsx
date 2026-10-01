@@ -684,7 +684,10 @@ export default function App() {
     });
 
     const deckIds = Array.from(new Set(orderedQuestions.map((q) => q.deckId)));
-    const title = `Practice: ${type.charAt(0).toUpperCase() + type.slice(1)} (${orderedQuestions.length} Questions)`;
+    const title =
+      orderedQuestions.length === 1
+        ? `Practice Question: ${decksMap[orderedQuestions[0].deckId]?.lectureName || 'Lecture'}`
+        : `Practice: ${type.charAt(0).toUpperCase() + type.slice(1)} (${orderedQuestions.length} Questions)`;
 
     const collectionDebugInfo: OrderDebugInfo = {
       selectedMode: 'sequential',
@@ -959,12 +962,14 @@ export default function App() {
                 questions={questions}
                 decksMap={decksMap}
                 userStatuses={userStatuses}
+                attempts={attempts}
                 onStartPracticeCollection={handleStartPracticeCollection}
                 onRemoveFromCollection={handleRemoveFromCollection}
                 onOpenDeckView={(deckId) => {
                   const d = decksMap[deckId];
                   if (d) handleOpenDeckDetail(d);
                 }}
+                onOpenOriginalLocation={handleOpenQuestionInDeck}
               />
             </ErrorBoundary>
           )}
