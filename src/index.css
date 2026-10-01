@@ -212,7 +212,17 @@
 }
 
 /* Card surfaces */
-.theme-light .bg-slate-900 {
+.theme-light .bg-slate-900,
+.theme-light .bg-slate-900\/95,
+.theme-light .bg-slate-900\/90,
+.theme-light .bg-slate-900\/85,
+.theme-light .bg-slate-900\/80,
+.theme-light .bg-slate-900\/70,
+.theme-light .bg-slate-900\/60,
+.theme-light .bg-slate-900\/50,
+.theme-light .bg-slate-900\/40,
+.theme-light .bg-slate-900\/30,
+.theme-light .bg-slate-900\/20 {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
@@ -223,33 +233,59 @@
 .theme-light .bg-slate-950\/90,
 .theme-light .bg-slate-950\/85,
 .theme-light .bg-slate-950\/80,
+.theme-light .bg-slate-950\/75,
+.theme-light .bg-slate-950\/70,
 .theme-light .bg-slate-950\/60,
 .theme-light .bg-slate-950\/50,
-.theme-light .bg-slate-950\/40 {
+.theme-light .bg-slate-950\/40,
+.theme-light .bg-slate-950\/30,
+.theme-light .bg-slate-950\/20 {
   background-color: #f8fafc !important;
 }
 
 .theme-light .bg-slate-850,
 .theme-light .bg-slate-800,
+.theme-light .bg-slate-800\/90,
 .theme-light .bg-slate-800\/80,
+.theme-light .bg-slate-800\/70,
 .theme-light .bg-slate-800\/60,
-.theme-light .bg-slate-800\/50 {
+.theme-light .bg-slate-800\/50,
+.theme-light .bg-slate-800\/40,
+.theme-light .bg-slate-800\/30,
+.theme-light .bg-slate-800\/20 {
   background-color: #f1f5f9 !important;
 }
 
 /* Borders */
 .theme-light .border-slate-800,
+.theme-light .border-slate-800\/90,
 .theme-light .border-slate-800\/80,
+.theme-light .border-slate-800\/70,
 .theme-light .border-slate-800\/60,
 .theme-light .border-slate-800\/50,
 .theme-light .border-slate-800\/40,
-.theme-light .border-slate-800\/30 {
+.theme-light .border-slate-800\/30,
+.theme-light .border-slate-800\/20 {
   border-color: #e2e8f0 !important;
 }
 
 .theme-light .border-slate-700,
-.theme-light .border-slate-700\/80 {
+.theme-light .border-slate-700\/90,
+.theme-light .border-slate-700\/80,
+.theme-light .border-slate-700\/70,
+.theme-light .border-slate-700\/60,
+.theme-light .border-slate-700\/50,
+.theme-light .border-slate-700\/40,
+.theme-light .border-slate-700\/30 {
   border-color: #cbd5e1 !important;
+}
+
+.theme-light .divide-slate-800,
+.theme-light .divide-slate-800\/80,
+.theme-light .divide-slate-800\/60,
+.theme-light .divide-slate-800\/50,
+.theme-light .divide-slate-800\/40 {
+  border-color: #e2e8f0 !important;
 }
 
 /* Typography Hierarchy in Light Mode */
@@ -397,7 +433,12 @@
 .theme-light .bg-slate-950\/75,
 .theme-light .bg-slate-950\/70,
 .theme-light .bg-slate-950\/60,
-.theme-light .bg-slate-950\/50 {
+.theme-light .bg-slate-950\/50,
+.theme-light .bg-black\/80,
+.theme-light .bg-black\/75,
+.theme-light .bg-black\/70,
+.theme-light .bg-black\/60,
+.theme-light .bg-black\/50 {
   background-color: rgba(15, 23, 42, 0.45) !important;
 }
 

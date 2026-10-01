@@ -10,11 +10,12 @@ import {
   QuestionUserStatus,
   UserAttemptRecord,
   StudySessionState,
+  StudySessionRecord,
   TrashItem,
 } from '../types';
 
 const DB_NAME = 'APlusIsImpossible_DB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 class IndexedDBStorage {
   private db: IDBDatabase | null = null;
@@ -74,6 +75,14 @@ class IndexedDBStorage {
         // Active Sessions (by profileId)
         if (!db.objectStoreNames.contains('sessions')) {
           db.createObjectStore('sessions', { keyPath: 'profileId' });
+        }
+
+        // Session History store (permanent historical study records)
+        if (!db.objectStoreNames.contains('session_history')) {
+          const sHistStore = db.createObjectStore('session_history', { keyPath: 'id' });
+          sHistStore.createIndex('by_profileId', 'profileId', { unique: false });
+          sHistStore.createIndex('by_completedAt', 'completedAt', { unique: false });
+          sHistStore.createIndex('by_date', 'date', { unique: false });
         }
 
         // Trash Bin
@@ -344,6 +353,167 @@ class IndexedDBStorage {
     await this.transaction('sessions', 'readwrite', (store) => store.delete(profileId));
   }
 
+  // --- Study Session History (Single Source of Truth) ---
+  async getSessionHistory(profileId: string = 'workspace'): Promise<StudySessionRecord[]> {
+    const db = await this.getDB();
+    if (!db.objectStoreNames.contains('session_history')) return [];
+    try {
+      const records = await new Promise<StudySessionRecord[]>((resolve, reject) => {
+        const tx = db.transaction('session_history', 'readonly');
+        const store = tx.objectStore('session_history');
+        const index = store.index('by_profileId');
+        const req = index.getAll(profileId);
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      return (records || []).sort((a, b) => a.completedAt - b.completedAt);
+    } catch {
+      return [];
+    }
+  }
+
+  async saveSessionRecord(record: StudySessionRecord): Promise<void> {
+    const db = await this.getDB();
+    if (!db.objectStoreNames.contains('session_history')) return;
+    await this.transaction('session_history', 'readwrite', (store) => store.put(record));
+  }
+
+  async deleteSessionRecord(id: string): Promise<void> {
+    const db = await this.getDB();
+    if (!db.objectStoreNames.contains('session_history')) return;
+    await this.transaction('session_history', 'readwrite', (store) => store.delete(id));
+  }
+
+  async clearSessionHistory(profileId: string = 'workspace'): Promise<void> {
+    const db = await this.getDB();
+    if (!db.objectStoreNames.contains('session_history')) return;
+    const history = await this.getSessionHistory(profileId);
+    for (const h of history) {
+      await this.transaction('session_history', 'readwrite', (store) => store.delete(h.id));
+    }
+  }
+
+  /**
+   * Reconstructs real historical study session records from existing attempts
+   * if no session_history records exist yet (e.g. existing user data migration).
+   */
+  async reconstructSessionHistoryFromAttemptsIfEmpty(
+    profileId: string = 'workspace'
+  ): Promise<StudySessionRecord[]> {
+    const existingHistory = await this.getSessionHistory(profileId);
+    if (existingHistory.length > 0) {
+      return existingHistory;
+    }
+
+    const attempts = await this.getAttemptsByProfile(profileId);
+    if (attempts.length === 0) {
+      return [];
+    }
+
+    // Sort chronologically
+    const sorted = [...attempts].sort((a, b) => a.timestamp - b.timestamp);
+
+    // Group into logical sessions (time gap > 25 minutes or deck change with gap > 5 mins)
+    const clusters: UserAttemptRecord[][] = [];
+    let currentCluster: UserAttemptRecord[] = [];
+
+    for (const att of sorted) {
+      if (currentCluster.length === 0) {
+        currentCluster.push(att);
+      } else {
+        const last = currentCluster[currentCluster.length - 1];
+        const timeDiff = att.timestamp - last.timestamp;
+        const isSameDeck = att.deckId === last.deckId;
+
+        if (timeDiff < 25 * 60 * 1000 || (isSameDeck && timeDiff < 45 * 60 * 1000)) {
+          currentCluster.push(att);
+        } else {
+          clusters.push(currentCluster);
+          currentCluster = [att];
+        }
+      }
+    }
+    if (currentCluster.length > 0) {
+      clusters.push(currentCluster);
+    }
+
+    const decks = await this.getDecks();
+    const decksMap = new Map(decks.map((d) => [d.id, d]));
+
+    const reconstructed: StudySessionRecord[] = [];
+
+    for (let i = 0; i < clusters.length; i++) {
+      const cluster = clusters[i];
+      const startedAt = cluster[0].timestamp;
+      const lastAttempt = cluster[cluster.length - 1];
+      const completedAt = lastAttempt.timestamp + Math.min(120, lastAttempt.timeSpentSeconds || 30) * 1000;
+      const durationSeconds = cluster.reduce((sum, a) => sum + (a.timeSpentSeconds || 25), 0);
+
+      const correctCount = cluster.filter((a) => a.isCorrect).length;
+      const incorrectCount = cluster.length - correctCount;
+      const totalQuestions = cluster.length;
+      const accuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+      const score = accuracy;
+
+      const deckIds = Array.from(new Set(cluster.map((a) => a.deckId)));
+      const deckTitles = Array.from(
+        new Set(
+          cluster.map((a) => {
+            const d = decksMap.get(a.deckId);
+            return d ? d.lectureName : a.lectureName || 'Medical Lecture';
+          })
+        )
+      );
+      const modules = Array.from(new Set(cluster.map((a) => a.module).filter(Boolean)));
+      const subjects = Array.from(new Set(cluster.map((a) => a.subject).filter(Boolean)));
+      const years = Array.from(new Set(cluster.map((a) => a.year).filter(Boolean)));
+
+      const sessionTitle = deckTitles.length === 1
+        ? deckTitles[0]
+        : deckTitles.length > 1
+        ? `${deckTitles[0]} + ${deckTitles.length - 1} more`
+        : 'Study Practice Session';
+
+      const dObj = new Date(startedAt);
+      const localDate = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+
+      const record: StudySessionRecord = {
+        id: `sess_hist_${startedAt}_${i}`,
+        profileId,
+        sessionTitle,
+        date: localDate,
+        startedAt,
+        completedAt,
+        durationSeconds: Math.max(30, durationSeconds),
+        totalQuestions,
+        questionsAttempted: totalQuestions,
+        unansweredCount: 0,
+        correctAnswers: correctCount,
+        incorrectAnswers: incorrectCount,
+        accuracy,
+        score,
+        deckIds,
+        deckTitles,
+        modules,
+        subjects,
+        years,
+        questionTypes: ['mcq'],
+        mode: 'sequential',
+        questionResults: cluster.map((a) => ({
+          questionId: a.questionId,
+          deckId: a.deckId,
+          isCorrect: a.isCorrect,
+          timeSpentSeconds: a.timeSpentSeconds,
+        })),
+      };
+
+      await this.saveSessionRecord(record);
+      reconstructed.push(record);
+    }
+
+    return reconstructed;
+  }
+
   // --- Trash Bin ---
   async getTrashItems(profileId: string): Promise<TrashItem[]> {
     const db = await this.getDB();
@@ -435,10 +605,11 @@ class IndexedDBStorage {
     const question_status = await getStoreAll('question_status');
     const attempts = await getStoreAll('attempts');
     const sessions = await getStoreAll('sessions');
+    const session_history = await getStoreAll('session_history');
     const trash = await getStoreAll('trash');
 
     return {
-      version: 1,
+      version: 2,
       exportedAt: Date.now(),
       platform: 'A+ is Impossible',
       data: {
@@ -449,6 +620,7 @@ class IndexedDBStorage {
         question_status,
         attempts,
         sessions,
+        session_history,
         trash,
       },
     };
@@ -460,20 +632,24 @@ class IndexedDBStorage {
       throw new Error('Invalid backup file format: Missing data envelope or question structures.');
     }
     const data = dump.data || dump;
-    const { profiles, settings, decks, questions, question_status, attempts, sessions, trash } = data;
+    const { profiles, settings, decks, questions, question_status, attempts, sessions, session_history, trash } = data;
 
     const db = await this.getDB();
     if (mode === 'overwrite') {
       await new Promise((resolve, reject) => {
-        const tx = db.transaction(
-          ['decks', 'questions', 'sessions', 'attempts', 'question_status', 'trash'],
-          'readwrite'
-        );
+        const storeNames = ['decks', 'questions', 'sessions', 'attempts', 'question_status', 'trash'];
+        if (db.objectStoreNames.contains('session_history')) {
+          storeNames.push('session_history');
+        }
+        const tx = db.transaction(storeNames, 'readwrite');
         tx.objectStore('decks').clear();
         tx.objectStore('questions').clear();
         tx.objectStore('sessions').clear();
         tx.objectStore('attempts').clear();
         tx.objectStore('question_status').clear();
+        if (db.objectStoreNames.contains('session_history')) {
+          tx.objectStore('session_history').clear();
+        }
         try {
           tx.objectStore('trash').clear();
         } catch {}
@@ -484,6 +660,7 @@ class IndexedDBStorage {
 
     const putAll = async (storeName: string, items?: any[]) => {
       if (!items || !items.length) return;
+      if (!db.objectStoreNames.contains(storeName)) return;
       const tx = db.transaction(storeName, 'readwrite');
       const store = tx.objectStore(storeName);
       for (const item of items) {
@@ -502,6 +679,7 @@ class IndexedDBStorage {
     if (question_status) await putAll('question_status', question_status);
     if (attempts) await putAll('attempts', attempts);
     if (sessions) await putAll('sessions', sessions);
+    if (session_history) await putAll('session_history', session_history);
     if (trash) await putAll('trash', trash);
   }
 
@@ -519,8 +697,9 @@ class IndexedDBStorage {
       await this.transaction('attempts', 'readwrite', (store) => store.delete(att.id));
     }
 
-    // 2. Clear active study session
+    // 2. Clear active study session & historical study session records
     await this.clearActiveSession(profileId);
+    await this.clearSessionHistory(profileId);
 
     // 3. Reset deck performance scores & timestamps
     const decks = await this.getDecks();
@@ -555,8 +734,9 @@ class IndexedDBStorage {
     // Delete settings
     await this.transaction('settings', 'readwrite', (store) => store.delete(profileId));
 
-    // Delete active sessions
+    // Delete active sessions & session history
     await this.clearActiveSession(profileId);
+    await this.clearSessionHistory(profileId);
 
     // Delete attempts
     const attempts = await this.getAttemptsByProfile(profileId);
@@ -578,18 +758,25 @@ class IndexedDBStorage {
 
   /**
    * 3. DELETE ALL DECKS:
-   * Removes all lecture decks, questions, active sessions, and question associations.
+   * Removes all lecture decks, questions, active sessions, session history, and question associations.
    * Keeps profile and preferences.
    */
   async deleteAllDecks(): Promise<void> {
     const db = await this.getDB();
     await new Promise((resolve, reject) => {
-      const tx = db.transaction(['decks', 'questions', 'sessions', 'attempts', 'question_status'], 'readwrite');
+      const storeNames = ['decks', 'questions', 'sessions', 'attempts', 'question_status'];
+      if (db.objectStoreNames.contains('session_history')) {
+        storeNames.push('session_history');
+      }
+      const tx = db.transaction(storeNames, 'readwrite');
       tx.objectStore('decks').clear();
       tx.objectStore('questions').clear();
       tx.objectStore('sessions').clear();
       tx.objectStore('attempts').clear();
       tx.objectStore('question_status').clear();
+      if (db.objectStoreNames.contains('session_history')) {
+        tx.objectStore('session_history').clear();
+      }
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => reject(tx.error);
     });

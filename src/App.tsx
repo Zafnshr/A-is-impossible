@@ -13,6 +13,7 @@ import {
   SessionCompletionSummary,
   TrashItem,
   OrderDebugInfo,
+  StudySessionRecord,
 } from './types';
 import { dbService } from './services/db';
 import { createDefaultSettings } from './services/defaultSettings';
@@ -52,6 +53,7 @@ export default function App() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [userStatuses, setUserStatuses] = useState<QuestionUserStatus[]>([]);
   const [attempts, setAttempts] = useState<UserAttemptRecord[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<StudySessionRecord[]>([]);
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
 
   // Navigation & Sessions
@@ -83,10 +85,10 @@ export default function App() {
   const reloadData = useCallback(async () => {
     try {
       // Check if a pre-bundled snapshot was injected into single-file HTML
-      if ((window as any).__A_PLUS_INITIAL_DATA__) {
+      if (typeof window !== 'undefined' && (window as any).__A_PLUS_INITIAL_DATA__) {
         try {
           await dbService.importFullDump((window as any).__A_PLUS_INITIAL_DATA__);
-          delete (window as any).__A_PLUS_INITIAL_DATA__;
+          (window as any).__A_PLUS_INITIAL_DATA__ = null;
         } catch (e) {
           console.warn('Failed to restore embedded snapshot:', e);
         }
@@ -102,8 +104,13 @@ export default function App() {
 
       const loadedStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
       const loadedAttempts = await dbService.getAttemptsByProfile(WORKSPACE_ID);
+      let loadedSessionHistory = await dbService.getSessionHistory(WORKSPACE_ID);
+      if (loadedSessionHistory.length === 0 && loadedAttempts.length > 0) {
+        loadedSessionHistory = await dbService.reconstructSessionHistoryFromAttemptsIfEmpty(WORKSPACE_ID);
+      }
       setUserStatuses(loadedStatuses);
       setAttempts(loadedAttempts);
+      setSessionHistory(loadedSessionHistory);
 
       const loadedTrash = await dbService.getTrashItems(WORKSPACE_ID);
       setTrashItems(loadedTrash);
@@ -158,29 +165,44 @@ export default function App() {
     }
   }, []);
 
-  // Service Worker for offline PWA with proactive update checking
+  // Service Worker for offline PWA with proactive update checking (strictly guarded for http/https only)
   useEffect(() => {
-    if ('serviceWorker' in navigator && process.env.NODE_ENV !== 'development') {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then((reg) => {
-          reg.update().catch(() => {});
-        })
-        .catch(() => {});
+    try {
+      const isDev = Boolean(import.meta.env?.DEV);
+      const isHttpOrHttps =
+        typeof window !== 'undefined' &&
+        (window.location.protocol === 'http:' || window.location.protocol === 'https:');
 
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
-        }
-      });
+      if ('serviceWorker' in navigator && !isDev && isHttpOrHttps) {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => {
+            reg.update().catch(() => {});
+          })
+          .catch(() => {});
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+      }
+    } catch {
+      // Ignore service worker registration issues in restricted browser contexts
     }
   }, []);
 
   // Theme, Typography & Contrast Class synchronization
   useEffect(() => {
     const root = document.documentElement;
+    try {
+      localStorage.setItem('a_plus_theme', settings.theme);
+    } catch {
+      // Ignore localStorage restrictions
+    }
+
     if (settings.theme === 'light') {
       root.classList.add('theme-light');
       root.classList.remove('theme-dark', 'dark');
@@ -349,6 +371,68 @@ export default function App() {
         const deckScore = dAnswered > 0 ? Math.round((dCorrect / dAnswered) * 100) : summary.scorePercentage;
         await dbService.updateDeckStats(dId, deckScore);
       }
+
+      // Record to permanent session_history
+      const deckTitles = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.lectureName || id))
+      );
+      const modules = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.module).filter(Boolean) as string[])
+      );
+      const subjects = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.subject).filter(Boolean) as string[])
+      );
+      const years = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.year).filter(Boolean) as string[])
+      );
+
+      const dObj = new Date(summary.completedAt);
+      const localDate = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+
+      const sessionRecord: StudySessionRecord = {
+        id: activeSession.sessionId || `session_${Date.now()}`,
+        profileId: WORKSPACE_ID,
+        sessionTitle: activeSession.sessionTitle || summary.deckTitle,
+        date: localDate,
+        startedAt: activeSession.startedAt || (summary.completedAt - summary.timeSpentSeconds * 1000),
+        completedAt: summary.completedAt,
+        durationSeconds: summary.timeSpentSeconds,
+        totalQuestions: summary.totalQuestions,
+        questionsAttempted: summary.solvedCount,
+        unansweredCount: summary.unansweredCount,
+        correctAnswers: summary.correctCount,
+        incorrectAnswers: summary.incorrectCount,
+        accuracy: summary.solvedCount > 0 ? Math.round((summary.correctCount / summary.solvedCount) * 100) : 0,
+        score: summary.scorePercentage,
+        deckIds: targetDeckIds,
+        deckTitles,
+        modules,
+        subjects,
+        years,
+        questionTypes: Array.from(new Set(sessionQuestions.map((q) => q.type))),
+        mode: activeSession.mode,
+        collectionType: activeSession.collectionFilter,
+        questionResults: sessionQuestions.map((q) => {
+          const isSubmitted = !!activeSession.submittedQuestions[q.id];
+          const userAns = activeSession.userAnswers[q.id];
+          let isCorrect = false;
+          if (isSubmitted) {
+            if (q.type === 'single_mcq' || q.type === 'true_false') {
+              isCorrect = q.correctAnswers.includes(userAns);
+            } else if (q.type === 'multiple_mcq') {
+              const arr = Array.isArray(userAns) ? userAns : [];
+              isCorrect = arr.length === q.correctAnswers.length && arr.every((i) => q.correctAnswers.includes(i));
+            }
+          }
+          return {
+            questionId: q.id,
+            deckId: q.deckId,
+            isCorrect,
+          };
+        }),
+      };
+
+      await dbService.saveSessionRecord(sessionRecord);
     }
 
     await dbService.clearActiveSession(WORKSPACE_ID);
@@ -430,6 +514,68 @@ export default function App() {
         const deckScore = dAnswered > 0 ? Math.round((dCorrect / dAnswered) * 100) : score;
         await dbService.updateDeckStats(dId, deckScore);
       }
+
+      // Record to permanent session_history
+      const deckTitles = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.lectureName || id))
+      );
+      const modules = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.module).filter(Boolean) as string[])
+      );
+      const subjects = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.subject).filter(Boolean) as string[])
+      );
+      const years = Array.from(
+        new Set(targetDeckIds.map((id) => decksMap[id]?.year).filter(Boolean) as string[])
+      );
+
+      const dObj = new Date(summary.completedAt);
+      const localDate = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+
+      const sessionRecord: StudySessionRecord = {
+        id: activeSession.sessionId || `session_${Date.now()}`,
+        profileId: WORKSPACE_ID,
+        sessionTitle: activeSession.sessionTitle || summary.deckTitle,
+        date: localDate,
+        startedAt: activeSession.startedAt || (summary.completedAt - summary.timeSpentSeconds * 1000),
+        completedAt: summary.completedAt,
+        durationSeconds: summary.timeSpentSeconds,
+        totalQuestions: summary.totalQuestions,
+        questionsAttempted: summary.solvedCount,
+        unansweredCount: summary.unansweredCount,
+        correctAnswers: summary.correctCount,
+        incorrectAnswers: summary.incorrectCount,
+        accuracy: summary.solvedCount > 0 ? Math.round((summary.correctCount / summary.solvedCount) * 100) : 0,
+        score: summary.scorePercentage,
+        deckIds: targetDeckIds,
+        deckTitles,
+        modules,
+        subjects,
+        years,
+        questionTypes: Array.from(new Set(sessionQuestions.map((q) => q.type))),
+        mode: activeSession.mode,
+        collectionType: activeSession.collectionFilter,
+        questionResults: sessionQuestions.map((q) => {
+          const isSubmitted = !!activeSession.submittedQuestions[q.id];
+          const userAns = activeSession.userAnswers[q.id];
+          let isCorrect = false;
+          if (isSubmitted) {
+            if (q.type === 'single_mcq' || q.type === 'true_false') {
+              isCorrect = q.correctAnswers.includes(userAns);
+            } else if (q.type === 'multiple_mcq') {
+              const arr = Array.isArray(userAns) ? userAns : [];
+              isCorrect = arr.length === q.correctAnswers.length && arr.every((i) => q.correctAnswers.includes(i));
+            }
+          }
+          return {
+            questionId: q.id,
+            deckId: q.deckId,
+            isCorrect,
+          };
+        }),
+      };
+
+      await dbService.saveSessionRecord(sessionRecord);
 
       setCompletionSummary(summary);
       await dbService.clearActiveSession(WORKSPACE_ID);
@@ -1009,6 +1155,7 @@ export default function App() {
                 decks={decks}
                 questions={questions}
                 statuses={userStatuses}
+                sessionHistory={sessionHistory}
               />
             </ErrorBoundary>
           )}

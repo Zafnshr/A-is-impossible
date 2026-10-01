@@ -153,6 +153,37 @@ export interface SessionCompletionSummary {
   incorrectQuestionIds: string[];
 }
 
+export interface StudySessionRecord {
+  id: string;
+  profileId: string;
+  sessionTitle: string;
+  date: string; // 'YYYY-MM-DD' in local time
+  startedAt: number;
+  completedAt: number;
+  durationSeconds: number;
+  totalQuestions: number;
+  questionsAttempted: number;
+  unansweredCount: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  accuracy: number; // Correct / Attempted * 100
+  score: number; // Final score achieved in session
+  deckIds: string[];
+  deckTitles: string[];
+  modules: string[];
+  subjects: string[];
+  years: string[];
+  questionTypes: string[];
+  mode: string;
+  collectionType?: 'favorites' | 'flagged' | 'incorrect';
+  questionResults?: {
+    questionId: string;
+    deckId?: string;
+    isCorrect: boolean;
+    timeSpentSeconds?: number;
+  }[];
+}
+
 export interface UserProfile {
   id: string;
   name: string;

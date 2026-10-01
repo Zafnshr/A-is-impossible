@@ -18,6 +18,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('a_plus_theme');
+          if (t === 'light' || (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+            document.documentElement.classList.add('theme-light');
+            document.documentElement.classList.remove('theme-dark', 'dark');
+          } else {
+            document.documentElement.classList.add('theme-dark', 'dark');
+            document.documentElement.classList.remove('theme-light');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-canvas text-primary font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-600 dark:selection:text-cyan-200">
     <div id="root"></div>

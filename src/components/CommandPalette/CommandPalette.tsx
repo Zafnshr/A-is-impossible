@@ -167,29 +167,29 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[75vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
+      <div className="w-full max-w-xl bg-surface border border-subtle rounded-2xl shadow-dropdown overflow-hidden flex flex-col max-h-[75vh]">
         {/* Search Input Bar */}
-        <div className="flex items-center px-4 py-3 border-b border-slate-800 gap-3">
-          <Search className="w-5 h-5 text-cyan-400 shrink-0" />
+        <div className="flex items-center px-4 py-3 border-b border-subtle gap-3">
+          <Search className="w-5 h-5 text-cyan-500 shrink-0" />
           <input
             type="text"
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Type a command, search lectures, or search question stems..."
-            className="flex-1 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-primary placeholder:text-muted focus:outline-none"
           />
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] font-mono border border-slate-700">
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-subtle text-muted text-[10px] font-mono border border-subtle">
             ESC
           </kbd>
         </div>
 
         {/* Scrollable Results */}
-        <div className="p-2 overflow-y-auto space-y-4 divide-y divide-slate-800/60">
+        <div className="p-2 overflow-y-auto space-y-4 divide-y divide-subtle">
           {/* Quick Actions */}
           <div className="space-y-1">
-            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">
               Quick Commands
             </div>
             {actions
@@ -200,13 +200,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <button
                     key={act.id}
                     onClick={act.action}
-                    className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-850 flex items-center justify-between text-xs text-slate-200 transition group"
+                    className="w-full px-3 py-2 rounded-xl text-left hover:bg-subtle flex items-center justify-between text-xs text-secondary hover:text-primary transition group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <Icon className="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition" />
+                      <Icon className="w-4 h-4 text-muted group-hover:text-cyan-500 transition" />
                       <div>
-                        <div className="font-semibold text-white">{act.label}</div>
-                        <div className="text-[11px] text-slate-400">{act.desc}</div>
+                        <div className="font-semibold text-primary">{act.label}</div>
+                        <div className="text-[11px] text-muted">{act.desc}</div>
                       </div>
                     </div>
                   </button>
@@ -217,7 +217,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {/* Decks matching search */}
           {filteredDecks.length > 0 && (
             <div className="pt-2 space-y-1">
-              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">
                 Lecture Decks ({filteredDecks.length})
               </div>
               {filteredDecks.slice(0, 4).map((d) => (
@@ -227,18 +227,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     onStartStudyDeck(d.id);
                     onClose();
                   }}
-                  className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-850 flex items-center justify-between text-xs text-slate-200 transition"
+                  className="w-full px-3 py-2 rounded-xl text-left hover:bg-subtle flex items-center justify-between text-xs text-secondary hover:text-primary transition"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Play className="w-3.5 h-3.5 text-cyan-400" />
+                    <Play className="w-3.5 h-3.5 text-cyan-500" />
                     <div>
-                      <div className="font-semibold text-white">{d.lectureName}</div>
-                      <div className="text-[11px] text-slate-400">
+                      <div className="font-semibold text-primary">{d.lectureName}</div>
+                      <div className="text-[11px] text-muted">
                         {d.year} · {d.module} · {d.subject} ({d.questionCount} Qs)
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] text-cyan-400 font-mono font-bold">Study →</span>
+                  <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono font-bold">Study →</span>
                 </button>
               ))}
             </div>
@@ -247,7 +247,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {/* Questions matching search */}
           {filteredQuestions.length > 0 && (
             <div className="pt-2 space-y-1">
-              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">
                 Questions
               </div>
               {filteredQuestions.map((q) => (
@@ -257,10 +257,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                     onStartStudyDeck(q.deckId);
                     onClose();
                   }}
-                  className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-850 text-xs text-slate-200 transition space-y-0.5"
+                  className="w-full px-3 py-2 rounded-xl text-left hover:bg-subtle text-xs text-secondary hover:text-primary transition space-y-0.5"
                 >
-                  <div className="font-medium text-white truncate">{q.question}</div>
-                  <div className="text-[10px] text-slate-400 capitalize">
+                  <div className="font-medium text-primary truncate">{q.question}</div>
+                  <div className="text-[10px] text-muted capitalize">
                     {q.type.replace('_', ' ')} · Open in deck
                   </div>
                 </button>

@@ -217,21 +217,21 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
   return (
     <div className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
       {/* Top Header & Action Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-subtle">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-            <FolderTree className="w-6 h-6 text-cyan-400" />
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-primary flex items-center gap-2">
+            <FolderTree className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
             Decks & Curricula
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Organized strictly as <span className="text-cyan-300 font-mono">Year → Module → Subject → Lecture Deck</span>
+          <p className="text-xs text-secondary mt-1">
+            Organized strictly as <span className="text-cyan-600 dark:text-cyan-300 font-mono">Year → Module → Subject → Lecture Deck</span>
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {selectedDeckIds.length > 0 && (
-            <div className="flex items-center gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl text-xs">
-              <span className="px-2 font-mono text-cyan-400">{selectedDeckIds.length} selected</span>
+            <div className="flex items-center gap-2 p-1 bg-surface border border-subtle rounded-xl text-xs">
+              <span className="px-2 font-mono text-cyan-600 dark:text-cyan-400">{selectedDeckIds.length} selected</span>
               <Tooltip content="Merge selected decks into a single consolidated lecture">
                 <button
                   onClick={() => setMergeModalOpen(true)}
@@ -257,7 +257,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
           <Tooltip content="Create a new lecture question deck">
             <button
               onClick={openCreateModal}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md shadow-cyan-950 transition"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition"
             >
               <Plus className="w-4 h-4" />
               <span>Create Deck</span>
@@ -269,13 +269,13 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
       {/* Filter and Search Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search decks, lectures, or subjects..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            className="w-full pl-9 pr-3 py-2 bg-surface border border-subtle rounded-xl text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
           />
         </div>
 
@@ -283,7 +283,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
-            className="w-full p-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:ring-1 focus:ring-cyan-500"
+            className="w-full p-2 bg-surface border border-subtle rounded-xl text-xs text-primary focus:ring-1 focus:ring-cyan-500"
           >
             <option value="all">All Academic Years</option>
             {years.map((y) => (
@@ -298,7 +298,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
           <select
             value={selectedModule}
             onChange={(e) => setSelectedModule(e.target.value)}
-            className="w-full p-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:ring-1 focus:ring-cyan-500"
+            className="w-full p-2 bg-surface border border-subtle rounded-xl text-xs text-primary focus:ring-1 focus:ring-cyan-500"
           >
             <option value="all">All Integrated Modules</option>
             {modules.map((m) => (
@@ -313,29 +313,29 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
       {/* Hierarchy Browser */}
       <div className="space-y-4">
         {Object.keys(hierarchy).length === 0 ? (
-          <div className="p-8 text-center bg-slate-900/60 border border-slate-800 rounded-2xl">
-            <p className="text-sm text-slate-400">No decks found matching the active filters.</p>
+          <div className="p-8 text-center bg-subtle border border-subtle rounded-2xl">
+            <p className="text-sm text-secondary">No decks found matching the active filters.</p>
           </div>
         ) : (
           Object.entries(hierarchy).map(([yearName, moduleGroup]) => {
             const isYearExpanded = expandedNodes[yearName] !== false;
 
             return (
-              <div key={yearName} className="rounded-2xl border border-slate-800/80 bg-slate-900/40 overflow-hidden">
+              <div key={yearName} className="rounded-2xl border border-subtle bg-subtle/40 overflow-hidden">
                 {/* Year Header */}
                 <button
                   onClick={() => toggleExpand(yearName)}
-                  className="w-full px-4 py-3 bg-slate-900/90 hover:bg-slate-850 flex items-center justify-between text-left transition border-b border-slate-800/60"
+                  className="w-full px-4 py-3 bg-surface hover:bg-subtle flex items-center justify-between text-left transition border-b border-subtle"
                 >
                   <div className="flex items-center gap-2">
                     {isYearExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-cyan-400" />
+                      <ChevronDown className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                     ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                      <ChevronRight className="w-4 h-4 text-muted" />
                     )}
-                    <span className="text-sm font-bold text-white tracking-wide">{yearName}</span>
+                    <span className="text-sm font-bold text-primary tracking-wide">{yearName}</span>
                   </div>
-                  <span className="text-[11px] font-mono text-slate-400">
+                  <span className="text-[11px] font-mono text-secondary">
                     {Object.values(moduleGroup).reduce(
                       (acc, sGroup) =>
                         acc +
@@ -356,23 +356,23 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                       return (
                         <div
                           key={moduleName}
-                          className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden"
+                          className="rounded-xl border border-subtle bg-surface-elevated overflow-hidden"
                         >
                           <button
                             onClick={() => toggleExpand(modKey)}
-                            className="w-full px-3.5 py-2.5 bg-slate-900/60 hover:bg-slate-900 flex items-center justify-between text-left transition border-b border-slate-800/40"
+                            className="w-full px-3.5 py-2.5 bg-subtle/60 hover:bg-subtle flex items-center justify-between text-left transition border-b border-subtle"
                           >
                             <div className="flex items-center gap-2">
                               {isModExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />
+                                <ChevronDown className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 text-muted" />
                               )}
-                              <span className="text-xs font-bold text-cyan-300">
+                              <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400">
                                 {moduleName} Module
                               </span>
                             </div>
-                            <span className="text-[10px] font-mono text-slate-500">
+                            <span className="text-[10px] font-mono text-muted">
                               {Object.values(subjectGroup).reduce((acc, l) => acc + l.length, 0)}{' '}
                               Lectures
                             </span>
@@ -382,8 +382,8 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                             <div className="p-3 space-y-3">
                               {Object.entries(subjectGroup).map(([subjName, deckList]) => (
                                 <div key={subjName} className="space-y-2">
-                                  <div className="text-[11px] font-semibold text-slate-400 px-1 uppercase tracking-wider flex items-center gap-1.5">
-                                    <BookOpen className="w-3 h-3 text-cyan-400" />
+                                  <div className="text-[11px] font-semibold text-secondary px-1 uppercase tracking-wider flex items-center gap-1.5">
+                                    <BookOpen className="w-3 h-3 text-cyan-500" />
                                     <span>{subjName}</span>
                                   </div>
 
@@ -396,40 +396,40 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                                           key={deck.id}
                                           className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
                                             isSelected
-                                              ? 'border-cyan-500/80 bg-cyan-950/20'
-                                              : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+                                              ? 'border-cyan-500 bg-cyan-500/10'
+                                              : 'border-subtle bg-surface hover:border-cyan-500/50'
                                           }`}
                                         >
                                           <div className="flex items-start justify-between gap-2">
                                             <div className="flex items-start gap-2.5">
                                               <button
                                                 onClick={() => toggleSelectDeck(deck.id)}
-                                                className="mt-0.5 text-slate-400 hover:text-cyan-400"
+                                                className="mt-0.5 text-muted hover:text-cyan-500"
                                                 title="Select for bulk actions"
                                               >
                                                 {isSelected ? (
-                                                  <CheckSquare className="w-4 h-4 text-cyan-400" />
+                                                  <CheckSquare className="w-4 h-4 text-cyan-500" />
                                                 ) : (
                                                   <Square className="w-4 h-4" />
                                                 )}
                                               </button>
                                               <div>
-                                                <h4 className="text-xs sm:text-sm font-bold text-white hover:text-cyan-300 transition">
+                                                <h4 className="text-xs sm:text-sm font-bold text-primary hover:text-cyan-600 dark:hover:text-cyan-400 transition">
                                                   {deck.lectureName}
                                                 </h4>
                                                 {deck.description && (
-                                                  <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                                                  <p className="text-[11px] text-secondary line-clamp-1 mt-0.5">
                                                     {deck.description}
                                                   </p>
                                                 )}
                                               </div>
                                             </div>
-                                            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-cyan-400 shrink-0">
+                                            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-subtle border border-subtle text-cyan-600 dark:text-cyan-400 shrink-0">
                                               {deck.questionCount} Qs
                                             </span>
                                           </div>
 
-                                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs">
+                                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-subtle text-xs">
                                             <div className="flex items-center gap-1">
                                               <Tooltip content="Start interactive study session for this deck">
                                                 <button
@@ -444,7 +444,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                                               <Tooltip content="Edit questions inside Question Editor">
                                                 <button
                                                   onClick={() => onOpenEditorForDeck(deck.id)}
-                                                  className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-850 text-slate-300 border border-slate-800 transition"
+                                                  className="p-1.5 rounded-lg bg-subtle hover:bg-subtle/80 text-secondary border border-subtle transition"
                                                   title="Edit Questions"
                                                 >
                                                   <Edit2 className="w-3.5 h-3.5" />
@@ -456,7 +456,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                                               <Tooltip content="Rename / Modify deck metadata">
                                                 <button
                                                   onClick={() => openEditModal(deck)}
-                                                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+                                                  className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-subtle transition"
                                                 >
                                                   <Edit2 className="w-3.5 h-3.5" />
                                                 </button>
@@ -465,7 +465,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                                               <Tooltip content="Move deck to another Year, Module, or Subject">
                                                 <button
                                                   onClick={() => openMoveModal(deck)}
-                                                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+                                                  className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-subtle transition"
                                                 >
                                                   <MoveRight className="w-3.5 h-3.5" />
                                                 </button>
@@ -474,7 +474,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                                               <Tooltip content="Duplicate deck and its questions">
                                                 <button
                                                   onClick={() => onDuplicateDeck(deck.id)}
-                                                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition"
+                                                  className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-subtle transition"
                                                 >
                                                   <Copy className="w-3.5 h-3.5" />
                                                 </button>
@@ -483,7 +483,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                                               <Tooltip content="Move deck to Trash Bin">
                                                 <button
                                                   onClick={() => onDeleteDeck(deck.id)}
-                                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition"
+                                                  className="p-1.5 rounded-lg text-muted hover:text-rose-500 hover:bg-rose-500/10 transition"
                                                 >
                                                   <Trash2 className="w-3.5 h-3.5" />
                                                 </button>

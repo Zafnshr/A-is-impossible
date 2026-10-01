@@ -176,7 +176,11 @@ export async function exportSingleFileHtml(): Promise<StandaloneExportResult> {
   try {
     const fullDump = await dbService.exportFullDump();
     const dumpJson = JSON.stringify(fullDump).replace(/<\/script>/gi, '<\\/script>');
-    const injectionScript = `<script>window.__A_PLUS_INITIAL_DATA__ = ${dumpJson};</script>`;
+    const injectionScript = `<script>
+  // A+ is Impossible Standalone Offline Bootstrap
+  window.process = window.process || { env: { NODE_ENV: 'production' } };
+  window.__A_PLUS_INITIAL_DATA__ = ${dumpJson};
+</script>`;
 
     let bundleTemplate: string | null = null;
 
@@ -251,7 +255,7 @@ export async function exportSingleFileHtml(): Promise<StandaloneExportResult> {
     }
 
     // 4. Inject database snapshot
-    let finalHtml: string;
+    let finalHtml: string = bundleTemplate;
     if (bundleTemplate.includes('window.__A_PLUS_INITIAL_DATA__')) {
       finalHtml = bundleTemplate.replace(
         /<script[^>]*>window\.__A_PLUS_INITIAL_DATA__[\s\S]*?<\/script>/gi,
@@ -260,8 +264,11 @@ export async function exportSingleFileHtml(): Promise<StandaloneExportResult> {
     } else if (bundleTemplate.includes('</head>')) {
       finalHtml = bundleTemplate.replace('</head>', `${injectionScript}\n</head>`);
     } else {
-      finalHtml = injectionScript + bundleTemplate;
+      finalHtml = `${injectionScript}\n${bundleTemplate}`;
     }
+
+    // Sanitize inline scripts: remove crossorigin attribute that can trigger origin null CORS blocks on file://
+    finalHtml = finalHtml.replace(/<script\b([^>]*)\bcrossorigin(?:=["'][^"']*["'])?([^>]*)>/gi, '<script$1$2>');
 
     // 5. Rigorous Validation Check
     const validation = validateStandaloneHtml(finalHtml);

@@ -187,10 +187,10 @@ export const OrderDebugModal: React.FC<OrderDebugModalProps> = ({
                 <span className="text-[11px] font-bold text-secondary uppercase tracking-wider">
                   Engine Execution Log
                 </span>
-                <div className="p-3 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[11px] space-y-1.5 border border-slate-800">
+                <div className="p-3 bg-subtle text-primary rounded-2xl font-mono text-[11px] space-y-1.5 border border-subtle">
                   {debugInfo.transformations.map((trans, idx) => (
                     <div key={idx} className="flex items-start gap-2">
-                      <span className="text-cyan-400 select-none">[{idx + 1}]</span>
+                      <span className="text-cyan-600 dark:text-cyan-400 select-none">[{idx + 1}]</span>
                       <span className="leading-relaxed">{trans}</span>
                     </div>
                   ))}
