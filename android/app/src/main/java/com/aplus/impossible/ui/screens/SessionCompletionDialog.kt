@@ -1,5 +1,7 @@
 package com.aplus.impossible.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -46,7 +48,7 @@ fun SessionCompletionDialog(
                 .wrapContentHeight(),
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             shape = RoundedCornerShape(24.dp),
-            border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(DarkCardBorder, PrimaryCyan.copy(alpha = 0.5f))))
+            border = BorderStroke(1.dp, Brush.linearGradient(listOf(DarkCardBorder, PrimaryCyan.copy(alpha = 0.5f))))
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),

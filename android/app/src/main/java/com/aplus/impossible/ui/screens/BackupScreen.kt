@@ -1,5 +1,7 @@
 package com.aplus.impossible.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -127,7 +129,7 @@ fun BackupScreen(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DarkSurface),
                     shape = RoundedCornerShape(14.dp),
-                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                    border = BorderStroke(1.dp, DarkCardBorder)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Export Everything", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -160,7 +162,7 @@ fun BackupScreen(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DarkSurface),
                     shape = RoundedCornerShape(14.dp),
-                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                    border = BorderStroke(1.dp, DarkCardBorder)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Import & Restore", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -196,7 +198,7 @@ fun BackupScreen(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DarkSurface),
                     shape = RoundedCornerShape(14.dp),
-                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(ErrorRed.copy(alpha = 0.4f)))
+                    border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.4f))
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),

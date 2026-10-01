@@ -1,5 +1,7 @@
 package com.aplus.impossible.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -197,7 +199,7 @@ fun CollectionsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = DarkSurface),
                             shape = RoundedCornerShape(12.dp),
-                            border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                            border = BorderStroke(1.dp, DarkCardBorder)
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Row(

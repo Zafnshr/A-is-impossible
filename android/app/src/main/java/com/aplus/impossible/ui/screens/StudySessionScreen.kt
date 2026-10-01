@@ -1,5 +1,7 @@
 package com.aplus.impossible.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -233,7 +235,7 @@ fun StudySessionScreen(
                         Card(
                             colors = CardDefaults.cardColors(containerColor = PurpleCase.copy(alpha = 0.1f)),
                             shape = RoundedCornerShape(14.dp),
-                            border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(PurpleCase.copy(alpha = 0.3f)))
+                            border = BorderStroke(1.dp, PurpleCase.copy(alpha = 0.3f))
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Text(
@@ -292,7 +294,7 @@ fun StudySessionScreen(
                                     },
                                 colors = CardDefaults.cardColors(containerColor = cardBg),
                                 shape = RoundedCornerShape(12.dp),
-                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(borderColor))
+                                border = BorderStroke(1.dp, borderColor)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(14.dp),
@@ -364,7 +366,7 @@ fun StudySessionScreen(
                                     },
                                 colors = CardDefaults.cardColors(containerColor = cardBg),
                                 shape = RoundedCornerShape(12.dp),
-                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(borderColor))
+                                border = BorderStroke(1.dp, borderColor)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(14.dp),
@@ -403,7 +405,7 @@ fun StudySessionScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                                 shape = RoundedCornerShape(12.dp),
-                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                                border = BorderStroke(1.dp, DarkCardBorder)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Text(text = pair.left, color = CyanGlow, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -449,7 +451,7 @@ fun StudySessionScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                                 shape = RoundedCornerShape(12.dp),
-                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                                border = BorderStroke(1.dp, DarkCardBorder)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
@@ -514,7 +516,7 @@ fun StudySessionScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                                 shape = RoundedCornerShape(12.dp),
-                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                                border = BorderStroke(1.dp, DarkCardBorder)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Text(
@@ -569,7 +571,7 @@ fun StudySessionScreen(
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                                 shape = RoundedCornerShape(14.dp),
-                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(PrimaryCyan.copy(alpha = 0.35f)))
+                                border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -599,7 +601,7 @@ fun StudySessionScreen(
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = WarningAmber.copy(alpha = 0.1f)),
                                 shape = RoundedCornerShape(14.dp),
-                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(WarningAmber.copy(alpha = 0.35f)))
+                                border = BorderStroke(1.dp, WarningAmber.copy(alpha = 0.35f))
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {

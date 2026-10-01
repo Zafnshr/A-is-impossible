@@ -31,7 +31,15 @@ jobs:
 
       - name: Build Debug APK with Gradle
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../gradle_output.txt
+
+      - name: Show Diagnostics on Failure
+        if: failure()
+        run: |
+          echo "==================== BUILD FAILURE ANALYSIS ===================="
+          grep -n -C 5 -E "(e: |FAILURE:|BUILD FAILED|Caused by:|Exception)" gradle_output.txt || cat gradle_output.txt
 
       - name: Locate Generated APK
         if: always()

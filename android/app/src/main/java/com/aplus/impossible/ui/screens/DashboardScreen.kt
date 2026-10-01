@@ -1,5 +1,7 @@
 package com.aplus.impossible.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -172,7 +174,7 @@ fun DashboardScreen(
                     modifier = Modifier.weight(1f),
                     colors = CardDefaults.cardColors(containerColor = DarkSurface),
                     shape = RoundedCornerShape(16.dp),
-                    border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
+                    border = BorderStroke(1.dp, Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
@@ -301,7 +303,7 @@ fun DashboardScreen(
                             .clickable { viewModel.setTab(AppTab.LIBRARY) },
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         shape = RoundedCornerShape(14.dp),
-                        border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
+                        border = BorderStroke(1.dp, Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
@@ -373,7 +375,7 @@ fun StatMetricTile(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(14.dp),
-        border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
+        border = BorderStroke(1.dp, Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -410,7 +412,7 @@ fun QuickActionCard(
         modifier = modifier.clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(14.dp),
-        border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
+        border = BorderStroke(1.dp, Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -446,7 +448,7 @@ fun DeckListItemCard(
             .clickable { onOpenDetail() },
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(14.dp),
-        border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
+        border = BorderStroke(1.dp, Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
     ) {
         Row(
             modifier = Modifier.padding(14.dp),

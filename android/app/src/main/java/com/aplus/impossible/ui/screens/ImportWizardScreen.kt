@@ -1,5 +1,7 @@
 package com.aplus.impossible.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -149,7 +151,7 @@ fun ImportWizardScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         shape = RoundedCornerShape(14.dp),
-                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                        border = BorderStroke(1.dp, DarkCardBorder)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text("Module", color = TextSecondaryDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -243,7 +245,7 @@ fun ImportWizardScreen(
                             },
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         shape = RoundedCornerShape(14.dp),
-                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(PrimaryCyan.copy(alpha = 0.4f)))
+                        border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.4f))
                     ) {
                         Row(
                             modifier = Modifier.padding(18.dp),
@@ -273,7 +275,7 @@ fun ImportWizardScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         shape = RoundedCornerShape(14.dp),
-                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                        border = BorderStroke(1.dp, DarkCardBorder)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text("Or Paste Raw Question Text", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
@@ -334,7 +336,7 @@ fun ImportWizardScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         shape = RoundedCornerShape(16.dp),
-                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(PrimaryCyan.copy(alpha = 0.35f)))
+                        border = BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.35f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
@@ -413,7 +415,7 @@ fun ImportWizardScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = DarkSurface),
                         shape = RoundedCornerShape(12.dp),
-                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                        border = BorderStroke(1.dp, DarkCardBorder)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(

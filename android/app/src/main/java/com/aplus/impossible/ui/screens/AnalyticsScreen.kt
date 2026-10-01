@@ -1,5 +1,7 @@
 package com.aplus.impossible.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -51,7 +53,7 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                 shape = RoundedCornerShape(16.dp),
-                border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
+                border = BorderStroke(1.dp, Brush.linearGradient(listOf(DarkCardBorder, DarkCardBorder)))
             ) {
                 Row(
                     modifier = Modifier.padding(18.dp),
@@ -103,7 +105,7 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = DarkSurface),
                 shape = RoundedCornerShape(14.dp),
-                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                border = BorderStroke(1.dp, DarkCardBorder)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -174,7 +176,7 @@ fun AnalyticsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = DarkSurface),
                     shape = RoundedCornerShape(12.dp),
-                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DarkCardBorder))
+                    border = BorderStroke(1.dp, DarkCardBorder)
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
