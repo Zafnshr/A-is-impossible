@@ -30,6 +30,8 @@ interface DeckDetailViewProps {
   onBack: () => void;
   onStartSession: (deckId: string) => void;
   onResumeSession: () => void;
+  onRestartSession?: (deckId: string) => void;
+  onDiscardSession?: (deckId: string) => void;
   onReviewIncorrect: (deckId: string, incorrectQIds: string[]) => void;
   onEditDeck: (deckId: string) => void;
   onRenameDeck?: (deckId: string, newLectureName: string) => void;
@@ -46,6 +48,8 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
   onBack,
   onStartSession,
   onResumeSession,
+  onRestartSession,
+  onDiscardSession,
   onReviewIncorrect,
   onEditDeck,
   onRenameDeck,
@@ -57,6 +61,8 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
   const [renameValue, setRenameValue] = useState(deck.lectureName);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
 
   const handleStartRename = () => {
     setRenameValue(deck.lectureName);
@@ -178,15 +184,43 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             {hasActiveSessionForDeck ? (
-              <Tooltip content="Resume existing unfinished study session">
-                <button
-                  onClick={onResumeSession}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
-                >
-                  <Play className="w-4 h-4 fill-slate-950" />
-                  <span>Resume Session</span>
-                </button>
-              </Tooltip>
+              <>
+                <Tooltip content="Resume unfinished study session right where you left off">
+                  <button
+                    onClick={onResumeSession}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                  >
+                    <Play className="w-4 h-4 fill-slate-950" />
+                    <span>Resume Session</span>
+                  </button>
+                </Tooltip>
+
+                {onRestartSession && (
+                  <Tooltip content="Restart session from Question 1 for this lecture">
+                    <button
+                      type="button"
+                      onClick={() => setRestartConfirmOpen(true)}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-primary border border-subtle text-xs font-semibold transition active:scale-95"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-cyan-500" />
+                      <span>Start Fresh</span>
+                    </button>
+                  </Tooltip>
+                )}
+
+                {onDiscardSession && (
+                  <Tooltip content="Discard unfinished session and remove resume prompt for this deck">
+                    <button
+                      type="button"
+                      onClick={() => setDiscardConfirmOpen(true)}
+                      className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-subtle hover:bg-rose-950/30 text-secondary hover:text-rose-400 border border-subtle hover:border-rose-800/50 text-xs font-semibold transition active:scale-95"
+                    >
+                      <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Discard Session</span>
+                    </button>
+                  </Tooltip>
+                )}
+              </>
             ) : (
               <Tooltip content="Start interactive study session for this lecture">
                 <button
@@ -446,6 +480,85 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Move to Trash</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discard Active Session Confirmation Modal */}
+      {discardConfirmOpen && onDiscardSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-surface border border-subtle rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2.5 text-rose-500">
+              <RotateCcw className="w-5 h-5 shrink-0" />
+              <h3 className="text-base font-bold text-primary">Discard In-Progress Session?</h3>
+            </div>
+
+            <p className="text-xs text-secondary leading-relaxed">
+              This will clear your saved progress for <strong className="text-primary">&ldquo;{deck.lectureName}&rdquo;</strong> and completely remove the <strong className="text-primary">&ldquo;Resume Session&rdquo;</strong> prompt across the website.
+            </p>
+
+            <div className="p-3 bg-subtle rounded-xl border border-subtle text-[11px] text-muted space-y-1">
+              <p>• The lecture deck itself, questions, and your past scores remain safe.</p>
+              <p>• You can start a fresh study session whenever you want.</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setDiscardConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition"
+              >
+                Keep Session
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDiscardConfirmOpen(false);
+                  onDiscardSession(deck.id);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Discard & Remove Resume</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restart Fresh Session Confirmation Modal */}
+      {restartConfirmOpen && onRestartSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-surface border border-subtle rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2.5 text-cyan-500">
+              <RotateCcw className="w-5 h-5 shrink-0" />
+              <h3 className="text-base font-bold text-primary">Start Fresh Study Session?</h3>
+            </div>
+
+            <p className="text-xs text-secondary leading-relaxed">
+              This will reset your current in-progress answers for <strong className="text-primary">&ldquo;{deck.lectureName}&rdquo;</strong> and start over from Question 1.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setRestartConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRestartConfirmOpen(false);
+                  onRestartSession(deck.id);
+                }}
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5 fill-slate-950" />
+                <span>Start Fresh</span>
               </button>
             </div>
           </div>

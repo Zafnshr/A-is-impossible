@@ -106,7 +106,24 @@ export default function App() {
 
       const savedSession = await dbService.getActiveSession(WORKSPACE_ID);
       if (savedSession) {
-        setActiveSession(savedSession);
+        // Self-healing: verify that the referenced deck and questions still exist
+        const sessionDecksExist =
+          savedSession.deckIds &&
+          savedSession.deckIds.length > 0 &&
+          savedSession.deckIds.some((dId) => loadedDecks.some((d) => d.id === dId));
+
+        const sessionQuestionsExist =
+          savedSession.questionIds &&
+          savedSession.questionIds.length > 0 &&
+          savedSession.questionIds.some((qId) => loadedQuestions.some((q) => q.id === qId));
+
+        if (!sessionDecksExist || !sessionQuestionsExist) {
+          console.warn('[db] Cleared orphaned active session for deleted deck/questions');
+          await dbService.clearActiveSession(WORKSPACE_ID);
+          setActiveSession(null);
+        } else {
+          setActiveSession(savedSession);
+        }
       } else {
         setActiveSession(null);
       }
@@ -430,6 +447,24 @@ export default function App() {
     triggerAutoSave();
   };
 
+  const handleDiscardSessionForDeck = async (deckId?: string) => {
+    if (activeSession && (!deckId || activeSession.deckIds?.includes(deckId))) {
+      await dbService.clearActiveSession(WORKSPACE_ID);
+      setActiveSession(null);
+      await reloadData();
+      triggerAutoSave();
+    }
+  };
+
+  const handleRestartSessionForDeck = async (deckId: string) => {
+    if (activeSession && activeSession.deckIds?.includes(deckId)) {
+      await dbService.clearActiveSession(WORKSPACE_ID);
+      setActiveSession(null);
+      await reloadData();
+    }
+    handleStartStudyDeck(deckId);
+  };
+
   const handleStartStudyDeck = (deckId: string) => {
     setInitialStudyDeckId(deckId);
     setStudySetupOpen(true);
@@ -525,6 +560,16 @@ export default function App() {
   const handleDeleteDeck = async (deckId: string) => {
     const deck = decksMap[deckId];
     if (!deck) return;
+
+    // Immediately clear active study session if it belongs to this deck
+    if (activeSession && activeSession.deckIds?.includes(deckId)) {
+      await dbService.clearActiveSession(WORKSPACE_ID);
+      setActiveSession(null);
+    }
+
+    if (selectedDeckForDetail?.id === deckId) {
+      setSelectedDeckForDetail(null);
+    }
 
     const deckQuestions = questions.filter((q) => q.deckId === deckId);
     await dbService.moveToTrash(WORKSPACE_ID, 'deck', deck.lectureName, {
@@ -749,6 +794,7 @@ export default function App() {
             setActiveTab(tab);
           }}
           hasActiveSession={!!activeSession}
+          onDiscardActiveSession={handleDiscardSessionForDeck}
           totalCollectionsCount={userStatuses.filter((s) => s.isFavorite || s.isFlagged || s.isIncorrect).length}
           trashCount={trashItems.length}
           onOpenImportPrompt={() => handleCreateDeckPrompt()}
@@ -767,6 +813,7 @@ export default function App() {
                 statuses={userStatuses}
                 onStartDeck={handleStartStudyDeck}
                 onResumeSession={() => setActiveTab('study')}
+                onDiscardSession={handleDiscardSessionForDeck}
                 onOpenDeckDetail={handleOpenDeckDetail}
                 onNavigateTab={(tab) => setActiveTab(tab)}
                 onCreateDeckPrompt={() => handleCreateDeckPrompt()}
@@ -784,6 +831,7 @@ export default function App() {
                 onStartStudyDeck={handleStartStudyDeck}
                 onCreateDeckPrompt={handleCreateDeckPrompt}
                 onRenameDeck={handleRenameDeck}
+                onDeleteDeck={handleDeleteDeck}
               />
             </ErrorBoundary>
           )}
@@ -802,6 +850,8 @@ export default function App() {
                 onBack={() => setActiveTab('library')}
                 onStartSession={handleStartStudyDeck}
                 onResumeSession={() => setActiveTab('study')}
+                onRestartSession={handleRestartSessionForDeck}
+                onDiscardSession={handleDiscardSessionForDeck}
                 onReviewIncorrect={(deckId, incorrectQIds) =>
                   handleStartPracticeCollection('incorrect', incorrectQIds)
                 }

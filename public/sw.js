@@ -1,5 +1,5 @@
 // Service Worker for "A+ is Impossible" Offline Capabilities & Fast Live Sync
-const CACHE_NAME = 'a-plus-cache-v3';
+const CACHE_NAME = 'a-plus-cache-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

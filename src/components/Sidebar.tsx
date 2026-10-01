@@ -12,6 +12,7 @@ import {
   UploadCloud,
   PanelLeftClose,
   PanelLeftOpen,
+  X,
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -33,6 +34,7 @@ interface SidebarProps {
   activeTab: ActiveTab;
   onTabChange: (tab: ActiveTab) => void;
   hasActiveSession: boolean;
+  onDiscardActiveSession?: () => void;
   totalCollectionsCount: number;
   trashCount: number;
   onOpenImportPrompt: () => void;
@@ -42,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onTabChange,
   hasActiveSession,
+  onDiscardActiveSession,
   totalCollectionsCount,
   trashCount,
   onOpenImportPrompt,
@@ -227,30 +230,68 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {hasActiveSession && (
               <div
                 className={`p-2.5 rounded-xl bg-subtle border border-subtle text-left transition-all ${
-                  isCollapsed ? 'p-1.5 text-center' : 'space-y-1.5'
+                  isCollapsed ? 'p-1.5 text-center space-y-1' : 'space-y-1.5'
                 }`}
               >
                 {!isCollapsed && (
-                  <div className="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400 text-xs font-bold">
-                    <PlayCircle className="w-3.5 h-3.5 animate-pulse shrink-0" />
-                    <span className="truncate">Study in Progress</span>
+                  <div className="flex items-center justify-between text-cyan-600 dark:text-cyan-400 text-xs font-bold">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <PlayCircle className="w-3.5 h-3.5 animate-pulse shrink-0" />
+                      <span className="truncate">Study in Progress</span>
+                    </div>
+                    {onDiscardActiveSession && (
+                      <Tooltip content="Discard session & remove resume" side="top">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Discard active study session and remove resume prompt?')) {
+                              onDiscardActiveSession();
+                            }
+                          }}
+                          className="p-1 rounded text-muted hover:text-rose-400 hover:bg-rose-950/20 transition cursor-pointer"
+                          aria-label="Discard session"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </Tooltip>
+                    )}
                   </div>
                 )}
-                <Tooltip content="Resume active study session" side={isCollapsed ? 'right' : 'top'}>
-                  <button
-                    type="button"
-                    onClick={() => onTabChange('study')}
-                    className={`w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 shadow-sm flex items-center justify-center ${
-                      isCollapsed ? 'px-1 text-[10px]' : 'px-2'
-                    }`}
-                  >
-                    {isCollapsed ? (
-                      <PlayCircle className="w-4 h-4 shrink-0" />
-                    ) : (
-                      'Resume Session'
-                    )}
-                  </button>
-                </Tooltip>
+                <div className="flex items-center gap-1">
+                  <Tooltip content="Resume active study session" side={isCollapsed ? 'right' : 'top'} className="flex-1">
+                    <button
+                      type="button"
+                      onClick={() => onTabChange('study')}
+                      className={`w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 shadow-sm flex items-center justify-center ${
+                        isCollapsed ? 'px-1 text-[10px]' : 'px-2'
+                      }`}
+                    >
+                      {isCollapsed ? (
+                        <PlayCircle className="w-4 h-4 shrink-0" />
+                      ) : (
+                        'Resume Session'
+                      )}
+                    </button>
+                  </Tooltip>
+                  {isCollapsed && onDiscardActiveSession && (
+                    <Tooltip content="Discard session" side="right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Discard active study session and remove resume prompt?')) {
+                            onDiscardActiveSession();
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-subtle hover:bg-rose-950/30 text-muted hover:text-rose-400 border border-subtle transition cursor-pointer"
+                        aria-label="Discard session"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </Tooltip>
+                  )}
+                </div>
               </div>
             )}
 
