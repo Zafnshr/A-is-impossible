@@ -29,6 +29,7 @@ import com.aplus.impossible.ui.theme.*
 import com.aplus.impossible.ui.viewmodel.AppScreen
 import com.aplus.impossible.ui.viewmodel.MainViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeckDetailScreen(
     deckId: String,
