@@ -23,6 +23,7 @@ import {
   Info,
   LogOut,
   AlertTriangle,
+  Sliders,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -35,6 +36,7 @@ import {
 } from '../../types';
 import { dbService } from '../../services/db';
 import { Tooltip } from '../Tooltip';
+import { OrderDebugModal } from './OrderDebugModal';
 
 interface StudySessionProps {
   session: StudySessionState;
@@ -69,6 +71,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
   const [noteText, setNoteText] = useState('');
   const [navigatorOpen, setNavigatorOpen] = useState(false);
   const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
+  const [orderDebugOpen, setOrderDebugOpen] = useState(false);
 
   // Timer reference
   const timerRef = useRef<number | null>(null);
@@ -724,6 +727,15 @@ export const StudySession: React.FC<StudySessionProps> = ({
           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle border border-subtle text-secondary capitalize">
             {currentQuestion.type.replace('_', ' ')}
           </span>
+          <Tooltip content="Inspect question order debug pipeline and transformation logs">
+            <button
+              onClick={() => setOrderDebugOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[11px] font-mono font-semibold text-cyan-600 dark:text-cyan-400 transition active:scale-95"
+            >
+              <Sliders className="w-3 h-3" />
+              <span>Order Debug</span>
+            </button>
+          </Tooltip>
         </div>
 
         {/* Favorite, Flag, Notes */}
@@ -1370,6 +1382,14 @@ export const StudySession: React.FC<StudySessionProps> = ({
           </div>
         </div>
       )}
+
+      {/* Question Order Debug View Modal */}
+      <OrderDebugModal
+        isOpen={orderDebugOpen}
+        onClose={() => setOrderDebugOpen(false)}
+        debugInfo={session.orderDebugInfo}
+        sessionTitle={session.sessionTitle}
+      />
     </div>
   );
 };

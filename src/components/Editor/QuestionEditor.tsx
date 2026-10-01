@@ -45,12 +45,18 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
   onSaveQuestion,
   onDeleteQuestion,
   onDuplicateQuestion,
+  onReorderQuestions,
   onBackToDeck,
   onRenameDeck,
 }) => {
   const activeDeckId = selectedDeckId || (decks.length > 0 ? decks[0].id : '');
   const activeDeck = decks.find((d) => d.id === activeDeckId);
-  const deckQuestions = questions.filter((q) => q.deckId === activeDeckId);
+  const rawDeckQuestions = questions.filter((q) => q.deckId === activeDeckId);
+  const deckQuestions = [...rawDeckQuestions].sort((a, b) => {
+    const idxA = a.originalOrderIndex ?? Infinity;
+    const idxB = b.originalOrderIndex ?? Infinity;
+    return idxA - idxB;
+  });
 
   const [activeQuestionId, setActiveQuestionId] = useState<string>(
     deckQuestions.length > 0 ? deckQuestions[0].id : ''
@@ -142,6 +148,28 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
     onSaveQuestion(newQ);
     setActiveQuestionId(newQ.id);
     setMobileTab('editor');
+  };
+
+  const handleMoveQuestion = (currentIndex: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIdx < 0 || targetIdx >= deckQuestions.length) return;
+
+    const copy = [...deckQuestions];
+    const temp = copy[currentIndex];
+    copy[currentIndex] = copy[targetIdx];
+    copy[targetIdx] = temp;
+
+    const updated = copy.map((q, idx) => ({
+      ...q,
+      originalOrderIndex: idx + 1,
+      updatedAt: Date.now(),
+    }));
+
+    if (onReorderQuestions) {
+      onReorderQuestions(updated);
+    } else {
+      updated.forEach((q) => onSaveQuestion(q));
+    }
   };
 
   const handleSaveDraft = () => {
@@ -364,6 +392,34 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    <Tooltip content="Move question up in order">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveQuestion(idx, 'up');
+                        }}
+                        className="p-1 rounded text-secondary hover:text-cyan-500 disabled:opacity-20 disabled:pointer-events-none transition"
+                        aria-label="Move question up"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Move question down in order">
+                      <button
+                        type="button"
+                        disabled={idx === deckQuestions.length - 1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveQuestion(idx, 'down');
+                        }}
+                        className="p-1 rounded text-secondary hover:text-cyan-500 disabled:opacity-20 disabled:pointer-events-none transition"
+                        aria-label="Move question down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </Tooltip>
                     <Tooltip content="Duplicate question">
                       <button
                         onClick={(e) => {

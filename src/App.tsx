@@ -12,6 +12,7 @@ import {
   StudySessionState,
   SessionCompletionSummary,
   TrashItem,
+  OrderDebugInfo,
 } from './types';
 import { dbService } from './services/db';
 import { createDefaultSettings } from './services/defaultSettings';
@@ -33,12 +34,15 @@ import { SettingsView } from './components/Settings/SettingsView';
 import { GlobalSearchModal } from './components/Search/GlobalSearchModal';
 import { OnboardingWizardModal } from './components/FirstLaunch/OnboardingWizardModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { IconicLoadingScreen } from './components/Loading/IconicLoadingScreen';
+import { generateStudyQuestions } from './services/sessionGenerator';
 
 const WORKSPACE_ID = 'workspace';
 
 export default function App() {
   // Initialization state
   const [isReady, setIsReady] = useState(false);
+  const [hasCompletedIntroAnimation, setHasCompletedIntroAnimation] = useState(false);
 
   // Settings
   const [settings, setSettings] = useState<UserSettings>(createDefaultSettings(WORKSPACE_ID));
@@ -238,29 +242,11 @@ export default function App() {
     timerType: 'stopwatch' | 'countdown';
     countdownMinutes: number;
   }) => {
-    let targetQuestions = questions.filter((q) => config.deckIds.includes(q.deckId));
-
-    if (config.orderMode === 'shuffled' || config.shuffleOptions.shuffleQuestions) {
-      targetQuestions = [...targetQuestions].sort(() => Math.random() - 0.5);
-    }
-
-    if (config.shuffleOptions.shuffleAnswers) {
-      targetQuestions = targetQuestions.map((q) => {
-        if (q.type === 'single_mcq' || q.type === 'multiple_mcq') {
-          const indexedOpts = q.options.map((opt, i) => ({ opt, originalIndex: i }));
-          const shuffledOpts = [...indexedOpts].sort(() => Math.random() - 0.5);
-          const newCorrect = q.correctAnswers.map((oldIdx) =>
-            shuffledOpts.findIndex((item) => item.originalIndex === oldIdx)
-          );
-          return {
-            ...q,
-            options: shuffledOpts.map((i) => i.opt),
-            correctAnswers: newCorrect,
-          };
-        }
-        return q;
-      });
-    }
+    const { questions: targetQuestions, debugInfo } = generateStudyQuestions(
+      config,
+      questions,
+      decksMap
+    );
 
     const firstDeck = decksMap[config.deckIds[0]];
     const title =
@@ -287,6 +273,7 @@ export default function App() {
       timerRunning: true,
       lastSavedAt: Date.now(),
       startedAt: Date.now(),
+      orderDebugInfo: debugInfo,
     };
 
     // Update lastOpenedAt for each deck being studied
@@ -541,6 +528,7 @@ export default function App() {
       ...q,
       id: `q_${Date.now()}_${idx}`,
       deckId: finalDeckId,
+      originalOrderIndex: q.originalOrderIndex ?? (idx + 1),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }));
@@ -641,14 +629,27 @@ export default function App() {
   };
 
   const handleDuplicateQuestion = async (question: Question) => {
+    const deckQuestions = questions.filter((q) => q.deckId === question.deckId);
     const duplicated: Question = {
       ...question,
       id: `q_${Date.now()}_dup`,
       question: `${question.question} (Copy)`,
+      originalOrderIndex: deckQuestions.length + 1,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
     await dbService.saveQuestion(duplicated);
+    await reloadData();
+    triggerAutoSave();
+  };
+
+  const handleReorderQuestions = async (reordered: Question[]) => {
+    const updated = reordered.map((q, idx) => ({
+      ...q,
+      originalOrderIndex: idx + 1,
+      updatedAt: Date.now(),
+    }));
+    await dbService.saveQuestions(updated);
     await reloadData();
     triggerAutoSave();
   };
@@ -676,16 +677,52 @@ export default function App() {
     }
 
     const sessionQuestionsList = questions.filter((q) => targetQIds.includes(q.id));
-    const title = `Practice: ${type.charAt(0).toUpperCase() + type.slice(1)} (${sessionQuestionsList.length} Questions)`;
+    const orderedQuestions = [...sessionQuestionsList].sort((a, b) => {
+      const idxA = a.originalOrderIndex ?? Infinity;
+      const idxB = b.originalOrderIndex ?? Infinity;
+      return idxA - idxB;
+    });
+
+    const deckIds = Array.from(new Set(orderedQuestions.map((q) => q.deckId)));
+    const title = `Practice: ${type.charAt(0).toUpperCase() + type.slice(1)} (${orderedQuestions.length} Questions)`;
+
+    const collectionDebugInfo: OrderDebugInfo = {
+      selectedMode: 'sequential',
+      deckIds,
+      deckTitles: deckIds.map((id) => decksMap[id]?.lectureName || id),
+      beforeGeneration: deckIds.map((id) => ({
+        deckId: id,
+        deckTitle: decksMap[id]?.lectureName || id,
+        questionCount: orderedQuestions.filter((q) => q.deckId === id).length,
+        questions: orderedQuestions
+          .filter((q) => q.deckId === id)
+          .map((q) => ({ id: q.id, originalOrderIndex: q.originalOrderIndex, stem: q.question.slice(0, 60) })),
+      })),
+      afterGeneration: {
+        totalQuestions: orderedQuestions.length,
+        questions: orderedQuestions.map((q) => ({
+          id: q.id,
+          originalOrderIndex: q.originalOrderIndex,
+          deckId: q.deckId,
+          deckTitle: decksMap[q.deckId]?.lectureName || 'Deck',
+          stem: q.question.slice(0, 60),
+        })),
+      },
+      transformations: [
+        `Collection Practice: ${type.toUpperCase()}`,
+        `Preserved strict originalOrderIndex across ${deckIds.length} source lecture decks.`,
+      ],
+      timestamp: Date.now(),
+    };
 
     const newSession: StudySessionState = {
       profileId: WORKSPACE_ID,
       sessionId: `session_coll_${Date.now()}`,
-      deckIds: Array.from(new Set(sessionQuestionsList.map((q) => q.deckId))),
+      deckIds,
       sessionTitle: title,
       mode: 'collection',
       orderMode: 'sequential',
-      questionIds: targetQIds,
+      questionIds: orderedQuestions.map((q) => q.id),
       currentIndex: 0,
       userAnswers: {},
       submittedQuestions: {},
@@ -697,6 +734,7 @@ export default function App() {
       lastSavedAt: Date.now(),
       collectionFilter: type,
       startedAt: Date.now(),
+      orderDebugInfo: collectionDebugInfo,
     };
 
     dbService.saveActiveSession(newSession).then(() => {
@@ -758,15 +796,13 @@ export default function App() {
     return `${m.toString().padStart(2, '0')}:${rem.toString().padStart(2, '0')}`;
   }, [activeSession]);
 
-  // Loading screen
-  if (!isReady) {
+  // Launch loading screen
+  if (!isReady || !hasCompletedIntroAnimation) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center font-black text-cyan-400 text-lg animate-pulse mb-4">
-          A+
-        </div>
-        <p className="text-xs font-mono text-cyan-400">Initializing IndexedDB Storage...</p>
-      </div>
+      <IconicLoadingScreen
+        theme={settings.theme || 'dark'}
+        onComplete={() => setHasCompletedIntroAnimation(true)}
+      />
     );
   }
 
@@ -968,6 +1004,7 @@ export default function App() {
                 onSaveQuestion={handleSaveQuestion}
                 onDeleteQuestion={handleDeleteQuestion}
                 onDuplicateQuestion={handleDuplicateQuestion}
+                onReorderQuestions={handleReorderQuestions}
                 onRenameDeck={handleRenameDeck}
                 onBackToDeck={() => {
                   if (editorDeckId && decksMap[editorDeckId]) {

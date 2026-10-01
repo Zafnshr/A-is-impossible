@@ -55,7 +55,7 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
 
   // Order Modes
   const [orderMode, setOrderMode] = useState<'sequential' | 'shuffled' | 'custom'>('sequential');
-  const [shuffleQuestions, setShuffleQuestions] = useState(true);
+  const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [shuffleAnswers, setShuffleAnswers] = useState(false);
   const [shuffleLectures, setShuffleLectures] = useState(false);
 
@@ -102,9 +102,9 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
       mode: scopeType,
       orderMode,
       shuffleOptions: {
-        shuffleQuestions,
-        shuffleAnswers,
-        shuffleLectures,
+        shuffleQuestions: orderMode === 'shuffled' || (orderMode === 'custom' && shuffleQuestions),
+        shuffleAnswers: orderMode === 'shuffled' || (orderMode === 'custom' && shuffleAnswers),
+        shuffleLectures: orderMode === 'custom' && shuffleLectures,
       },
       timerType: 'stopwatch',
       countdownMinutes: 25,

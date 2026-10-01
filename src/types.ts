@@ -38,6 +38,7 @@ export interface Question {
   subQuestions?: CaseSubQuestion[]; // for case_study
   explanation?: string;
   highYieldNotes?: string;
+  originalOrderIndex?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -111,6 +112,30 @@ export interface StudySessionState {
   collectionFilter?: 'favorites' | 'flagged' | 'incorrect';
   startedAt: number;
   isCompleted?: boolean;
+  orderDebugInfo?: OrderDebugInfo;
+}
+
+export interface OrderDebugInfo {
+  selectedMode: 'sequential' | 'shuffled' | 'custom';
+  deckIds: string[];
+  deckTitles: string[];
+  shuffleOptions?: {
+    shuffleQuestions: boolean;
+    shuffleAnswers: boolean;
+    shuffleLectures: boolean;
+  };
+  beforeGeneration: {
+    deckId: string;
+    deckTitle: string;
+    questionCount: number;
+    questions: { id: string; originalOrderIndex?: number; stem: string }[];
+  }[];
+  afterGeneration: {
+    totalQuestions: number;
+    questions: { id: string; originalOrderIndex?: number; deckId: string; deckTitle: string; stem: string }[];
+  };
+  transformations: string[];
+  timestamp: number;
 }
 
 export interface SessionCompletionSummary {

@@ -70,6 +70,7 @@ interface EditableQuestionItem {
   subQuestions?: CaseSubQuestion[];
   explanation?: string;
   highYieldNotes?: string;
+  originalOrderIndex?: number;
   _debug?: ParserDebugInfo;
 }
 
@@ -200,6 +201,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             : undefined,
           explanation: q.explanation || '',
           highYieldNotes: q.highYieldNotes || '',
+          originalOrderIndex: q.originalOrderIndex || idx + 1,
           _debug: q._debug,
         }))
       );
@@ -213,7 +215,11 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
   // --- Question Review Actions ---
   const handleDeleteReviewQuestion = (id: string) => {
-    setReviewQuestions((prev) => prev.filter((q) => q.id !== id));
+    setReviewQuestions((prev) =>
+      prev
+        .filter((q) => q.id !== id)
+        .map((q, idx) => ({ ...q, originalOrderIndex: idx + 1 }))
+    );
   };
 
   const handleUpdateQuestionText = (id: string, text: string) => {
@@ -554,7 +560,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       const temp = copy[currentIndex];
       copy[currentIndex] = copy[targetIdx];
       copy[targetIdx] = temp;
-      return copy;
+      return copy.map((q, idx) => ({ ...q, originalOrderIndex: idx + 1 }));
     });
   };
 
@@ -589,7 +595,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     existingId?: string
   ) => {
     const formattedQuestions: Omit<Question, 'id' | 'deckId' | 'createdAt' | 'updatedAt'>[] =
-      reviewQuestions.map((q) => ({
+      reviewQuestions.map((q, idx) => ({
         type: q.type,
         question: q.question.trim(),
         options: q.options.map((o) => o.trim()),
@@ -600,6 +606,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         subQuestions: q.subQuestions,
         explanation: q.explanation?.trim() || '',
         highYieldNotes: q.highYieldNotes?.trim() || '',
+        originalOrderIndex: q.originalOrderIndex ?? (idx + 1),
       }));
 
     onCompleteImport(

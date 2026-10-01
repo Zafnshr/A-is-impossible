@@ -1328,6 +1328,7 @@ export function parseQuestionsText(
             subQuestions: q.subQuestions,
             explanation: q.explanation || '',
             highYieldNotes: q.highYieldNotes || '',
+            originalOrderIndex: idx + 1,
             _debug: {
               detectedType: type,
               classificationReason: 'Loaded from JSON schema import',
@@ -1405,7 +1406,10 @@ export function parseQuestionsText(
       result = parseStandardBlock(block, idx, mainAnswerKeyMap, issues);
     }
 
-    const q = result.question;
+    const q = {
+      ...result.question,
+      originalOrderIndex: idx + 1,
+    };
     typeBreakdown[q.type] = (typeBreakdown[q.type] || 0) + 1;
     if (result.hasAnswerKey) answerKeysMappedCount++;
 
