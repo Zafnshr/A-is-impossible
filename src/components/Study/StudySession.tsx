@@ -1427,27 +1427,37 @@ export const StudySession: React.FC<StudySessionProps> = ({
       </div>
 
         {/* Desktop Docked Question Map Panel */}
-        {isQuestionMapOpen && (
-          <div className="hidden lg:block w-72 xl:w-80 shrink-0 sticky top-4 h-[calc(100vh-6.5rem)]">
-            <QuestionMapPanel
-              questions={questions}
-              decksMap={decksMap}
-              session={session}
-              currentQIndex={currentQIndex}
-              userStatuses={userStatuses}
-              flaggedIds={flaggedIds}
-              onJump={handleJump}
-              isOpen={isQuestionMapOpen}
-              onClose={() => setIsQuestionMapOpen(false)}
-            />
-          </div>
-        )}
+        <div
+          className={`hidden lg:block shrink-0 sticky top-4 h-[calc(100vh-6.5rem)] transition-all duration-300 ease-out ${
+            isQuestionMapOpen ? 'w-80 xl:w-96' : 'w-14'
+          }`}
+        >
+          <QuestionMapPanel
+            questions={questions}
+            decksMap={decksMap}
+            session={session}
+            currentQIndex={currentQIndex}
+            userStatuses={userStatuses}
+            flaggedIds={flaggedIds}
+            onJump={handleJump}
+            isOpen={true}
+            isDockedCollapsed={!isQuestionMapOpen}
+            onToggleCollapse={() => setIsQuestionMapOpen(!isQuestionMapOpen)}
+            onClose={() => setIsQuestionMapOpen(false)}
+          />
+        </div>
       </div>
 
       {/* Mobile Slide-Over Drawer for Question Map */}
       {isQuestionMapOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-80 max-w-[85vw] h-full p-2 bg-surface shadow-2xl animate-in slide-in-from-right">
+        <div
+          className="lg:hidden fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setIsQuestionMapOpen(false)}
+        >
+          <div
+            className="w-88 max-w-[90vw] h-full p-2 bg-surface shadow-2xl animate-in slide-in-from-right"
+            onClick={(e) => e.stopPropagation()}
+          >
             <QuestionMapPanel
               questions={questions}
               decksMap={decksMap}
