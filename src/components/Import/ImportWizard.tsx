@@ -20,6 +20,12 @@ import {
   Edit3,
   Search,
   Check,
+  Bug,
+  MoveUp,
+  MoveDown,
+  ListOrdered,
+  Shuffle,
+  BookOpen,
 } from 'lucide-react';
 import {
   parseFileContent,
@@ -27,6 +33,7 @@ import {
   extractLectureNameFromFilename,
   ImportPreviewResult,
   ParseIssue,
+  ParserDebugInfo,
 } from '../../services/importer';
 import {
   getAcademicYears,
@@ -36,7 +43,7 @@ import {
   getDefaultModule,
   getDefaultSubject,
 } from '../../services/academicStructure';
-import { Deck, Question, QuestionType } from '../../types';
+import { Deck, Question, QuestionType, MatchingPair, CaseSubQuestion } from '../../types';
 import { Tooltip } from '../Tooltip';
 
 interface ImportWizardProps {
@@ -57,7 +64,13 @@ interface EditableQuestionItem {
   question: string;
   options: string[];
   correctAnswers: number[];
+  matchingPairs?: MatchingPair[];
+  correctOrder?: number[];
+  caseVignette?: string;
+  subQuestions?: CaseSubQuestion[];
   explanation?: string;
+  highYieldNotes?: string;
+  _debug?: ParserDebugInfo;
 }
 
 export const ImportWizard: React.FC<ImportWizardProps> = ({
@@ -71,7 +84,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const defaultMod = initialPrefill?.module || getDefaultModule(defaultYr);
   const defaultSubj = initialPrefill?.subject || getDefaultSubject(defaultYr, defaultMod);
 
-  // Workflow:
+  // Workflow steps:
   // Step 1: Select Module & Subject
   // Step 2: Enter Lecture Name & Provide Questions
   // Step 3: Parse & Diagnostics
@@ -98,6 +111,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [previewResult, setPreviewResult] = useState<ImportPreviewResult | null>(null);
   const [reviewQuestions, setReviewQuestions] = useState<EditableQuestionItem[]>([]);
   const [searchFilter, setSearchFilter] = useState<string>('');
+  const [showDebugView, setShowDebugView] = useState<boolean>(false);
 
   // Collision handling state
   const [collidingDeck, setCollidingDeck] = useState<Deck | null>(null);
@@ -127,7 +141,6 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
   const handleFileChosen = async (file: File) => {
     setSelectedFile(file);
-    // Requirement: Default value: Uploaded filename if imported from a file
     const derivedName = extractLectureNameFromFilename(file.name);
     setLectureName(derivedName);
   };
@@ -135,7 +148,6 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const handleSwitchToPaste = () => {
     setInputMode('paste');
     setSelectedFile(null);
-    // Requirement: Leave empty if pasted manually
     setLectureName('');
   };
 
@@ -180,7 +192,15 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
           question: q.question,
           options: [...q.options],
           correctAnswers: [...q.correctAnswers],
+          matchingPairs: q.matchingPairs ? q.matchingPairs.map((p) => ({ ...p })) : undefined,
+          correctOrder: q.correctOrder ? [...q.correctOrder] : undefined,
+          caseVignette: q.caseVignette,
+          subQuestions: q.subQuestions
+            ? q.subQuestions.map((sq) => ({ ...sq, options: [...sq.options] }))
+            : undefined,
           explanation: q.explanation || '',
+          highYieldNotes: q.highYieldNotes || '',
+          _debug: q._debug,
         }))
       );
       setCurrentStep(3);
@@ -202,6 +222,46 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     );
   };
 
+  const handleUpdateExplanation = (id: string, text: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, explanation: text } : q))
+    );
+  };
+
+  const handleChangeQuestionType = (id: string, newType: QuestionType) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== id) return q;
+        const updated = { ...q, type: newType };
+        if (newType === 'matching' && !updated.matchingPairs) {
+          updated.matchingPairs = [
+            { id: 'mp_1', left: 'Item 1', right: 'Target 1' },
+            { id: 'mp_2', left: 'Item 2', right: 'Target 2' },
+          ];
+        }
+        if (newType === 'ordering' && (!updated.correctOrder || updated.options.length < 2)) {
+          if (updated.options.length < 2) {
+            updated.options = ['Step 1', 'Step 2', 'Step 3'];
+          }
+          updated.correctOrder = updated.options.map((_, i) => i);
+        }
+        if (newType === 'case_study' && (!updated.subQuestions || updated.subQuestions.length === 0)) {
+          updated.caseVignette = updated.caseVignette || 'Clinical presentation scenario...';
+          updated.subQuestions = [
+            {
+              id: 'sub_1',
+              question: 'What is the most likely diagnosis?',
+              options: ['Option A', 'Option B', 'Option C', 'Option D'],
+              correctAnswer: 0,
+            },
+          ];
+        }
+        return updated;
+      })
+    );
+  };
+
+  // --- MCQ / True-False Actions ---
   const handleUpdateOptionText = (id: string, optIndex: number, text: string) => {
     setReviewQuestions((prev) =>
       prev.map((q) => {
@@ -264,6 +324,227 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     );
   };
 
+  // --- Matching Actions ---
+  const handleUpdateMatchingLeft = (qId: string, pairIndex: number, text: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.matchingPairs) return q;
+        const pairs = [...q.matchingPairs];
+        pairs[pairIndex] = { ...pairs[pairIndex], left: text };
+        return { ...q, matchingPairs: pairs };
+      })
+    );
+  };
+
+  const handleUpdateMatchingRight = (qId: string, pairIndex: number, text: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.matchingPairs) return q;
+        const pairs = [...q.matchingPairs];
+        pairs[pairIndex] = { ...pairs[pairIndex], right: text };
+        return { ...q, matchingPairs: pairs };
+      })
+    );
+  };
+
+  const handleAddMatchingPair = (qId: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId) return q;
+        const pairs = q.matchingPairs ? [...q.matchingPairs] : [];
+        const nextIdx = pairs.length + 1;
+        pairs.push({
+          id: `mp_${Date.now()}_${nextIdx}`,
+          left: `Item ${String.fromCharCode(64 + nextIdx)}`,
+          right: `Match Target ${nextIdx}`,
+        });
+        return { ...q, matchingPairs: pairs };
+      })
+    );
+  };
+
+  const handleDeleteMatchingPair = (qId: string, pairIndex: number) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.matchingPairs) return q;
+        if (q.matchingPairs.length <= 2) {
+          alert('A matching question requires at least 2 pairs.');
+          return q;
+        }
+        return {
+          ...q,
+          matchingPairs: q.matchingPairs.filter((_, i) => i !== pairIndex),
+        };
+      })
+    );
+  };
+
+  // --- Ordering Actions ---
+  const handleMoveOrderItem = (qId: string, fromIndex: number, toIndex: number) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.correctOrder) return q;
+        if (toIndex < 0 || toIndex >= q.correctOrder.length) return q;
+        const order = [...q.correctOrder];
+        const [moved] = order.splice(fromIndex, 1);
+        order.splice(toIndex, 0, moved);
+        return { ...q, correctOrder: order };
+      })
+    );
+  };
+
+  const handleUpdateOrderingItemText = (qId: string, itemIdx: number, text: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId) return q;
+        const options = [...q.options];
+        options[itemIdx] = text;
+        return { ...q, options };
+      })
+    );
+  };
+
+  const handleAddOrderingItem = (qId: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId) return q;
+        const newOpts = [...q.options, `New Step ${q.options.length + 1}`];
+        const newOrder = q.correctOrder ? [...q.correctOrder, q.options.length] : newOpts.map((_, i) => i);
+        return { ...q, options: newOpts, correctOrder: newOrder };
+      })
+    );
+  };
+
+  const handleDeleteOrderingItem = (qId: string, itemIdx: number) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId) return q;
+        if (q.options.length <= 2) {
+          alert('An ordering question requires at least 2 steps.');
+          return q;
+        }
+        const newOpts = q.options.filter((_, i) => i !== itemIdx);
+        // Reindex correctOrder permutation
+        const newOrder = (q.correctOrder || [])
+          .filter((idx) => idx !== itemIdx)
+          .map((idx) => (idx > itemIdx ? idx - 1 : idx));
+        return { ...q, options: newOpts, correctOrder: newOrder };
+      })
+    );
+  };
+
+  // --- Case Study Actions ---
+  const handleUpdateCaseVignette = (qId: string, text: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => (q.id === qId ? { ...q, caseVignette: text } : q))
+    );
+  };
+
+  const handleUpdateSubQuestionStem = (qId: string, subIdx: number, text: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.subQuestions) return q;
+        const subs = [...q.subQuestions];
+        subs[subIdx] = { ...subs[subIdx], question: text };
+        return { ...q, subQuestions: subs };
+      })
+    );
+  };
+
+  const handleUpdateSubQuestionOption = (
+    qId: string,
+    subIdx: number,
+    optIdx: number,
+    text: string
+  ) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.subQuestions) return q;
+        const subs = [...q.subQuestions];
+        const options = [...subs[subIdx].options];
+        options[optIdx] = text;
+        subs[subIdx] = { ...subs[subIdx], options };
+        return { ...q, subQuestions: subs };
+      })
+    );
+  };
+
+  const handleSetSubQuestionCorrectAnswer = (qId: string, subIdx: number, optIdx: number) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.subQuestions) return q;
+        const subs = [...q.subQuestions];
+        subs[subIdx] = { ...subs[subIdx], correctAnswer: optIdx };
+        return { ...q, subQuestions: subs };
+      })
+    );
+  };
+
+  const handleAddSubQuestionOption = (qId: string, subIdx: number) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.subQuestions) return q;
+        const subs = [...q.subQuestions];
+        const nextLetter = String.fromCharCode(65 + subs[subIdx].options.length);
+        const options = [...subs[subIdx].options, `Option ${nextLetter}`];
+        subs[subIdx] = { ...subs[subIdx], options };
+        return { ...q, subQuestions: subs };
+      })
+    );
+  };
+
+  const handleDeleteSubQuestionOption = (qId: string, subIdx: number, optIdx: number) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.subQuestions) return q;
+        const subs = [...q.subQuestions];
+        if (subs[subIdx].options.length <= 2) {
+          alert('Sub-question must have at least 2 options.');
+          return q;
+        }
+        const options = subs[subIdx].options.filter((_, i) => i !== optIdx);
+        let correctAnswer = subs[subIdx].correctAnswer;
+        if (correctAnswer === optIdx) correctAnswer = 0;
+        else if (correctAnswer > optIdx) correctAnswer--;
+        subs[subIdx] = { ...subs[subIdx], options, correctAnswer };
+        return { ...q, subQuestions: subs };
+      })
+    );
+  };
+
+  const handleAddSubQuestion = (qId: string) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId) return q;
+        const subs = q.subQuestions ? [...q.subQuestions] : [];
+        const nextNum = subs.length + 1;
+        subs.push({
+          id: `sub_${Date.now()}_${nextNum}`,
+          question: `Sub-question ${nextNum}: Clinical query`,
+          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+          correctAnswer: 0,
+        });
+        return { ...q, subQuestions: subs };
+      })
+    );
+  };
+
+  const handleDeleteSubQuestion = (qId: string, subIdx: number) => {
+    setReviewQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id !== qId || !q.subQuestions) return q;
+        if (q.subQuestions.length <= 1) {
+          alert('Case study requires at least one sub-question.');
+          return q;
+        }
+        return {
+          ...q,
+          subQuestions: q.subQuestions.filter((_, i) => i !== subIdx),
+        };
+      })
+    );
+  };
+
   const handleMoveQuestion = (currentIndex: number, direction: 'up' | 'down') => {
     const targetIdx = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
     if (targetIdx < 0 || targetIdx >= reviewQuestions.length) return;
@@ -313,8 +594,12 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         question: q.question.trim(),
         options: q.options.map((o) => o.trim()),
         correctAnswers: q.correctAnswers.length > 0 ? q.correctAnswers : [0],
+        matchingPairs: q.matchingPairs,
+        correctOrder: q.correctOrder,
+        caseVignette: q.caseVignette?.trim(),
+        subQuestions: q.subQuestions,
         explanation: q.explanation?.trim() || '',
-        highYieldNotes: '',
+        highYieldNotes: q.highYieldNotes?.trim() || '',
       }));
 
     onCompleteImport(
@@ -337,136 +622,119 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const filteredReviewList = reviewQuestions.filter((q, idx) => {
     if (!searchFilter.trim()) return true;
     const term = searchFilter.toLowerCase();
-    return (
-      q.question.toLowerCase().includes(term) ||
-      q.options.some((o) => o.toLowerCase().includes(term)) ||
-      `#${idx + 1}`.includes(term)
-    );
+    const matchesNum = `#${idx + 1}`.includes(term) || `${idx + 1}` === term;
+    const matchesStem = q.question.toLowerCase().includes(term);
+    const matchesType = q.type.toLowerCase().includes(term);
+    const matchesVignette = q.caseVignette ? q.caseVignette.toLowerCase().includes(term) : false;
+    return matchesNum || matchesStem || matchesType || matchesVignette;
   });
 
   return (
-    <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
-      {/* Header */}
-      <div className="pb-4 border-b border-subtle">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-primary flex items-center gap-2">
-              <UploadCloud className="w-6 h-6 text-cyan-500" />
-              Deck Creation & Import
-            </h1>
-            <p className="text-xs text-secondary mt-1">
-              Fixed Curriculum:{' '}
-              <span className="font-semibold text-primary">
-                {selectedYear} → {selectedModule} → {selectedSubject}
-              </span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-md text-[11px] font-mono font-bold bg-subtle text-secondary border border-subtle">
-              Step {currentStep} of 5
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* 5-Step Linear SaaS Progress Indicator */}
-      <div className="flex items-center justify-between max-w-3xl mx-auto py-1">
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Wizard Step Progression Bar */}
+      <div className="flex items-center justify-between border-b border-subtle pb-4">
         {[
           { step: 1, label: 'Curriculum' },
-          { step: 2, label: 'Lecture & Content' },
+          { step: 2, label: 'Content' },
           { step: 3, label: 'Diagnostics' },
           { step: 4, label: 'Question Review' },
-          { step: 5, label: 'Import' },
-        ].map((item, idx) => (
-          <React.Fragment key={item.step}>
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
-                  currentStep === item.step
-                    ? 'bg-cyan-500 text-slate-950 ring-4 ring-cyan-500/20'
-                    : currentStep > item.step
-                    ? 'bg-emerald-500 text-slate-950'
-                    : 'bg-subtle text-muted'
-                }`}
-              >
-                {currentStep > item.step ? '✓' : item.step}
-              </div>
-              <span
-                className={`text-xs font-semibold hidden md:inline ${
-                  currentStep === item.step ? 'text-primary' : 'text-muted'
-                }`}
-              >
-                {item.label}
-              </span>
-            </div>
-            {idx < 4 && <div className="flex-1 h-0.5 mx-2 bg-subtle" />}
-          </React.Fragment>
+          { step: 5, label: 'Complete' },
+        ].map((s) => (
+          <div key={s.step} className="flex items-center gap-2">
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-colors ${
+                currentStep === s.step
+                  ? 'bg-cyan-500 text-slate-950 ring-2 ring-cyan-400'
+                  : currentStep > s.step
+                  ? 'bg-emerald-500 text-slate-950'
+                  : 'bg-subtle text-muted border border-subtle'
+              }`}
+            >
+              {currentStep > s.step ? <Check className="w-3.5 h-3.5" /> : s.step}
+            </span>
+            <span
+              className={`text-xs font-semibold hidden sm:inline ${
+                currentStep === s.step
+                  ? 'text-primary'
+                  : currentStep > s.step
+                  ? 'text-emerald-500'
+                  : 'text-muted'
+              }`}
+            >
+              {s.label}
+            </span>
+          </div>
         ))}
       </div>
 
       {/* =========================================================================
-          STEP 1: SELECT MODULE & SUBJECT
-          Dropdowns: Module (Blood, CVS, Respiratory) & Subject (Anatomy, Physiology...)
+          STEP 1: CURRICULUM SELECTION
           ========================================================================= */}
       {currentStep === 1 && (
         <div className="p-6 bg-surface border border-subtle rounded-2xl shadow-card space-y-6">
           <div>
             <h2 className="text-base font-bold text-primary tracking-wide">
-              Step 1: Select Module & Subject
+              Step 1: Select Academic Destination
             </h2>
             <p className="text-xs text-secondary mt-1">
-              Academic Stage: <strong className="text-primary">{selectedYear}</strong>. Choose the organ system module and medical subject.
+              Organize your medical question deck into the standardized academic curriculum.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Module Selector */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-secondary uppercase tracking-wider">
-                Select Module:
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedModule}
-                  onChange={(e) => handleModuleChange(e.target.value)}
-                  className="w-full p-3.5 bg-subtle border border-subtle rounded-xl text-sm font-bold text-primary appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer pr-10"
-                >
-                  {availableModules.map((mod) => (
-                    <option key={mod} value={mod}>
-                      {mod}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            {/* Year */}
+            <div className="space-y-1.5">
+              <label className="text-secondary font-bold">Academic Year</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => handleYearChange(e.target.value)}
+                className="w-full p-2.5 bg-subtle border border-subtle rounded-xl text-primary font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500 text-xs"
+              >
+                {availableYears.map((yr) => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Subject Selector */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-secondary uppercase tracking-wider">
-                Select Subject:
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="w-full p-3.5 bg-subtle border border-subtle rounded-xl text-sm font-bold text-primary appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer pr-10"
-                >
-                  {availableSubjects.map((subj) => (
-                    <option key={subj} value={subj}>
-                      {subj}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-muted absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+            {/* Module */}
+            <div className="space-y-1.5">
+              <label className="text-secondary font-bold">Module</label>
+              <select
+                value={selectedModule}
+                onChange={(e) => handleModuleChange(e.target.value)}
+                className="w-full p-2.5 bg-subtle border border-subtle rounded-xl text-primary font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500 text-xs"
+              >
+                {availableModules.map((mod) => (
+                  <option key={mod} value={mod}>
+                    {mod}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Subject */}
+            <div className="space-y-1.5">
+              <label className="text-secondary font-bold">Subject</label>
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full p-2.5 bg-subtle border border-subtle rounded-xl text-primary font-semibold focus:outline-none focus:ring-1 focus:ring-cyan-500 text-xs"
+              >
+                {availableSubjects.map((subj) => (
+                  <option key={subj} value={subj}>
+                    {subj}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-4 border-t border-subtle">
             <button
               onClick={onCancel}
-              className="text-xs font-semibold text-muted hover:text-primary transition"
+              className="text-xs text-muted hover:text-primary transition"
             >
               Cancel
             </button>
@@ -474,7 +742,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               onClick={() => setCurrentStep(2)}
               className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
             >
-              <span>Next: Enter Lecture Name</span>
+              <span>Next: Import Source</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -482,21 +750,21 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       )}
 
       {/* =========================================================================
-          STEP 2: ENTER LECTURE NAME & CONTENT
-          Default value: Uploaded filename if from file, leave empty if manual paste
+          STEP 2: CONTENT & IMPORT SOURCE
           ========================================================================= */}
       {currentStep === 2 && (
         <div className="p-6 bg-surface border border-subtle rounded-2xl shadow-card space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-subtle">
+          <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-primary tracking-wide">
-                Step 2: Enter Lecture Name & Provide Questions
+                Step 2: Provide Lecture Name & Questions
               </h2>
               <p className="text-xs text-secondary mt-1">
-                Target: <strong className="text-primary">{selectedYear} → {selectedModule} → {selectedSubject}</strong>
+                Upload a Word document (.docx), text file (.txt), or paste question text directly.
               </p>
             </div>
 
+            {/* Mode Toggle Button */}
             <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs">
               <button
                 type="button"
@@ -562,7 +830,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 )}
               </h3>
               <p className="text-xs text-secondary mb-4 max-w-md mx-auto">
-                Headers, university names, and metadata are automatically filtered.
+                University headers, exam metadata, and decorative dividers are automatically filtered out.
               </p>
               <label className="inline-flex items-center justify-center px-5 py-2.5 bg-surface hover:bg-subtle text-primary border border-subtle font-bold rounded-xl text-xs cursor-pointer transition active:scale-95 shadow-sm">
                 {selectedFile ? 'Change Selected Document' : 'Choose Document File'}
@@ -582,12 +850,16 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between text-secondary font-semibold">
                 <span>Paste Question Content:</span>
-                <span className="text-[11px] text-muted font-mono">Q1. / 1. format supported</span>
+                <span className="text-[11px] text-muted font-mono">
+                  Supports MCQ, Matching, Ordering, and Case Questions
+                </span>
               </div>
               <textarea
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
-                placeholder={'Q1. Question stem here...\nA) Option A\nB) Option B\nC) Option C\n\nOFFICIAL ANSWER KEY\n1. B'}
+                placeholder={
+                  'Q1. Question stem here...\nA) Option A\nB) Option B\nC) Option C\n\nOFFICIAL ANSWER KEY\n1. B'
+                }
                 className="w-full h-56 p-3 bg-subtle border border-subtle rounded-xl text-xs font-mono text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed"
               />
             </div>
@@ -618,7 +890,6 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
       {/* =========================================================================
           STEP 3: PARSE & QUESTION IMPORT DIAGNOSTICS
-          Detailed error breakdown: Question Number, Issue, Cause, Suggested Fix
           ========================================================================= */}
       {currentStep === 3 && previewResult && (
         <div className="p-6 bg-surface border border-subtle rounded-2xl shadow-card space-y-6">
@@ -628,8 +899,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 Step 3: Question Import Diagnostics
               </h2>
               <p className="text-xs text-secondary mt-1">
-                Automated quality analysis for{' '}
-                <strong className="text-primary">{lectureName || 'Lecture Deck'}</strong>
+                Quality analysis for <strong className="text-primary">{lectureName || 'Lecture Deck'}</strong>
               </p>
             </div>
             <span className="text-xs font-mono font-bold text-cyan-600 dark:text-cyan-400 bg-subtle px-3 py-1 rounded-full border border-subtle">
@@ -637,45 +907,59 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             </span>
           </div>
 
-          {/* Diagnostic Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="p-3.5 rounded-xl bg-subtle border border-subtle">
-              <span className="text-muted text-[10px] uppercase font-semibold block">Questions Detected</span>
-              <div className="text-2xl font-black text-primary mt-1">
+          {/* Diagnostic Metrics Grid: All 6 types */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+            <div className="p-3 rounded-xl bg-subtle border border-subtle">
+              <span className="text-muted text-[10px] uppercase font-semibold block">Total Detected</span>
+              <div className="text-xl font-black text-primary mt-1">
                 {previewResult.detectedQuestionCount}
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-subtle border border-subtle">
-              <span className="text-muted text-[10px] uppercase font-semibold block">Answer Keys Mapped</span>
-              <div className="text-2xl font-black text-emerald-500 mt-1">
-                {previewResult.answerKeyCount} / {previewResult.detectedQuestionCount}
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-subtle border border-subtle">
-              <span className="text-muted text-[10px] uppercase font-semibold block">Single Choice MCQs</span>
-              <div className="text-2xl font-black text-cyan-500 mt-1">
+            <div className="p-3 rounded-xl bg-subtle border border-subtle">
+              <span className="text-muted text-[10px] uppercase font-semibold block">Single MCQs</span>
+              <div className="text-xl font-black text-cyan-500 mt-1">
                 {previewResult.typeBreakdown.single_mcq}
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-subtle border border-subtle">
-              <span className="text-muted text-[10px] uppercase font-semibold block">Other Question Types</span>
-              <div className="text-2xl font-black text-amber-500 mt-1">
-                {previewResult.detectedQuestionCount - previewResult.typeBreakdown.single_mcq}
+            <div className="p-3 rounded-xl bg-subtle border border-subtle">
+              <span className="text-muted text-[10px] uppercase font-semibold block">Multiple MCQs</span>
+              <div className="text-xl font-black text-indigo-500 mt-1">
+                {previewResult.typeBreakdown.multiple_mcq}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-subtle border border-subtle">
+              <span className="text-muted text-[10px] uppercase font-semibold block">Matching</span>
+              <div className="text-xl font-black text-emerald-500 mt-1">
+                {previewResult.typeBreakdown.matching}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-subtle border border-subtle">
+              <span className="text-muted text-[10px] uppercase font-semibold block">Ordering</span>
+              <div className="text-xl font-black text-amber-500 mt-1">
+                {previewResult.typeBreakdown.ordering}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-subtle border border-subtle">
+              <span className="text-muted text-[10px] uppercase font-semibold block">Case Studies</span>
+              <div className="text-xl font-black text-purple-500 mt-1">
+                {previewResult.typeBreakdown.case_study}
               </div>
             </div>
           </div>
 
-          {/* Specific Diagnostics Table (Question Number, Issue, Cause, Suggested Fix) */}
+          {/* Specific Diagnostics Table */}
           {previewResult.issues.length > 0 ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-rose-500 font-bold text-xs uppercase tracking-wide">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>Detected Diagnostics & Fixes ({previewResult.issues.length})</span>
+                <span>Detected Diagnostics & Suggested Fixes ({previewResult.issues.length})</span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                 {previewResult.issues.map((iss, i) => (
                   <div
                     key={i}
@@ -741,13 +1025,12 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
       {/* =========================================================================
           STEP 4: MANDATORY PRE-IMPORT MANUAL REVIEW STAGE
-          Quality-Control Layer:
-          - Delete false positives
-          - Edit question text
-          - Edit options / Add option / Delete option
-          - Edit answer key / select correct answer
-          - Merge split questions
-          - Reorder questions
+          Specialized reviews for:
+          - Matching Questions (Left/Right items & linkages)
+          - Ordering Questions (Step sequence & Rank badges)
+          - Case-Based Questions (Vignette box & child sub-questions)
+          - Single MCQ, Multi MCQ, True/False
+          - Parser Debug View toggle
           ========================================================================= */}
       {currentStep === 4 && (
         <div className="p-6 bg-surface border border-subtle rounded-2xl shadow-card space-y-6">
@@ -762,49 +1045,77 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 </h2>
               </div>
               <p className="text-xs text-secondary mt-1">
-                Edit text, add/remove options, toggle correct answers, reorder, or delete errors.
+                Edit stems, manage matching pairs, rearrange ordering steps, or edit case scenarios.
               </p>
             </div>
 
-            {/* Quick Filter Search */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Search questions (#1, term)..."
-                className="w-full pl-8 pr-3 py-1.5 bg-subtle border border-subtle rounded-lg text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
-              />
+            <div className="flex items-center gap-2">
+              {/* Parser Debug View Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setShowDebugView(!showDebugView)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition ${
+                  showDebugView
+                    ? 'bg-amber-500/20 border-amber-500 text-amber-600 dark:text-amber-400'
+                    : 'bg-subtle border-subtle text-secondary hover:text-primary'
+                }`}
+                title="Toggle Parser Debug View"
+              >
+                <Bug className="w-3.5 h-3.5" />
+                <span>{showDebugView ? 'Hide Parser Debug' : 'Parser Debug View'}</span>
+              </button>
+
+              {/* Quick Filter Search */}
+              <div className="relative w-48 sm:w-60">
+                <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  placeholder="Filter (#1, term)..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-subtle border border-subtle rounded-lg text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+              </div>
             </div>
           </div>
 
           {/* Question Cards List */}
-          <div className="space-y-4 max-h-[620px] overflow-y-auto pr-1">
+          <div className="space-y-5 max-h-[640px] overflow-y-auto pr-1">
             {filteredReviewList.length === 0 ? (
               <div className="p-8 text-center text-secondary text-xs bg-subtle rounded-xl">
                 No questions match your filter.
               </div>
             ) : (
-              filteredReviewList.map((item, index) => {
+              filteredReviewList.map((item) => {
                 const actualIndex = reviewQuestions.findIndex((q) => q.id === item.id);
                 return (
                   <div
                     key={item.id}
-                    className="p-4 rounded-xl bg-subtle/50 border border-subtle space-y-3 transition-colors hover:border-slate-400 dark:hover:border-slate-700"
+                    className="p-4 rounded-xl bg-subtle/40 border border-subtle space-y-4 transition-colors hover:border-slate-400 dark:hover:border-slate-700"
                   >
                     {/* Card Header & Controls */}
-                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-subtle text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-subtle text-xs">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-primary">
+                        <span className="font-mono font-bold text-primary text-sm">
                           #{actualIndex + 1}
                         </span>
-                        <span className="text-[11px] font-mono text-muted uppercase">
-                          {item.type.replace('_', ' ')}
-                        </span>
+
+                        {/* Question Type Selector */}
+                        <select
+                          value={item.type}
+                          onChange={(e) => handleChangeQuestionType(item.id, e.target.value as QuestionType)}
+                          className="px-2 py-0.5 rounded-md bg-surface border border-subtle text-[11px] font-bold uppercase text-primary focus:outline-none"
+                        >
+                          <option value="single_mcq">Single MCQ</option>
+                          <option value="multiple_mcq">Multiple MCQ</option>
+                          <option value="true_false">True / False</option>
+                          <option value="matching">Matching</option>
+                          <option value="ordering">Ordering</option>
+                          <option value="case_study">Case Study</option>
+                        </select>
                       </div>
 
-                      {/* Tool Controls: Reorder, Merge, Delete */}
+                      {/* Tool Controls: Reorder, Delete */}
                       <div className="flex items-center gap-1">
                         <Tooltip content="Move question up">
                           <button
@@ -828,7 +1139,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                           </button>
                         </Tooltip>
 
-                        <Tooltip content="Delete incorrectly detected question">
+                        <Tooltip content="Delete question">
                           <button
                             type="button"
                             onClick={() => handleDeleteReviewQuestion(item.id)}
@@ -840,71 +1151,441 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                       </div>
                     </div>
 
-                    {/* Question Stem Text Area */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-secondary">
-                        Question Stem:
-                      </label>
-                      <textarea
-                        value={item.question}
-                        onChange={(e) => handleUpdateQuestionText(item.id, e.target.value)}
-                        rows={2}
-                        className="w-full p-2.5 bg-surface border border-subtle rounded-lg text-xs font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed"
-                      />
-                    </div>
-
-                    {/* Options List */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-secondary">
-                        <span>Options (Click letter to set as correct answer):</span>
-                        <button
-                          type="button"
-                          onClick={() => handleAddOption(item.id)}
-                          className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>Add Option</span>
-                        </button>
+                    {/* Parser Debug Panel (when toggled on) */}
+                    {showDebugView && item._debug && (
+                      <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-900/60 text-[11px] space-y-1 font-mono text-amber-900 dark:text-amber-200">
+                        <div className="flex items-center justify-between font-bold">
+                          <span>[Parser Debug View]</span>
+                          <span className="uppercase text-[10px] px-1.5 py-0.2 rounded bg-amber-200 dark:bg-amber-900/60">
+                            {item._debug.detectedType}
+                          </span>
+                        </div>
+                        <div>
+                          <strong>Reason:</strong> {item._debug.classificationReason}
+                        </div>
+                        {item._debug.rawAnswerToken && (
+                          <div>
+                            <strong>Answer Token:</strong> {item._debug.rawAnswerToken}
+                          </div>
+                        )}
+                        <div>
+                          <strong>Source Boundary:</strong> Line {item._debug.boundaryLine}
+                        </div>
                       </div>
+                    )}
 
-                      <div className="space-y-1.5">
-                        {item.options.map((optText, optIdx) => {
-                          const isCorrect = item.correctAnswers.includes(optIdx);
-                          const letter = String.fromCharCode(65 + optIdx);
-                          return (
-                            <div key={optIdx} className="flex items-center gap-2">
+                    {/* =========================================================
+                        TYPE 1: CASE STUDY REVIEW CARD
+                        ========================================================= */}
+                    {item.type === 'case_study' && (
+                      <div className="space-y-4">
+                        {/* Clinical Vignette */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-cyan-600 dark:text-cyan-400">
+                            <span className="flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5" /> Clinical Case Vignette
+                            </span>
+                          </div>
+                          <textarea
+                            value={item.caseVignette || ''}
+                            onChange={(e) => handleUpdateCaseVignette(item.id, e.target.value)}
+                            rows={3}
+                            placeholder="Enter patient clinical presentation scenario..."
+                            className="w-full p-2.5 bg-surface border border-cyan-500/40 rounded-xl text-xs font-serif text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed"
+                          />
+                        </div>
+
+                        {/* Linked Sub-questions */}
+                        <div className="space-y-3 pt-1">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-secondary">
+                            <span>Child Sub-Questions ({item.subQuestions?.length || 0}):</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddSubQuestion(item.id)}
+                              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+                            >
+                              <Plus className="w-3 h-3" /> Add Sub-Question
+                            </button>
+                          </div>
+
+                          <div className="space-y-3 pl-2 border-l-2 border-cyan-500/30">
+                            {item.subQuestions?.map((sub, sIdx) => (
+                              <div
+                                key={sub.id || sIdx}
+                                className="p-3 rounded-xl bg-surface border border-subtle space-y-2 text-xs"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-bold text-primary text-[11px]">
+                                    Sub-Question {sIdx + 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSubQuestion(item.id, sIdx)}
+                                    className="p-1 text-muted hover:text-rose-500"
+                                    title="Delete sub-question"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                <input
+                                  type="text"
+                                  value={sub.question}
+                                  onChange={(e) =>
+                                    handleUpdateSubQuestionStem(item.id, sIdx, e.target.value)
+                                  }
+                                  placeholder="Sub-question query..."
+                                  className="w-full p-2 rounded-lg bg-subtle border border-subtle text-xs font-semibold text-primary"
+                                />
+
+                                {/* Sub-question options */}
+                                <div className="space-y-1.5 pt-1">
+                                  <div className="flex items-center justify-between text-[10px] text-muted font-bold">
+                                    <span>Options (Click letter to select correct answer):</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddSubQuestionOption(item.id, sIdx)}
+                                      className="text-cyan-600 dark:text-cyan-400 hover:underline"
+                                    >
+                                      + Option
+                                    </button>
+                                  </div>
+                                  {sub.options.map((opt, oIdx) => {
+                                    const isCorrect = sub.correctAnswer === oIdx;
+                                    const letter = String.fromCharCode(65 + oIdx);
+                                    return (
+                                      <div key={oIdx} className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleSetSubQuestionCorrectAnswer(item.id, sIdx, oIdx)
+                                          }
+                                          className={`w-5 h-5 rounded text-[10px] font-bold font-mono shrink-0 transition ${
+                                            isCorrect
+                                              ? 'bg-emerald-500 text-slate-950 font-black'
+                                              : 'bg-subtle text-muted hover:text-primary'
+                                          }`}
+                                        >
+                                          {letter}
+                                        </button>
+                                        <input
+                                          type="text"
+                                          value={opt}
+                                          onChange={(e) =>
+                                            handleUpdateSubQuestionOption(
+                                              item.id,
+                                              sIdx,
+                                              oIdx,
+                                              e.target.value
+                                            )
+                                          }
+                                          className={`flex-1 p-1.5 rounded bg-subtle border text-xs text-primary ${
+                                            isCorrect ? 'border-emerald-500/60 font-semibold' : 'border-subtle'
+                                          }`}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleDeleteSubQuestionOption(item.id, sIdx, oIdx)
+                                          }
+                                          className="p-1 text-muted hover:text-rose-500"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* =========================================================
+                        TYPE 2: MATCHING REVIEW CARD
+                        ========================================================= */}
+                    {item.type === 'matching' && (
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-secondary">
+                            Question Stem:
+                          </label>
+                          <textarea
+                            value={item.question}
+                            onChange={(e) => handleUpdateQuestionText(item.id, e.target.value)}
+                            rows={2}
+                            className="w-full p-2.5 bg-surface border border-subtle rounded-lg text-xs font-semibold text-primary leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-secondary">
+                            <span>Matching Pairs (Column A ➔ Column B):</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddMatchingPair(item.id)}
+                              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+                            >
+                              <Plus className="w-3 h-3" /> Add Pair
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {item.matchingPairs?.map((pair, pIdx) => {
+                              const letter = String.fromCharCode(65 + pIdx);
+                              return (
+                                <div
+                                  key={pair.id || pIdx}
+                                  className="p-2.5 rounded-xl bg-surface border border-subtle flex flex-col sm:flex-row sm:items-center gap-2 text-xs"
+                                >
+                                  {/* Left item */}
+                                  <div className="flex items-center gap-1.5 flex-1">
+                                    <span className="w-6 h-6 rounded bg-subtle border border-subtle text-primary font-bold font-mono flex items-center justify-center shrink-0">
+                                      {letter}
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={pair.left}
+                                      onChange={(e) =>
+                                        handleUpdateMatchingLeft(item.id, pIdx, e.target.value)
+                                      }
+                                      placeholder="Left Item..."
+                                      className="flex-1 p-2 bg-subtle border border-subtle rounded-lg text-xs font-semibold text-primary"
+                                    />
+                                  </div>
+
+                                  <span className="text-cyan-500 font-bold hidden sm:inline">➔</span>
+
+                                  {/* Right item */}
+                                  <div className="flex items-center gap-1.5 flex-1">
+                                    <span className="w-6 h-6 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-bold font-mono flex items-center justify-center shrink-0">
+                                      {pIdx + 1}
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={pair.right}
+                                      onChange={(e) =>
+                                        handleUpdateMatchingRight(item.id, pIdx, e.target.value)
+                                      }
+                                      placeholder="Matched Target..."
+                                      className="flex-1 p-2 bg-subtle border border-subtle rounded-lg text-xs font-semibold text-primary"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteMatchingPair(item.id, pIdx)}
+                                      className="p-1.5 text-muted hover:text-rose-500"
+                                      title="Delete pair"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* =========================================================
+                        TYPE 3: ORDERING REVIEW CARD
+                        ========================================================= */}
+                    {item.type === 'ordering' && (
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-secondary">
+                            Question Stem:
+                          </label>
+                          <textarea
+                            value={item.question}
+                            onChange={(e) => handleUpdateQuestionText(item.id, e.target.value)}
+                            rows={2}
+                            className="w-full p-2.5 bg-surface border border-subtle rounded-lg text-xs font-semibold text-primary leading-relaxed"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-secondary">
+                            <span>Correct Sequence Order (Use arrows to arrange):</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddOrderingItem(item.id)}
+                              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+                            >
+                              <Plus className="w-3 h-3" /> Add Step
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {(item.correctOrder || item.options.map((_, i) => i)).map(
+                              (optIdx, rank) => {
+                                const optText = item.options[optIdx] || '';
+                                return (
+                                  <div
+                                    key={optIdx}
+                                    className="p-2.5 rounded-xl bg-surface border border-subtle flex items-center justify-between gap-2 text-xs"
+                                  >
+                                    <div className="flex items-center gap-2 flex-1">
+                                      <span className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold font-mono flex items-center justify-center shrink-0 text-[11px]">
+                                        {rank + 1}
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={optText}
+                                        onChange={(e) =>
+                                          handleUpdateOrderingItemText(
+                                            item.id,
+                                            optIdx,
+                                            e.target.value
+                                          )
+                                        }
+                                        className="flex-1 p-2 bg-subtle border border-subtle rounded-lg text-xs font-semibold text-primary"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={rank === 0}
+                                        onClick={() =>
+                                          handleMoveOrderItem(item.id, rank, rank - 1)
+                                        }
+                                        className="p-1 rounded bg-subtle border border-subtle text-secondary hover:text-primary disabled:opacity-30"
+                                      >
+                                        <MoveUp className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          rank ===
+                                          (item.correctOrder?.length || item.options.length) - 1
+                                        }
+                                        onClick={() =>
+                                          handleMoveOrderItem(item.id, rank, rank + 1)
+                                        }
+                                        className="p-1 rounded bg-subtle border border-subtle text-secondary hover:text-primary disabled:opacity-30"
+                                      >
+                                        <MoveDown className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleDeleteOrderingItem(item.id, optIdx)
+                                        }
+                                        className="p-1 text-muted hover:text-rose-500"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* =========================================================
+                        TYPE 4, 5, 6: MCQ & TRUE-FALSE REVIEW CARD
+                        ========================================================= */}
+                    {(item.type === 'single_mcq' ||
+                      item.type === 'multiple_mcq' ||
+                      item.type === 'true_false') && (
+                      <div className="space-y-3">
+                        {/* Stem */}
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-secondary">
+                            Question Stem:
+                          </label>
+                          <textarea
+                            value={item.question}
+                            onChange={(e) => handleUpdateQuestionText(item.id, e.target.value)}
+                            rows={2}
+                            className="w-full p-2.5 bg-surface border border-subtle rounded-lg text-xs font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed"
+                          />
+                        </div>
+
+                        {/* Options */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-secondary">
+                            <span>Options (Click letter to select correct answer):</span>
+                            {item.type !== 'true_false' && (
                               <button
                                 type="button"
-                                onClick={() => handleToggleCorrectAnswer(item.id, optIdx)}
-                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold font-mono shrink-0 transition ${
-                                  isCorrect
-                                    ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-500/30'
-                                    : 'bg-subtle text-muted hover:text-primary hover:bg-slate-300 dark:hover:bg-slate-700'
-                                }`}
+                                onClick={() => handleAddOption(item.id)}
+                                className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
                               >
-                                {letter}
+                                <Plus className="w-3 h-3" />
+                                <span>Add Option</span>
                               </button>
+                            )}
+                          </div>
 
-                              <input
-                                type="text"
-                                value={optText}
-                                onChange={(e) => handleUpdateOptionText(item.id, optIdx, e.target.value)}
-                                className={`flex-1 p-2 rounded-lg bg-surface border text-xs text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
-                                  isCorrect ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/10' : 'border-subtle'
-                                }`}
-                              />
+                          <div className="space-y-1.5">
+                            {item.options.map((optText, optIdx) => {
+                              const isCorrect = item.correctAnswers.includes(optIdx);
+                              const letter = String.fromCharCode(65 + optIdx);
+                              return (
+                                <div key={optIdx} className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCorrectAnswer(item.id, optIdx)}
+                                    className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold font-mono shrink-0 transition ${
+                                      isCorrect
+                                        ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-500/30'
+                                        : 'bg-subtle text-muted hover:text-primary hover:bg-slate-300 dark:hover:bg-slate-700'
+                                    }`}
+                                  >
+                                    {letter}
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteOption(item.id, optIdx)}
-                                className="p-1.5 text-muted hover:text-rose-500 transition shrink-0"
-                                title="Delete this option"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          );
-                        })}
+                                  <input
+                                    type="text"
+                                    value={optText}
+                                    onChange={(e) =>
+                                      handleUpdateOptionText(item.id, optIdx, e.target.value)
+                                    }
+                                    className={`flex-1 p-2 rounded-lg bg-surface border text-xs text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                                      isCorrect
+                                        ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/10'
+                                        : 'border-subtle'
+                                    }`}
+                                  />
+
+                                  {item.type !== 'true_false' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteOption(item.id, optIdx)}
+                                      className="p-1.5 text-muted hover:text-rose-500 transition shrink-0"
+                                      title="Delete this option"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Shared Explanation */}
+                    <div className="pt-2 border-t border-subtle/50">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-muted">
+                          Explanation / Clinical Rationale:
+                        </label>
+                        <input
+                          type="text"
+                          value={item.explanation || ''}
+                          onChange={(e) => handleUpdateExplanation(item.id, e.target.value)}
+                          placeholder="Optional explanation notes..."
+                          className="w-full p-2 bg-surface border border-subtle rounded-lg text-xs text-secondary"
+                        />
                       </div>
                     </div>
                   </div>
