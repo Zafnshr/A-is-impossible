@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { HelpCircle } from 'lucide-react';
 
 interface TooltipProps {
@@ -17,61 +18,165 @@ export const Tooltip: React.FC<TooltipProps> = ({
   iconOnly = false,
 }) => {
   const [visible, setVisible] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
 
-  const getPositionClasses = () => {
-    switch (side) {
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    effectiveSide: 'top' | 'bottom' | 'left' | 'right';
+  }>({
+    top: 0,
+    left: 0,
+    effectiveSide: side,
+  });
+
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+
+    let effSide = side;
+    // Auto flip vertically if close to viewport boundaries
+    if (side === 'top' && rect.top < 60) {
+      effSide = 'bottom';
+    } else if (side === 'bottom' && window.innerHeight - rect.bottom < 60) {
+      effSide = 'top';
+    } else if (side === 'left' && rect.left < 80) {
+      effSide = 'right';
+    } else if (side === 'right' && window.innerWidth - rect.right < 80) {
+      effSide = 'left';
+    }
+
+    let top = 0;
+    let left = 0;
+
+    if (effSide === 'top') {
+      top = rect.top - 8;
+      left = rect.left + rect.width / 2;
+    } else if (effSide === 'bottom') {
+      top = rect.bottom + 8;
+      left = rect.left + rect.width / 2;
+    } else if (effSide === 'left') {
+      top = rect.top + rect.height / 2;
+      left = rect.left - 8;
+    } else if (effSide === 'right') {
+      top = rect.top + rect.height / 2;
+      left = rect.right + 8;
+    }
+
+    // Clamp horizontal positioning so tooltip stays inside viewport margins
+    const padding = 12;
+    const clampedLeft = Math.max(padding, Math.min(window.innerWidth - padding, left));
+
+    setCoords({
+      top,
+      left: clampedLeft,
+      effectiveSide: effSide,
+    });
+  }, [side]);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    updatePosition();
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    window.addEventListener('scroll', handleScrollOrResize, { passive: true, capture: true });
+    window.addEventListener('resize', handleScrollOrResize, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, { capture: true });
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [visible, updatePosition]);
+
+  const showTooltip = () => {
+    updatePosition();
+    setVisible(true);
+  };
+
+  const hideTooltip = () => {
+    setVisible(false);
+  };
+
+  const getTransform = () => {
+    switch (coords.effectiveSide) {
       case 'bottom':
-        return 'top-full mt-2 left-1/2 -translate-x-1/2';
+        return 'translate(-50%, 0)';
       case 'left':
-        return 'right-full mr-2 top-1/2 -translate-y-1/2';
+        return 'translate(-100%, -50%)';
       case 'right':
-        return 'left-full ml-2 top-1/2 -translate-y-1/2';
+        return 'translate(0, -50%)';
       case 'top':
       default:
-        return 'bottom-full mb-2 left-1/2 -translate-x-1/2';
+        return 'translate(-50%, -100%)';
     }
+  };
+
+  const renderTooltipPortal = () => {
+    if (!visible || !content || typeof document === 'undefined') return null;
+
+    return createPortal(
+      <div
+        ref={tooltipRef}
+        role="tooltip"
+        style={{
+          position: 'fixed',
+          top: `${coords.top}px`,
+          left: `${coords.left}px`,
+          transform: getTransform(),
+          zIndex: 99999,
+          pointerEvents: 'none',
+        }}
+        className="max-w-[280px] sm:max-w-xs px-3 py-1.5 text-[11px] font-medium text-slate-100 bg-slate-900/95 border border-slate-700/90 rounded-lg shadow-2xl backdrop-blur-md whitespace-normal break-words text-center leading-relaxed transition-all duration-150 animate-in fade-in zoom-in-95"
+      >
+        {content}
+      </div>,
+      document.body
+    );
   };
 
   if (iconOnly) {
     return (
-      <span
-        className={`relative inline-flex items-center align-middle ${className}`}
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        onFocus={() => setVisible(true)}
-        onBlur={() => setVisible(false)}
-        tabIndex={0}
-        role="tooltip"
-        aria-label={content}
-      >
-        <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-cyan-400 transition-colors cursor-help" />
-        {visible && (
-          <span
-            className={`absolute ${getPositionClasses()} z-50 px-2.5 py-1 text-[11px] font-medium text-slate-100 bg-slate-900 border border-slate-700/80 rounded-md shadow-xl whitespace-nowrap pointer-events-none transition-opacity duration-150 animate-in fade-in`}
-          >
-            {content}
-          </span>
-        )}
-      </span>
+      <>
+        <span
+          ref={(el) => {
+            triggerRef.current = el;
+          }}
+          className={`inline-flex items-center align-middle cursor-help focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded ${className}`}
+          onMouseEnter={showTooltip}
+          onMouseLeave={hideTooltip}
+          onFocus={showTooltip}
+          onBlur={hideTooltip}
+          tabIndex={0}
+          role="button"
+          aria-label={content}
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-slate-400 hover:text-cyan-400 transition-colors" />
+        </span>
+        {renderTooltipPortal()}
+      </>
     );
   }
 
   return (
-    <div
-      className={`relative inline-flex items-center ${className}`}
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-      onFocus={() => setVisible(true)}
-      onBlur={() => setVisible(false)}
-    >
-      {children}
-      {visible && (
-        <span
-          className={`absolute ${getPositionClasses()} z-50 px-2.5 py-1 text-[11px] font-medium text-slate-100 bg-slate-900 border border-slate-700/80 rounded-md shadow-xl whitespace-nowrap pointer-events-none transition-opacity duration-150 animate-in fade-in`}
-        >
-          {content}
-        </span>
-      )}
-    </div>
+    <>
+      <span
+        ref={(el) => {
+          triggerRef.current = el;
+        }}
+        className={`inline-flex items-center ${className}`}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+      >
+        {children}
+      </span>
+      {renderTooltipPortal()}
+    </>
   );
 };

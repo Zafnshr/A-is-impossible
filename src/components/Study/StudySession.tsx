@@ -130,13 +130,20 @@ export const StudySession: React.FC<StudySessionProps> = ({
     }
   }, [currentQuestion?.id]);
 
-  // Session timer countdown / count-up
+  // Session reference to always have freshest state without stale closures
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  // Session timer countdown / count-up (always reads freshest session without stale closure clobbering)
   useEffect(() => {
     if (session.timerRunning) {
       timerRef.current = window.setInterval(() => {
+        const cur = sessionRef.current;
         onUpdateSession({
-          ...session,
-          timerSeconds: session.timerSeconds + 1,
+          ...cur,
+          timerSeconds: cur.timerSeconds + 1,
           lastSavedAt: Date.now(),
         });
       }, 1000);
@@ -147,7 +154,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [session.timerRunning, session.timerSeconds]);
+  }, [session.timerRunning]);
 
   // Keyboard navigation shortcuts
   useEffect(() => {
@@ -312,37 +319,48 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
   const handleSelectSingleOption = (optionIndex: number) => {
     if (isSubmitted) return;
-    onUpdateSession({
-      ...session,
-      userAnswers: { ...session.userAnswers, [currentQuestion.id]: optionIndex },
+    const cur = sessionRef.current;
+    const updated = {
+      ...cur,
+      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: optionIndex },
       lastSavedAt: Date.now(),
-    });
+    };
+    sessionRef.current = updated;
+    onUpdateSession(updated);
   };
 
   const handleToggleMultipleOption = (optionIndex: number) => {
     if (isSubmitted) return;
-    const currentList: number[] = Array.isArray(currentAnswer) ? [...currentAnswer] : [];
+    const cur = sessionRef.current;
+    const currentList: number[] = Array.isArray(cur.userAnswers[currentQuestion.id])
+      ? [...cur.userAnswers[currentQuestion.id]]
+      : [];
     const exists = currentList.includes(optionIndex);
     const updated = exists
       ? currentList.filter((i) => i !== optionIndex)
       : [...currentList, optionIndex].sort((a, b) => a - b);
 
-    onUpdateSession({
-      ...session,
-      userAnswers: { ...session.userAnswers, [currentQuestion.id]: updated },
+    const updatedSession = {
+      ...cur,
+      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updated },
       lastSavedAt: Date.now(),
-    });
+    };
+    sessionRef.current = updatedSession;
+    onUpdateSession(updatedSession);
   };
 
   const handleMatchingChange = (pairId: string, matchedRight: string) => {
     if (isSubmitted) return;
     const updated = { ...matchingSelections, [pairId]: matchedRight };
     setMatchingSelections(updated);
-    onUpdateSession({
-      ...session,
-      userAnswers: { ...session.userAnswers, [currentQuestion.id]: updated },
+    const cur = sessionRef.current;
+    const updatedSession = {
+      ...cur,
+      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updated },
       lastSavedAt: Date.now(),
-    });
+    };
+    sessionRef.current = updatedSession;
+    onUpdateSession(updatedSession);
   };
 
   const handleMoveOrderItem = (fromIndex: number, toIndex: number) => {
@@ -352,28 +370,32 @@ export const StudySession: React.FC<StudySessionProps> = ({
     const [moved] = list.splice(fromIndex, 1);
     list.splice(toIndex, 0, moved);
     setOrderingList(list);
-    onUpdateSession({
-      ...session,
-      userAnswers: { ...session.userAnswers, [currentQuestion.id]: list },
+    const cur = sessionRef.current;
+    const updatedSession = {
+      ...cur,
+      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: list },
       lastSavedAt: Date.now(),
-    });
+    };
+    sessionRef.current = updatedSession;
+    onUpdateSession(updatedSession);
   };
 
   const handleCaseAnswerChange = (subQuestionId: string, chosenOptionIndex: number) => {
     if (isSubmitted) return;
     const updated = { ...caseAnswers, [subQuestionId]: chosenOptionIndex };
     setCaseAnswers(updated);
-    onUpdateSession({
-      ...session,
-      userAnswers: { ...session.userAnswers, [currentQuestion.id]: updated },
+    const cur = sessionRef.current;
+    const updatedSession = {
+      ...cur,
+      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updated },
       lastSavedAt: Date.now(),
-    });
+    };
+    sessionRef.current = updatedSession;
+    onUpdateSession(updatedSession);
   };
 
-  const handleSubmitCurrent = async () => {
-    if (isSubmitted) return;
-
-    const ans = session.userAnswers[currentQuestion.id];
+  const handleSubmitWithAnswer = async (ans: any, currentSession: StudySessionState) => {
+    if (currentSession.submittedQuestions[currentQuestion.id]) return;
     if (ans === undefined || ans === null) return;
 
     const correct = ((): boolean => {
@@ -418,7 +440,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
     // Persist attempt
     await dbService.saveAttempt({
       id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      profileId: session.profileId,
+      profileId: currentSession.profileId,
       questionId: currentQuestion.id,
       deckId: currentQuestion.deckId,
       year: currentDeck?.year || 'Year 2',
@@ -443,29 +465,77 @@ export const StudySession: React.FC<StudySessionProps> = ({
       await dbService.saveQuestionStatus(updatedStatus);
     }
 
-    onUpdateSession({
-      ...session,
-      submittedQuestions: { ...session.submittedQuestions, [currentQuestion.id]: true },
-      revealedQuestions: { ...session.revealedQuestions, [currentQuestion.id]: true },
+    const updated = {
+      ...currentSession,
+      submittedQuestions: { ...currentSession.submittedQuestions, [currentQuestion.id]: true },
+      revealedQuestions: { ...currentSession.revealedQuestions, [currentQuestion.id]: true },
       lastSavedAt: Date.now(),
-    });
+    };
+    sessionRef.current = updated;
+    onUpdateSession(updated);
+  };
+
+  const handleSubmitCurrent = async () => {
+    if (isSubmitted) return;
+    const cur = sessionRef.current;
+    const ans = cur.userAnswers[currentQuestion.id];
+    await handleSubmitWithAnswer(ans, cur);
+  };
+
+  const handleOptionDoubleClick = async (optionIndex: number) => {
+    if (isSubmitted) return;
+    const cur = sessionRef.current;
+    const updatedAnswers = { ...cur.userAnswers, [currentQuestion.id]: optionIndex };
+    const updatedSession = {
+      ...cur,
+      userAnswers: updatedAnswers,
+      lastSavedAt: Date.now(),
+    };
+    sessionRef.current = updatedSession;
+    onUpdateSession(updatedSession);
+    await handleSubmitWithAnswer(optionIndex, updatedSession);
+  };
+
+  const handleMultipleOptionDoubleClick = async (optionIndex: number) => {
+    if (isSubmitted) return;
+    const cur = sessionRef.current;
+    const currentList: number[] = Array.isArray(cur.userAnswers[currentQuestion.id])
+      ? [...cur.userAnswers[currentQuestion.id]]
+      : [];
+    const updatedList = currentList.includes(optionIndex)
+      ? currentList
+      : [...currentList, optionIndex].sort((a, b) => a - b);
+
+    if (updatedList.length === 0) return;
+
+    const updatedSession = {
+      ...cur,
+      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updatedList },
+      lastSavedAt: Date.now(),
+    };
+    sessionRef.current = updatedSession;
+    onUpdateSession(updatedSession);
+    await handleSubmitWithAnswer(updatedList, updatedSession);
   };
 
   const handleRetry = () => {
-    const updatedSubmitted = { ...session.submittedQuestions };
+    const cur = sessionRef.current;
+    const updatedSubmitted = { ...cur.submittedQuestions };
     delete updatedSubmitted[currentQuestion.id];
-    const updatedRevealed = { ...session.revealedQuestions };
+    const updatedRevealed = { ...cur.revealedQuestions };
     delete updatedRevealed[currentQuestion.id];
-    const updatedAnswers = { ...session.userAnswers };
+    const updatedAnswers = { ...cur.userAnswers };
     delete updatedAnswers[currentQuestion.id];
 
-    onUpdateSession({
-      ...session,
+    const updatedSession = {
+      ...cur,
       submittedQuestions: updatedSubmitted,
       revealedQuestions: updatedRevealed,
       userAnswers: updatedAnswers,
       lastSavedAt: Date.now(),
-    });
+    };
+    sessionRef.current = updatedSession;
+    onUpdateSession(updatedSession);
 
     if (currentQuestion.type === 'matching') setMatchingSelections({});
     if (currentQuestion.type === 'ordering')
@@ -799,11 +869,17 @@ export const StudySession: React.FC<StudySessionProps> = ({
           <h2 className="text-base sm:text-lg font-bold text-primary leading-snug tracking-tight">
             {currentQuestion.question}
           </h2>
-          {currentQuestion.type === 'multiple_mcq' && (
-            <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1 font-medium flex items-center gap-1">
-              <Info className="w-3.5 h-3.5" /> Multiple Answers: Select all that apply.
-            </p>
-          )}
+          <div className="flex items-center gap-2 mt-1.5">
+            {currentQuestion.type === 'multiple_mcq' ? (
+              <p className="text-xs text-cyan-600 dark:text-cyan-400 font-medium flex items-center gap-1">
+                <Info className="w-3.5 h-3.5" /> Multiple Answers: Select all that apply.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted flex items-center gap-1 font-medium">
+                <Sparkles className="w-3 h-3 text-cyan-500" /> Tip: Double-click an answer to submit immediately
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Option choices (Supports variable option count: 2, 3, 4, 5, 6, 7+ options) */}
@@ -830,8 +906,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 <button
                   key={idx}
                   onClick={() => handleSelectSingleOption(idx)}
+                  onDoubleClick={() => handleOptionDoubleClick(idx)}
                   disabled={isSubmitted}
-                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium ${style}`}
+                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
                 >
                   <span className="w-6 h-6 rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 border border-subtle bg-surface text-secondary">
                     {String.fromCharCode(65 + idx)}
@@ -870,8 +947,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 <button
                   key={idx}
                   onClick={() => handleToggleMultipleOption(idx)}
+                  onDoubleClick={() => handleMultipleOptionDoubleClick(idx)}
                   disabled={isSubmitted}
-                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium ${style}`}
+                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
                 >
                   <span className="w-6 h-6 rounded-md text-xs font-mono font-bold flex items-center justify-center shrink-0 border border-subtle bg-surface text-secondary">
                     {String.fromCharCode(65 + idx)}
@@ -1003,7 +1081,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
               )}
             </div>
 
-            <p className="text-xs sm:text-sm text-secondary leading-relaxed">
+            <p className="text-xs sm:text-sm text-secondary leading-relaxed whitespace-pre-line break-words">
               {currentQuestion.explanation || 'No rationale specified.'}
             </p>
           </div>

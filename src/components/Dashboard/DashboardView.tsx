@@ -243,30 +243,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {recentDecks.map((deck) => (
-              <div
-                key={deck.id}
-                onClick={() => onOpenDeckDetail(deck)}
-                className="p-4 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition cursor-pointer flex flex-col justify-between space-y-3 shadow-card"
-              >
-                <div>
-                  <div className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold truncate">
-                    {deck.year} · {deck.module}
-                  </div>
-                  <h4 className="text-sm font-bold text-primary mt-1 line-clamp-1">
-                    {deck.lectureName}
-                  </h4>
-                  <div className="text-[11px] text-secondary mt-0.5 line-clamp-1">{deck.subject}</div>
-                </div>
+            {recentDecks.map((deck) => {
+              const isDeckActive = activeSession ? activeSession.deckIds.includes(deck.id) : false;
+              const deckAttempts = attempts.filter((a) => a.deckId === deck.id);
 
-                <div className="pt-2 border-t border-subtle flex items-center justify-between text-[11px]">
-                  <span className="font-mono text-secondary">{deck.questionCount} Qs</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                    {deck.latestScore !== undefined ? `${deck.latestScore}%` : 'Not started'}
-                  </span>
+              let statusLabel = 'Not started';
+              let statusClass = 'text-muted';
+
+              if (isDeckActive) {
+                statusLabel = 'In Progress';
+                statusClass = 'text-cyan-500 font-bold';
+              } else if (deck.latestScore !== undefined) {
+                statusLabel = `${deck.latestScore}%`;
+                statusClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+              } else if (deckAttempts.length > 0) {
+                const correct = deckAttempts.filter((a) => a.isCorrect).length;
+                const score = Math.round((correct / deckAttempts.length) * 100);
+                statusLabel = `${score}%`;
+                statusClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+              }
+
+              return (
+                <div
+                  key={deck.id}
+                  onClick={() => onOpenDeckDetail(deck)}
+                  className="p-4 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition cursor-pointer flex flex-col justify-between space-y-3 shadow-card group"
+                >
+                  <div>
+                    <div className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold truncate">
+                      {deck.year} · {deck.module}
+                    </div>
+                    <h4 className="text-sm font-bold text-primary mt-1 line-clamp-1 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                      {deck.lectureName}
+                    </h4>
+                    <div className="text-[11px] text-secondary mt-0.5 line-clamp-1">{deck.subject}</div>
+                  </div>
+
+                  <div className="pt-2 border-t border-subtle flex items-center justify-between text-[11px]">
+                    <span className="font-mono text-secondary">{deck.questionCount} Qs</span>
+                    <span className={`font-mono ${statusClass} flex items-center gap-1`}>
+                      {isDeckActive && <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />}
+                      {statusLabel}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

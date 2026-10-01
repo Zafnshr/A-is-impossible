@@ -236,14 +236,22 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
           <div className="p-3 rounded-xl bg-subtle border border-subtle">
             <span className="text-secondary text-[10px] uppercase font-semibold">Average Score</span>
             <div className="text-lg font-black text-cyan-600 dark:text-cyan-400 mt-0.5">
-              {deck.averageScore !== undefined ? `${deck.averageScore}%` : '—'}
+              {deck.averageScore !== undefined
+                ? `${deck.averageScore}%`
+                : deckAttempts.length > 0
+                ? `${Math.round((deckAttempts.filter((a) => a.isCorrect).length / deckAttempts.length) * 100)}%`
+                : '—'}
             </div>
           </div>
 
           <div className="p-3 rounded-xl bg-subtle border border-subtle">
             <span className="text-secondary text-[10px] uppercase font-semibold">Latest Score</span>
             <div className="text-lg font-black text-primary mt-0.5">
-              {deck.latestScore !== undefined ? `${deck.latestScore}%` : '—'}
+              {deck.latestScore !== undefined
+                ? `${deck.latestScore}%`
+                : deckAttempts.length > 0
+                ? `${Math.round((deckAttempts.filter((a) => a.isCorrect).length / deckAttempts.length) * 100)}%`
+                : '—'}
             </div>
           </div>
 

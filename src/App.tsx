@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   UserSettings,
   Deck,
@@ -73,6 +73,7 @@ export default function App() {
   // Auto-save visual feedback
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved'>('saved');
   const [lastSavedAt, setLastSavedAt] = useState<number>(Date.now());
+  const lastSessionSaveTimeRef = useRef<number>(0);
 
   // 1. Initial Load from IndexedDB
   const reloadData = useCallback(async () => {
@@ -258,6 +259,11 @@ export default function App() {
       startedAt: Date.now(),
     };
 
+    // Update lastOpenedAt for each deck being studied
+    for (const dId of config.deckIds) {
+      await dbService.touchDeckLastOpened(dId);
+    }
+
     await dbService.saveActiveSession(newSession);
     setActiveSession(newSession);
     setActiveTab('study');
@@ -266,12 +272,55 @@ export default function App() {
 
   const handleUpdateSession = async (updated: StudySessionState) => {
     setActiveSession(updated);
-    await dbService.saveActiveSession(updated);
-    triggerAutoSave();
+
+    const now = Date.now();
+    const hadDataChange =
+      !activeSession ||
+      activeSession.currentIndex !== updated.currentIndex ||
+      Object.keys(activeSession.userAnswers).length !== Object.keys(updated.userAnswers).length ||
+      Object.keys(activeSession.submittedQuestions).length !== Object.keys(updated.submittedQuestions).length ||
+      Object.keys(activeSession.revealedQuestions).length !== Object.keys(updated.revealedQuestions).length;
+
+    if (hadDataChange || now - lastSessionSaveTimeRef.current >= 4000) {
+      lastSessionSaveTimeRef.current = now;
+      await dbService.saveActiveSession(updated);
+      if (hadDataChange) {
+        triggerAutoSave();
+      }
+    }
   };
 
   const handleCompleteSessionWithSummary = async (summary: SessionCompletionSummary) => {
     setCompletionSummary(summary);
+
+    if (activeSession) {
+      const targetDeckIds = activeSession.deckIds?.length
+        ? activeSession.deckIds
+        : Array.from(new Set(sessionQuestions.map((q) => q.deckId)));
+
+      for (const dId of targetDeckIds) {
+        const deckQuestions = sessionQuestions.filter((q) => q.deckId === dId);
+        let dCorrect = 0;
+        let dAnswered = 0;
+        deckQuestions.forEach((q) => {
+          if (activeSession.submittedQuestions[q.id]) {
+            dAnswered++;
+            const ans = activeSession.userAnswers[q.id];
+            if (q.type === 'single_mcq' || q.type === 'true_false') {
+              if (q.correctAnswers.includes(ans)) dCorrect++;
+            } else if (q.type === 'multiple_mcq') {
+              const arr = Array.isArray(ans) ? ans : [];
+              if (arr.length === q.correctAnswers.length && arr.every((i) => q.correctAnswers.includes(i))) dCorrect++;
+            } else {
+              dCorrect++;
+            }
+          }
+        });
+        const deckScore = dAnswered > 0 ? Math.round((dCorrect / dAnswered) * 100) : summary.scorePercentage;
+        await dbService.updateDeckStats(dId, deckScore);
+      }
+    }
+
     await dbService.clearActiveSession(WORKSPACE_ID);
     setActiveSession(null);
     await reloadData();
@@ -325,6 +374,33 @@ export default function App() {
         }),
       };
 
+      // Update deck stats for all decks in this session
+      const targetDeckIds = activeSession.deckIds?.length
+        ? activeSession.deckIds
+        : Array.from(new Set(sessionQuestions.map((q) => q.deckId)));
+
+      for (const dId of targetDeckIds) {
+        const deckQuestions = sessionQuestions.filter((q) => q.deckId === dId);
+        let dCorrect = 0;
+        let dAnswered = 0;
+        deckQuestions.forEach((q) => {
+          if (activeSession.submittedQuestions[q.id]) {
+            dAnswered++;
+            const ans = activeSession.userAnswers[q.id];
+            if (q.type === 'single_mcq' || q.type === 'true_false') {
+              if (q.correctAnswers.includes(ans)) dCorrect++;
+            } else if (q.type === 'multiple_mcq') {
+              const arr = Array.isArray(ans) ? ans : [];
+              if (arr.length === q.correctAnswers.length && arr.every((i) => q.correctAnswers.includes(i))) dCorrect++;
+            } else {
+              dCorrect++;
+            }
+          }
+        });
+        const deckScore = dAnswered > 0 ? Math.round((dCorrect / dAnswered) * 100) : score;
+        await dbService.updateDeckStats(dId, deckScore);
+      }
+
       setCompletionSummary(summary);
       await dbService.clearActiveSession(WORKSPACE_ID);
       setActiveSession(null);
@@ -336,6 +412,7 @@ export default function App() {
   const handleDiscardSession = async () => {
     await dbService.clearActiveSession(WORKSPACE_ID);
     setActiveSession(null);
+    await reloadData();
     setActiveTab('library');
     triggerAutoSave();
   };
