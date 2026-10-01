@@ -10,6 +10,7 @@ import {
   Eye,
   CheckCircle2,
   RotateCcw,
+  RefreshCw,
 } from 'lucide-react';
 import { UserSettings } from '../../types';
 import { createDefaultSettings } from '../../services/defaultSettings';
@@ -261,6 +262,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, onUpdateSe
                 </kbd>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* 5. App Version & Offline Cache Sync */}
+        <div className="p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-cyan-500" /> Version & Cache Sync
+              </h2>
+              <p className="text-xs text-secondary mt-0.5">
+                Version 2.1 • Offline PWA with automatic network-first deployment sync
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map((k) => caches.delete(k)));
+                  }
+                  if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((r) => r.unregister()));
+                  }
+                } finally {
+                  window.location.reload();
+                }
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-cyan-400 bg-cyan-950/40 hover:bg-cyan-900/50 border border-cyan-800/60 flex items-center gap-2 transition cursor-pointer self-start sm:self-auto"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Check for Updates & Force Sync
+            </button>
+          </div>
+          <div className="p-3 rounded-xl bg-subtle border border-subtle text-[11px] text-muted leading-relaxed">
+            Tip: If new updates ever do not appear immediately after a deployment, press this button or use <kbd className="px-1.5 py-0.5 rounded bg-surface border border-subtle font-mono text-[10px] text-primary">Ctrl + Shift + R</kbd> to flush your browser's offline cache.
           </div>
         </div>
       </div>

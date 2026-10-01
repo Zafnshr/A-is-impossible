@@ -124,10 +124,23 @@ export default function App() {
     reloadData();
   }, [reloadData]);
 
-  // Service Worker for offline PWA
+  // Service Worker for offline PWA with proactive update checking
   useEffect(() => {
     if ('serviceWorker' in navigator && process.env.NODE_ENV !== 'development') {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((reg) => {
+          reg.update().catch(() => {});
+        })
+        .catch(() => {});
+
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
     }
   }, []);
 
