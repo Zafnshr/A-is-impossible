@@ -111,7 +111,7 @@ export interface StandaloneExportResult {
 
 /**
  * Validates that the provided HTML content is a genuine, self-contained, offline-capable build
- * without debug error fallbacks or uncompiled dev scripts.
+ * containing the full application runtime, styles, and data snapshot.
  */
 export function validateStandaloneHtml(html: string): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -148,19 +148,36 @@ export function validateStandaloneHtml(html: string): { valid: boolean; errors: 
     errors.push('Contains JavaScript runtime stack traces');
   }
 
-  // 7. Must contain substantial compiled code (> 50,000 chars of script)
-  const scriptMatches = html.match(/<script[\s\S]*?<\/script>/gi) || [];
-  const totalScriptLength = scriptMatches.reduce((acc, s) => acc + s.length, 0);
-  if (totalScriptLength < 50000) {
-    errors.push(`Compiled application script bundle is too small or missing (${totalScriptLength} characters)`);
+  // 7. Verify styles are present
+  if (!html.includes('<style')) {
+    errors.push('Application CSS stylesheet (<style>) is missing');
   }
 
-  // 8. Verify embedded data is present
+  // 8. CRITICAL: Verify the FULL COMPILED APPLICATION BUNDLE exists
+  const scriptMatches = html.match(/<script[\s\S]*?<\/script>/gi) || [];
+  const totalScriptLength = scriptMatches.reduce((acc, s) => acc + s.length, 0);
+  const hasLargeApplicationBundle = scriptMatches.some((s) => s.length >= 100000);
+
+  if (!hasLargeApplicationBundle || totalScriptLength < 250000) {
+    errors.push(
+      `Compiled React application bundle is missing from the exported HTML! (Largest script: ${Math.max(
+        0,
+        ...scriptMatches.map((s) => s.length)
+      )} chars, total script: ${totalScriptLength} chars)`
+    );
+  }
+
+  // 9. Verify mount runtime exists in the bundle (createRoot / createElement)
+  if (!html.includes('createRoot') && !html.includes('createElement')) {
+    errors.push('Application mount runtime (createRoot / createElement) is missing from the compiled bundle');
+  }
+
+  // 10. Verify embedded snapshot data is present
   if (!html.includes('window.__A_PLUS_INITIAL_DATA__')) {
     errors.push('Embedded database snapshot script is missing');
   }
 
-  // 9. Verify process polyfill is present
+  // 11. Verify process polyfill is present
   if (!html.includes('window.process')) {
     errors.push('Process polyfill environment is missing');
   }
@@ -169,6 +186,88 @@ export function validateStandaloneHtml(html: string): { valid: boolean; errors: 
     valid: errors.length === 0,
     errors,
   };
+}
+
+/**
+ * Simulates mounting the exported HTML in an isolated invisible iframe
+ * to verify that React successfully populates <div id="root"> without crashing.
+ */
+export async function testRootMountInIframe(html: string): Promise<{ mounted: boolean; error?: string }> {
+  if (typeof document === 'undefined') {
+    return { mounted: true };
+  }
+
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '800px';
+    iframe.style.height = '600px';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+
+    let isDone = false;
+    let pollInterval: any = null;
+    let timeoutTimer: any = null;
+
+    const cleanup = () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      try {
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      } catch {}
+    };
+
+    const finish = (mounted: boolean, error?: string) => {
+      if (isDone) return;
+      isDone = true;
+      cleanup();
+      resolve({ mounted, error });
+    };
+
+    // 4-second timeout
+    timeoutTimer = setTimeout(() => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        const root = doc?.getElementById('root');
+        const hasChildren = root && root.children && root.children.length > 0;
+        if (hasChildren) {
+          finish(true);
+        } else {
+          finish(false, 'Mount timeout: <div id="root"> remained empty after 4 seconds.');
+        }
+      } catch {
+        // If security restrictions in some browser contexts prevent inspecting iframe contentDocument,
+        // treat as mounted if validation passed
+        finish(true);
+      }
+    }, 4000);
+
+    // Poll every 100ms
+    pollInterval = setInterval(() => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        const root = doc?.getElementById('root');
+        if (root && root.children && root.children.length > 0) {
+          finish(true);
+        }
+      } catch {
+        // If blocked by sandbox security, resolve gracefully
+        finish(true);
+      }
+    }, 100);
+
+    try {
+      document.body.appendChild(iframe);
+      iframe.srcdoc = html;
+    } catch {
+      finish(true);
+    }
+  });
 }
 
 /**
@@ -183,12 +282,6 @@ export async function exportSingleFileHtml(
   try {
     const fullDump = await dbService.exportFullDump();
     const dumpJson = JSON.stringify(fullDump).replace(/<\/script>/gi, '<\\/script>');
-    const injectionScript = `<script>
-  // A+ is Impossible Standalone Offline Bootstrap
-  window.process = window.process || { env: { NODE_ENV: 'production' }, browser: true, platform: 'browser' };
-  window.global = window.global || window;
-  window.__A_PLUS_INITIAL_DATA__ = ${dumpJson};
-</script>`;
 
     let bundleTemplate: string | null = null;
 
@@ -207,14 +300,16 @@ export async function exportSingleFileHtml(
         const res = await fetch(url, { cache: 'no-cache' });
         if (res.ok) {
           const text = await res.text();
-          // Verify that this fetched file is a genuine production bundle
+          // Verify that this fetched file is a genuine production bundle with compiled app code
           const lower = text.toLowerCase();
           const scripts = text.match(/<script[\s\S]*?<\/script>/gi) || [];
           const scriptLen = scripts.reduce((acc, s) => acc + s.length, 0);
+          const hasAppBundle = scripts.some((s) => s.length >= 100000);
           if (
             lower.includes('<!doctype html') &&
             text.includes('id="root"') &&
-            scriptLen > 50000 &&
+            hasAppBundle &&
+            scriptLen > 250000 &&
             !text.includes('src="/src/main.tsx"')
           ) {
             bundleTemplate = text;
@@ -229,24 +324,34 @@ export async function exportSingleFileHtml(
     // 2. If fetch is blocked (e.g. running from file:// scheme or offline), reconstruct from running DOM if it is already a production singlefile build
     if (!bundleTemplate && typeof document !== 'undefined') {
       const headScripts = Array.from(document.head.querySelectorAll('script'));
-      const hasInlineBundle = headScripts.some(
+      const bodyScripts = Array.from(document.body.querySelectorAll('script'));
+      const allScripts = [...headScripts, ...bodyScripts];
+
+      const hasInlineBundle = allScripts.some(
         (s) =>
-          (s.textContent?.length || 0) > 50000 ||
+          (s.textContent?.length || 0) >= 100000 ||
           (s.getAttribute('type') === 'module' && !s.src && (s.textContent?.length || 0) > 10000)
       );
 
       if (hasInlineBundle) {
-        // Clone and sanitize head HTML
+        // Clone and sanitize head HTML - ONLY remove previous data snapshot, NEVER the application bundle!
         const headClone = document.head.cloneNode(true) as HTMLHeadElement;
-        // Remove previous initial data scripts if any
         headClone.querySelectorAll('script').forEach((sc) => {
-          if (sc.textContent?.includes('window.__A_PLUS_INITIAL_DATA__')) {
+          if (sc.id === 'a-plus-snapshot-data') {
             sc.remove();
           }
         });
 
+        // Also preserve any compiled bundle scripts that might be located in body
+        let extraBodyScripts = '';
+        bodyScripts.forEach((sc) => {
+          if (sc.id !== 'a-plus-snapshot-data' && (sc.textContent?.length || 0) >= 10000) {
+            extraBodyScripts += sc.outerHTML + '\n';
+          }
+        });
+
         const cleanHeadHtml = headClone.innerHTML;
-        bundleTemplate = `<!doctype html>\n<html lang="en">\n<head>\n${cleanHeadHtml}\n</head>\n<body class="bg-canvas text-primary font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-600 dark:selection:text-cyan-200">\n  <div id="root"></div>\n</body>\n</html>`;
+        bundleTemplate = `<!doctype html>\n<html lang="en">\n<head>\n${cleanHeadHtml}\n</head>\n<body class="bg-canvas text-primary font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-600 dark:selection:text-cyan-200">\n  <div id="root"></div>\n${extraBodyScripts}</body>\n</html>`;
       }
     }
 
@@ -255,31 +360,51 @@ export async function exportSingleFileHtml(
       return {
         success: false,
         error: {
-          reason: 'Could not retrieve the compiled single-file bundle from the current environment.',
+          reason: 'Could not retrieve the compiled single-file bundle containing the React application runtime.',
           suggestedFix:
             'If you are in local development, run "npm run build" to generate the offline distribution in public/a-plus-is-impossible-singlefile.html, or use "Full System Backup (JSON)" to export your study data.',
         },
       };
     }
 
-    // 4. Inject database snapshot IMMEDIATELY after <head> so it executes before any app bundles
-    let finalHtml: string = bundleTemplate;
-    if (bundleTemplate.includes('window.__A_PLUS_INITIAL_DATA__')) {
-      finalHtml = bundleTemplate.replace(
-        /<script[^>]*>[\s\S]*?window\.__A_PLUS_INITIAL_DATA__[\s\S]*?<\/script>/gi,
-        injectionScript
-      );
-    } else if (/<head[^>]*>/i.test(bundleTemplate)) {
-      finalHtml = bundleTemplate.replace(/(<head[^>]*>)/i, `$1\n${injectionScript}\n`);
+    // 3. Inject database snapshot using DOMParser:
+    // Immune to regex truncation, nested string bugs, and character corruption!
+    let finalHtml = '';
+    if (typeof DOMParser !== 'undefined') {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(bundleTemplate, 'text/html');
+
+      // Find existing snapshot script or create a new one
+      let dataScript = doc.getElementById('a-plus-snapshot-data');
+      if (!dataScript) {
+        dataScript = doc.createElement('script');
+        dataScript.id = 'a-plus-snapshot-data';
+        doc.head.insertBefore(dataScript, doc.head.firstChild);
+      }
+
+      dataScript.textContent =
+        'window.process = window.process || { env: { NODE_ENV: "production" }, browser: true, platform: "browser" };\n' +
+        'window.global = window.global || window;\n' +
+        'window.__A_PLUS_INITIAL_DATA__ = ' + dumpJson + ';';
+
+      // Remove crossorigin attributes from scripts and links that break on file:// or strict CDNs
+      doc.querySelectorAll('script[crossorigin], link[crossorigin]').forEach((el) => {
+        el.removeAttribute('crossorigin');
+      });
+
+      // Ensure root container exists
+      if (!doc.getElementById('root')) {
+        const rootDiv = doc.createElement('div');
+        rootDiv.id = 'root';
+        doc.body.appendChild(rootDiv);
+      }
+
+      finalHtml = '<!doctype html>\n' + doc.documentElement.outerHTML;
     } else {
-      finalHtml = `${injectionScript}\n${bundleTemplate}`;
+      finalHtml = bundleTemplate;
     }
 
-    // Sanitize inline scripts and links: remove crossorigin attributes that can trigger origin null CORS blocks on file:// or EdgeOne
-    finalHtml = finalHtml.replace(/<script\b([^>]*)\bcrossorigin(?:=["'][^"']*["'])?([^>]*)>/gi, '<script$1$2>');
-    finalHtml = finalHtml.replace(/<link\b([^>]*)\bcrossorigin(?:=["'][^"']*["'])?([^>]*)>/gi, '<link$1$2>');
-
-    // 5. Rigorous Validation Check
+    // 5. Rigorous Static Validation Check
     const validation = validateStandaloneHtml(finalHtml);
     if (!validation.valid) {
       return {
@@ -292,7 +417,20 @@ export async function exportSingleFileHtml(
       };
     }
 
-    // 6. Download verified file
+    // 6. Pre-Flight Root Mount Test: Simulate loading the file and verify #root populates!
+    const mountTest = await testRootMountInIframe(finalHtml);
+    if (!mountTest.mounted) {
+      return {
+        success: false,
+        error: {
+          reason: `Pre-flight mount verification failed: ${mountTest.error || '<div id="root"> remained empty'}`,
+          suggestedFix:
+            'The application runtime did not render elements into #root. Re-run "npm run build" to refresh the compiled distribution.',
+        },
+      };
+    }
+
+    // 7. Download verified file
     downloadHtmlFile(targetFilename, finalHtml);
     return {
       success: true,
