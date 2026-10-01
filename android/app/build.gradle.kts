@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.aplus.impossible"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.aplus.impossible"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
 
@@ -43,11 +43,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
-            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
-            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
-        )
     }
 
     buildFeatures {
@@ -66,6 +61,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.activity.ktx)
 
     // Jetpack Compose
     implementation(platform(libs.androidx.compose.bom))
