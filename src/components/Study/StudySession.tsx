@@ -74,7 +74,13 @@ export const StudySession: React.FC<StudySessionProps> = ({
   const [qStatus, setQStatus] = useState<QuestionUserStatus | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
-  const [isQuestionMapOpen, setIsQuestionMapOpen] = useState(true);
+  const [isQuestionMapOpen, setIsQuestionMapOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => {
     const s = new Set<string>();
     userStatuses.forEach((us) => {
@@ -712,16 +718,22 @@ export const StudySession: React.FC<StudySessionProps> = ({
       </div>
 
       {/* Main Layout Area: Question Column + Docked Question Map */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-5 items-start min-h-0 w-full">
+      <div className="flex-1 flex flex-col md:flex-row gap-5 items-start min-h-0 w-full">
         {/* Left/Center Question Column */}
         <div className="flex-1 w-full min-w-0 space-y-4">
           {/* Question Header & Question Map Launcher */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setIsQuestionMapOpen(!isQuestionMapOpen)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer ${
-                  isQuestionMapOpen
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                    setIsMobileSheetOpen(true);
+                  } else {
+                    setIsQuestionMapOpen(!isQuestionMapOpen);
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer min-tap-target ${
+                  isQuestionMapOpen || isMobileSheetOpen
                     ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-600 dark:text-cyan-400'
                     : 'bg-subtle hover:bg-subtle/80 border-subtle text-primary'
                 }`}
@@ -733,6 +745,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 </span>
                 <span className="hidden sm:inline text-[10px] text-muted ml-0.5">
                   {isQuestionMapOpen ? '(Map On)' : '(Map Off)'}
+                </span>
+                <span className="sm:hidden text-[10px] text-cyan-500 font-normal">
+                  • Map
                 </span>
               </button>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle border border-subtle text-secondary capitalize">
@@ -1366,23 +1381,35 @@ export const StudySession: React.FC<StudySessionProps> = ({
         )}
 
         {/* Action Controls Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-subtle">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 pt-4 pb-2 border-t border-subtle">
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handlePrevious}
               disabled={currentQIndex === 0}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl bg-subtle hover:bg-subtle/80 disabled:opacity-40 border border-subtle text-xs font-semibold text-primary transition"
+              className="flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 disabled:opacity-40 border border-subtle text-xs font-semibold text-primary transition min-tap-target cursor-pointer active:scale-95"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Previous</span>
+              <span className="hidden xs:inline">Prev</span>
             </button>
             <button
+              type="button"
               onClick={handleNext}
               disabled={currentQIndex === questions.length - 1 && !isSubmitted}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl bg-subtle hover:bg-subtle/80 disabled:opacity-40 border border-subtle text-xs font-semibold text-primary transition"
+              className="flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 disabled:opacity-40 border border-subtle text-xs font-semibold text-primary transition min-tap-target cursor-pointer active:scale-95"
             >
-              <span>Next</span>
+              <span className="hidden xs:inline">Next</span>
               <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Mobile-only Bottom Bar Map Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsMobileSheetOpen(true)}
+              className="md:hidden flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 text-xs font-bold transition min-tap-target cursor-pointer active:scale-95"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Map</span>
             </button>
           </div>
 
@@ -1390,14 +1417,16 @@ export const StudySession: React.FC<StudySessionProps> = ({
             {!isSubmitted ? (
               <>
                 <button
+                  type="button"
                   onClick={handleReveal}
-                  className="px-3 py-2 rounded-xl border border-subtle bg-subtle text-secondary hover:text-primary text-xs font-semibold transition"
+                  className="px-3.5 py-2.5 rounded-xl border border-subtle bg-subtle text-secondary hover:text-primary text-xs font-semibold transition min-tap-target cursor-pointer active:scale-95"
                 >
                   {isRevealed ? 'Hide Answer' : 'Reveal Answer'}
                 </button>
                 <button
+                  type="button"
                   onClick={handleSubmitCurrent}
-                  className="flex items-center gap-1.5 px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                  className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Submit</span>
@@ -1406,15 +1435,17 @@ export const StudySession: React.FC<StudySessionProps> = ({
             ) : (
               <>
                 <button
+                  type="button"
                   onClick={handleRetry}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-semibold text-xs transition border border-subtle"
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-semibold text-xs transition border border-subtle min-tap-target cursor-pointer active:scale-95"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Retry</span>
                 </button>
                 <button
+                  type="button"
                   onClick={handleNext}
-                  className="flex items-center gap-1.5 px-6 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                  className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
                   <span>{currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}</span>
                   <ChevronRight className="w-4 h-4" />
@@ -1426,10 +1457,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
       </div>
       </div>
 
-        {/* Desktop Docked Question Map Panel */}
+        {/* Tablet & Desktop Docked / Expandable Question Map Panel (768px+) */}
         <div
-          className={`hidden lg:block shrink-0 sticky top-4 h-[calc(100vh-6.5rem)] transition-all duration-300 ease-out ${
-            isQuestionMapOpen ? 'w-80 xl:w-96' : 'w-14'
+          className={`hidden md:block shrink-0 sticky top-4 h-[calc(100vh-6.5rem)] transition-all duration-300 ease-out ${
+            isQuestionMapOpen ? 'w-72 lg:w-80 xl:w-96' : 'w-14'
           }`}
         >
           <QuestionMapPanel
@@ -1448,30 +1479,35 @@ export const StudySession: React.FC<StudySessionProps> = ({
         </div>
       </div>
 
-      {/* Mobile Slide-Over Drawer for Question Map */}
-      {isQuestionMapOpen && (
+      {/* Mobile Slide-Up Bottom Sheet for Question Map (under 768px) */}
+      {isMobileSheetOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in"
-          onClick={() => setIsQuestionMapOpen(false)}
+          className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setIsMobileSheetOpen(false)}
         >
           <div
-            className="w-88 max-w-[90vw] h-full p-2 bg-surface shadow-2xl animate-in slide-in-from-right"
+            className="w-full max-h-[85vh] h-[85vh] bg-surface rounded-t-3xl border-t border-subtle shadow-2xl flex flex-col overflow-hidden animate-slide-up pb-safe"
             onClick={(e) => e.stopPropagation()}
           >
-            <QuestionMapPanel
-              questions={questions}
-              decksMap={decksMap}
-              session={session}
-              currentQIndex={currentQIndex}
-              userStatuses={userStatuses}
-              flaggedIds={flaggedIds}
-              onJump={(idx) => {
-                handleJump(idx);
-                setIsQuestionMapOpen(false);
-              }}
-              isOpen={true}
-              onClose={() => setIsQuestionMapOpen(false)}
-            />
+            {/* Visual Drag / Swipe Handle */}
+            <div className="w-12 h-1.5 rounded-full bg-muted/40 hover:bg-muted mx-auto my-2.5 shrink-0" />
+
+            <div className="flex-1 overflow-hidden flex flex-col p-1">
+              <QuestionMapPanel
+                questions={questions}
+                decksMap={decksMap}
+                session={session}
+                currentQIndex={currentQIndex}
+                userStatuses={userStatuses}
+                flaggedIds={flaggedIds}
+                onJump={(idx) => {
+                  handleJump(idx);
+                  setIsMobileSheetOpen(false);
+                }}
+                isOpen={true}
+                onClose={() => setIsMobileSheetOpen(false)}
+              />
+            </div>
           </div>
         </div>
       )}

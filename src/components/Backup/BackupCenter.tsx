@@ -4,18 +4,16 @@ import {
   Download,
   Upload,
   Trash2,
-  RotateCcw,
-  FileCode,
-  CheckCircle2,
-  AlertTriangle,
   FolderArchive,
   Layers,
   Sparkles,
   Search,
-  BookOpen,
-  HelpCircle,
-  X,
+  CheckCircle2,
+  AlertTriangle,
+  FileCode,
+  RotateCcw,
   Check,
+  X,
 } from 'lucide-react';
 import {
   exportFullBackup,
@@ -23,9 +21,9 @@ import {
   exportCollectionBackup,
   exportSingleFileHtml,
 } from '../../services/exporter';
-import { dbService } from '../../services/db';
 import { TrashItem, Deck } from '../../types';
 import { Tooltip } from '../Tooltip';
+import { BackupImportWorkflow } from './BackupImportWorkflow';
 
 interface BackupCenterProps {
   decks: Deck[];
@@ -36,6 +34,8 @@ interface BackupCenterProps {
   onDatabaseRestored: () => void;
 }
 
+export type BackupTab = 'import' | 'export' | 'trash';
+
 export const BackupCenter: React.FC<BackupCenterProps> = ({
   decks,
   trashItems,
@@ -44,48 +44,16 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
   onClearAllTrash,
   onDatabaseRestored,
 }) => {
-  const [activeTab, setActiveTab] = useState<'trash' | 'backups'>(() =>
-    trashItems.length > 0 ? 'trash' : 'backups'
-  );
-
+  const [activeTab, setActiveTab] = useState<BackupTab>('import');
   const [selectedDeckForExport, setSelectedDeckForExport] = useState<string>(
     decks.length > 0 ? decks[0].id : ''
   );
-  const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
   const [trashFeedback, setTrashFeedback] = useState<string | null>(null);
 
   // Trash filter states
   const [trashSearch, setTrashSearch] = useState('');
   const [trashTypeFilter, setTrashTypeFilter] = useState<'all' | 'deck' | 'question'>('all');
   const [emptyTrashConfirmOpen, setEmptyTrashConfirmOpen] = useState(false);
-
-  // Restore confirmation modal for JSON upload
-  const [pendingRestoreData, setPendingRestoreData] = useState<any | null>(null);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0]) return;
-    const file = e.target.files[0];
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      setPendingRestoreData(parsed);
-    } catch (err: any) {
-      setRestoreStatus(`Failed to read backup file: ${err.message}`);
-    }
-  };
-
-  const confirmExecuteRestore = async () => {
-    if (!pendingRestoreData) return;
-    try {
-      await dbService.importFullDump(pendingRestoreData);
-      setRestoreStatus('Backup successfully restored into IndexedDB!');
-      setPendingRestoreData(null);
-      onDatabaseRestored();
-    } catch (err: any) {
-      setRestoreStatus(`Failed to restore backup: ${err.message}`);
-      setPendingRestoreData(null);
-    }
-  };
 
   const handleRestore = (item: TrashItem) => {
     onRestoreTrashItem(item);
@@ -122,55 +90,68 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
   });
 
   return (
-    <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+    <div className="flex-1 max-w-5xl mx-auto w-full px-3.5 sm:px-6 py-5 sm:py-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-subtle">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-subtle">
         <div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-primary flex items-center gap-2">
-            <Trash2 className="w-6 h-6 text-rose-500" />
-            Trash Center & Data Management
+            <Database className="w-6 h-6 text-cyan-500" />
+            Backup Center & Data Recovery
           </h1>
-          <p className="text-xs text-secondary mt-1">
-            Restore deleted lecture decks and questions, permanently purge trash, or export portable JSON backups.
+          <p className="text-xs text-secondary mt-1 leading-relaxed">
+            Import, validate, and preview full database backups, export portable archives, or manage deleted items in the trash.
           </p>
         </div>
 
-        {/* Segmented Top Tabs */}
-        <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs">
+        {/* Responsive Segmented Top Tabs */}
+        <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs overflow-x-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('import')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold transition whitespace-nowrap min-tap-target ${
+              activeTab === 'import'
+                ? 'bg-surface text-primary shadow-sm'
+                : 'text-secondary hover:text-primary'
+            }`}
+          >
+            <Upload className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Import & Restore</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('export')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold transition whitespace-nowrap min-tap-target ${
+              activeTab === 'export'
+                ? 'bg-surface text-primary shadow-sm'
+                : 'text-secondary hover:text-primary'
+            }`}
+          >
+            <Download className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Export Backups</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('trash')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold transition whitespace-nowrap min-tap-target ${
               activeTab === 'trash'
                 ? 'bg-surface text-primary shadow-sm'
                 : 'text-secondary hover:text-primary'
             }`}
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-            <span>Trash Center</span>
+            <span>Trash Bin</span>
             {trashItems.length > 0 && (
               <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono">
                 {trashItems.length}
               </span>
             )}
           </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('backups')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition ${
-              activeTab === 'backups'
-                ? 'bg-surface text-primary shadow-sm'
-                : 'text-secondary hover:text-primary'
-            }`}
-          >
-            <Database className="w-3.5 h-3.5 text-cyan-500" />
-            <span>Backups & Export</span>
-          </button>
         </div>
       </div>
 
-      {/* Status Banners */}
+      {/* Trash Feedback Toast */}
       {trashFeedback && (
         <div className="p-3.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800 text-cyan-800 dark:text-cyan-300 text-xs flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-cyan-500 shrink-0" />
@@ -178,15 +159,146 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
         </div>
       )}
 
-      {restoreStatus && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-          <span>{restoreStatus}</span>
+      {/* =========================================================================
+          TAB 1: IMPORT & RESTORE WORKFLOW
+          ========================================================================= */}
+      {activeTab === 'import' && (
+        <BackupImportWorkflow onDatabaseRestored={onDatabaseRestored} />
+      )}
+
+      {/* =========================================================================
+          TAB 2: EXPORT BACKUPS
+          ========================================================================= */}
+      {activeTab === 'export' && (
+        <div className="space-y-6">
+          {/* Standalone Single-File HTML Generation */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" /> Single-File Standalone HTML Generation
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle text-primary border border-subtle self-start sm:self-auto">
+                GitHub Pages · Netlify · Vercel · Offline Local
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-secondary leading-relaxed">
+              Package the entire platform and your loaded question banks into <strong>ONE single deployable HTML file</strong>.
+              You can deploy it directly onto GitHub Pages, Netlify, Vercel, or open it offline by double-clicking it on your device.
+            </p>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => exportSingleFileHtml()}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Standalone HTML (a-plus-is-impossible.html)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Export Center Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Full Database Export */}
+            <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-4 flex flex-col justify-between">
+              <div className="space-y-2">
+                <h2 className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-2">
+                  <FolderArchive className="w-4 h-4 text-cyan-500" /> Full System Backup (JSON)
+                </h2>
+                <p className="text-xs text-secondary leading-relaxed">
+                  Export complete database state including all profiles, decks, questions, answer attempts, streaks, personal notes, and bookmarks into a standardized JSON snapshot.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => exportFullBackup()}
+                className="w-full py-3 px-4 rounded-xl border border-subtle bg-subtle hover:bg-subtle/80 flex items-center justify-between text-xs text-primary font-bold transition shadow-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <Download className="w-4 h-4 text-cyan-500" />
+                  <span>Download Full System Backup</span>
+                </div>
+                <span className="text-[10px] font-mono text-muted uppercase">JSON</span>
+              </button>
+            </div>
+
+            {/* Selective Collections Export */}
+            <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
+              <div className="space-y-2">
+                <h2 className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-amber-500" /> Export Specific Collections
+                </h2>
+                <p className="text-xs text-secondary leading-relaxed">
+                  Export high-yield slices of your question banks as individual JSON collections for focused review on other devices.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => exportCollectionBackup('favorites')}
+                  className="p-3 rounded-xl bg-subtle border border-subtle hover:bg-amber-500/10 hover:border-amber-500/30 text-xs font-bold text-amber-600 dark:text-amber-400 text-center transition"
+                >
+                  Favorites
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportCollectionBackup('flagged')}
+                  className="p-3 rounded-xl bg-subtle border border-subtle hover:bg-amber-500/10 hover:border-amber-500/30 text-xs font-bold text-amber-600 dark:text-amber-400 text-center transition"
+                >
+                  Flagged
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportCollectionBackup('incorrect')}
+                  className="p-3 rounded-xl bg-subtle border border-subtle hover:bg-rose-500/10 hover:border-rose-500/30 text-xs font-bold text-rose-600 dark:text-rose-400 text-center transition"
+                >
+                  Incorrect
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Individual Lecture Deck Export */}
+          {decks.length > 0 && (
+            <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-3">
+              <h2 className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-500" /> Export Individual Lecture Deck
+              </h2>
+              <p className="text-xs text-secondary leading-relaxed">
+                Extract questions from a single lecture into a standalone JSON file that can be shared or imported independently.
+              </p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+                <select
+                  value={selectedDeckForExport}
+                  onChange={(e) => setSelectedDeckForExport(e.target.value)}
+                  className="flex-1 p-2.5 bg-subtle border border-subtle rounded-xl text-xs text-primary font-medium focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                >
+                  {decks.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.module} · {d.lectureName}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = decks.find((d) => d.id === selectedDeckForExport);
+                    if (target) exportDeckBackup(target.id);
+                  }}
+                  className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 rounded-xl text-xs font-bold transition shrink-0 active:scale-95 shadow-sm"
+                >
+                  Export Deck
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* =========================================================================
-          TAB 1: TRASH CENTER
+          TAB 3: TRASH CENTER
           ========================================================================= */}
       {activeTab === 'trash' && (
         <div className="space-y-5">
@@ -206,7 +318,7 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                 <button
                   type="button"
                   onClick={() => setEmptyTrashConfirmOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-xs font-bold transition active:scale-95"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 text-xs font-bold transition active:scale-95 self-start sm:self-auto"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Empty Trash</span>
@@ -223,15 +335,15 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                   value={trashSearch}
                   onChange={(e) => setTrashSearch(e.target.value)}
                   placeholder="Search deleted decks or questions..."
-                  className="w-full pl-8 pr-3 py-1.5 bg-subtle border border-subtle rounded-xl text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  className="w-full pl-8 pr-3 py-2 bg-subtle border border-subtle rounded-xl text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
                 />
               </div>
 
-              <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs shrink-0">
+              <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs shrink-0 w-full sm:w-auto justify-between sm:justify-start">
                 <button
                   type="button"
                   onClick={() => setTrashTypeFilter('all')}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg font-bold transition ${
                     trashTypeFilter === 'all'
                       ? 'bg-surface text-primary shadow-sm'
                       : 'text-secondary hover:text-primary'
@@ -242,7 +354,7 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                 <button
                   type="button"
                   onClick={() => setTrashTypeFilter('deck')}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg font-bold transition ${
                     trashTypeFilter === 'deck'
                       ? 'bg-surface text-primary shadow-sm'
                       : 'text-secondary hover:text-primary'
@@ -253,7 +365,7 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                 <button
                   type="button"
                   onClick={() => setTrashTypeFilter('question')}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg font-bold transition ${
                     trashTypeFilter === 'question'
                       ? 'bg-surface text-primary shadow-sm'
                       : 'text-secondary hover:text-primary'
@@ -272,9 +384,9 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
               <h3 className="text-sm font-bold text-primary">
                 {trashItems.length === 0 ? 'Trash Bin is Empty' : 'No items match your search filter'}
               </h3>
-              <p className="text-xs text-secondary max-w-sm mx-auto">
+              <p className="text-xs text-secondary max-w-sm mx-auto leading-relaxed">
                 {trashItems.length === 0
-                  ? 'Whenever you delete a lecture deck or question anywhere on the platform, it is safely stored here so you can restore it anytime with one click.'
+                  ? 'Whenever you delete a lecture deck or question anywhere on the platform, it is safely preserved here so you can restore it anytime with one click.'
                   : 'Try clearing your search query to see all deleted items.'}
               </p>
             </div>
@@ -299,199 +411,40 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                         >
                           {item.itemType}
                         </span>
-                        <span className="font-bold text-primary text-sm sm:text-base">
+                        <span className="font-bold text-primary text-sm line-clamp-1">
                           {item.title}
                         </span>
                       </div>
-
-                      <div className="text-[11px] text-muted font-mono">
+                      <div className="text-[11px] text-muted">
                         Deleted on {new Date(item.deletedAt).toLocaleDateString()} at{' '}
-                        {new Date(item.deletedAt).toLocaleTimeString()}
-                        {isDeck && item.data?.deck && (
-                          <span>
-                            {' '}· Curriculum: {item.data.deck.year} → {item.data.deck.module} → {item.data.deck.subject} ({item.data.deck.questionCount || 0} Questions)
-                          </span>
-                        )}
+                        {new Date(item.deletedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Tooltip content="Restore back to active curriculum / deck">
-                        <button
-                          type="button"
-                          onClick={() => handleRestore(item)}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition active:scale-95"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Restore</span>
-                        </button>
-                      </Tooltip>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleRestore(item)}
+                        className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition active:scale-95 flex items-center gap-1 shadow-sm"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Restore</span>
+                      </button>
 
-                      <Tooltip content="Permanently delete from storage forever">
-                        <button
-                          type="button"
-                          onClick={() => handlePermanentDelete(item.id, item.title)}
-                          className="p-2 rounded-xl bg-subtle hover:bg-rose-50 dark:hover:bg-rose-950/40 text-secondary hover:text-rose-600 dark:hover:text-rose-400 border border-subtle transition"
-                          aria-label="Delete permanently"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </Tooltip>
+                      <button
+                        type="button"
+                        onClick={() => handlePermanentDelete(item.id, item.title)}
+                        className="p-1.5 rounded-lg text-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-subtle transition"
+                        aria-label="Delete permanently"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* =========================================================================
-          TAB 2: BACKUPS & EXPORT
-          ========================================================================= */}
-      {activeTab === 'backups' && (
-        <div className="space-y-6">
-          {/* Standalone Single-File HTML Generation */}
-          <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" /> Single-File Standalone HTML Generation
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle text-primary border border-subtle">
-                GitHub Pages · Netlify · Vercel · Local
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-secondary leading-relaxed">
-              Package the entire platform and your loaded question banks into <strong>ONE single deployable HTML file</strong>.
-              You can deploy it directly onto GitHub Pages, Netlify, Vercel, or open it double-clicking locally on your machine offline.
-            </p>
-            <div>
-              <Tooltip content="Generate and download self-contained single-file HTML">
-                <button
-                  type="button"
-                  onClick={() => exportSingleFileHtml()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download Standalone HTML (a-plus-is-impossible.html)</span>
-                </button>
-              </Tooltip>
-            </div>
-          </div>
-
-          {/* Export & Import Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Export Center */}
-            <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
-              <h2 className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-2">
-                <Download className="w-4 h-4 text-cyan-500" /> Export Backups (JSON)
-              </h2>
-              <p className="text-xs text-secondary">
-                Save complete application states or selective slices as portable JSON files.
-              </p>
-
-              <div className="space-y-2.5 pt-2">
-                {/* Full Backup */}
-                <Tooltip content="Export complete database: decks, questions, attempts, notes, settings" className="w-full">
-                  <button
-                    type="button"
-                    onClick={() => exportFullBackup()}
-                    className="w-full p-3 rounded-xl border border-subtle bg-subtle hover:bg-subtle/80 flex items-center justify-between text-xs text-primary transition"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <FolderArchive className="w-4 h-4 text-cyan-500" />
-                      <span className="font-semibold">Full System Backup (All Data)</span>
-                    </div>
-                    <Download className="w-4 h-4 text-muted" />
-                  </button>
-                </Tooltip>
-
-                {/* Collections Exports */}
-                <div className="space-y-1.5 pt-1">
-                  <span className="text-[11px] font-bold text-secondary uppercase tracking-wider block">
-                    Export Specific Collections:
-                  </span>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => exportCollectionBackup('favorites')}
-                      className="p-2 rounded-lg bg-subtle border border-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-[11px] font-bold text-amber-500 text-center transition"
-                    >
-                      Favorites
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => exportCollectionBackup('flagged')}
-                      className="p-2 rounded-lg bg-subtle border border-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-[11px] font-bold text-amber-500 text-center transition"
-                    >
-                      Flagged
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => exportCollectionBackup('incorrect')}
-                      className="p-2 rounded-lg bg-subtle border border-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-[11px] font-bold text-rose-500 text-center transition"
-                    >
-                      Incorrect
-                    </button>
-                  </div>
-                </div>
-
-                {/* Single Deck Export */}
-                {decks.length > 0 && (
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-[11px] font-bold text-secondary uppercase tracking-wider block">
-                      Export Individual Lecture Deck:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedDeckForExport}
-                        onChange={(e) => setSelectedDeckForExport(e.target.value)}
-                        className="flex-1 p-2 bg-subtle border border-subtle rounded-xl text-xs text-primary font-medium"
-                      >
-                        {decks.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.module} · {d.lectureName}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const target = decks.find((d) => d.id === selectedDeckForExport);
-                          if (target) exportDeckBackup(target.id);
-                        }}
-                        className="px-3 py-2 bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-primary border border-subtle rounded-xl text-xs font-bold transition shrink-0"
-                      >
-                        Export Deck
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Restore Center */}
-            <div className="p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
-              <h2 className="text-sm font-bold text-primary uppercase tracking-wide flex items-center gap-2">
-                <Upload className="w-4 h-4 text-emerald-500" /> Restore Backup
-              </h2>
-              <p className="text-xs text-secondary">
-                Import any previously generated A+ is Impossible backup JSON file.
-              </p>
-
-              <div className="border-2 border-dashed border-subtle hover:border-emerald-500/50 rounded-2xl p-8 text-center transition bg-subtle/30">
-                <Upload className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                <h3 className="text-xs font-bold text-primary mb-1">Select A+ Backup JSON</h3>
-                <p className="text-[11px] text-secondary mb-4">
-                  Restores decks, questions, attempts, notes, and settings safely into local storage.
-                </p>
-                <label className="inline-flex items-center justify-center px-4 py-2 bg-surface hover:bg-subtle text-primary border border-subtle font-bold rounded-xl text-xs cursor-pointer transition shadow-sm active:scale-95">
-                  Choose JSON File
-                  <input type="file" accept=".json" className="hidden" onChange={handleFileUpload} />
-                </label>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -514,51 +467,17 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
               <button
                 type="button"
                 onClick={() => setEmptyTrashConfirmOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition"
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleExecuteEmptyTrash}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Yes, Empty Trash Forever</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Restore JSON Backup Confirmation Modal */}
-      {pendingRestoreData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md bg-surface border border-subtle rounded-2xl p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center gap-2.5 text-emerald-600 dark:text-emerald-400">
-              <Upload className="w-5 h-5 shrink-0" />
-              <h3 className="text-base font-bold text-primary">Restore Backup into IndexedDB?</h3>
-            </div>
-
-            <p className="text-xs text-secondary leading-relaxed">
-              Restoring this backup will merge its decks, questions, attempts, and notes into your local IndexedDB storage.
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
-              <button
-                type="button"
-                onClick={() => setPendingRestoreData(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmExecuteRestore}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Proceed with Restore</span>
               </button>
             </div>
           </div>

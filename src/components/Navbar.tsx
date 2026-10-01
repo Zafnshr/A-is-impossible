@@ -41,25 +41,25 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full h-15 border-b border-subtle bg-surface/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between gap-4 transition-colors">
+    <header className="sticky top-0 z-40 w-full h-15 border-b border-subtle bg-surface/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 transition-colors pt-[env(safe-area-inset-top,0px)]">
       {/* Brand & Academic Breadcrumb */}
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center font-black text-cyan-500 text-sm tracking-tight shadow-sm">
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center font-black text-cyan-500 text-sm tracking-tight shadow-sm shrink-0">
             A+
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-sm sm:text-base tracking-tight text-primary flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-sm sm:text-base tracking-tight text-primary whitespace-nowrap">
                 A+ is Impossible
               </span>
               <span className="hidden md:inline-flex text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-subtle border border-subtle text-cyan-600 dark:text-cyan-400">
                 Medical Q-Bank
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted">
-              <span>Egyptian Medical Curriculum</span>
-              <span>·</span>
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-muted">
+              <span className="hidden sm:inline">Egyptian Medical Curriculum</span>
+              <span className="hidden sm:inline">·</span>
               <span className="font-semibold text-primary">Year 2</span>
             </div>
           </div>
@@ -67,17 +67,20 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Center: Global Search Bar */}
-      <div className="flex items-center gap-3 flex-1 max-w-md mx-2 sm:mx-6">
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-md mx-1 sm:mx-6 min-w-0">
         <Tooltip content="Global Search: questions, choices, lectures, modules, notes (Ctrl + K)" className="w-full">
           <button
             type="button"
             onClick={onOpenGlobalSearch}
-            className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-subtle hover:bg-subtle/80 border border-subtle text-xs text-secondary hover:text-primary transition-all shadow-sm focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-subtle hover:bg-subtle/80 border border-subtle text-xs text-secondary hover:text-primary transition-all shadow-sm focus:outline-none focus:ring-1 focus:ring-cyan-500 min-tap-target sm:min-h-0"
             aria-label="Global Search"
           >
-            <div className="flex items-center gap-2.5 truncate">
+            <div className="flex items-center gap-2 truncate">
               <Search className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
-              <span className="truncate text-muted text-xs">Search questions, choices, notes...</span>
+              <span className="truncate text-muted text-xs">
+                <span className="hidden sm:inline">Search questions, choices, notes...</span>
+                <span className="sm:hidden">Search...</span>
+              </span>
             </div>
             <kbd className="hidden sm:inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface text-muted border border-subtle shrink-0">
               <Command className="w-2.5 h-2.5" /> K

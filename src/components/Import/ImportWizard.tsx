@@ -637,7 +637,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   });
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto px-3.5 sm:px-6 py-4 space-y-6">
       {/* Wizard Step Progression Bar */}
       <div className="flex items-center justify-between border-b border-subtle pb-4">
         {[

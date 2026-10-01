@@ -254,7 +254,7 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
         </div>
 
         {/* Deck Metadata Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 border-t border-subtle text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-subtle text-xs">
           <div className="p-3 rounded-xl bg-subtle border border-subtle">
             <span className="text-secondary text-[10px] uppercase font-semibold">Questions</span>
             <div className="text-lg font-black text-primary mt-0.5">{deck.questionCount} Qs</div>

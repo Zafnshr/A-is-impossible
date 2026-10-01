@@ -13,6 +13,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  MoreHorizontal,
+  ChevronUp,
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -49,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   trashCount,
   onOpenImportPrompt,
 }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('a_plus_sidebar_collapsed') === 'true';
@@ -317,43 +320,251 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </aside>
 
-      {/* Mobile Bottom Navigation (Visible on phones, cleanly styled) */}
+      {/* Mobile Native App Dock (Visible on phones, with safe-area and 48px tap targets) */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-md border-t border-subtle px-3 py-1 flex items-center justify-around"
-        aria-label="Mobile Navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-subtle px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around shadow-2xl select-none"
+        aria-label="Mobile Dock Navigation"
       >
-        {[
-          { id: 'dashboard' as ActiveTab, label: 'Home', icon: LayoutDashboard },
-          { id: 'library' as ActiveTab, label: 'Library', icon: FolderTree },
-          {
-            id: 'collections' as ActiveTab,
-            label: 'Collections',
-            icon: Bookmark,
-            badge: totalCollectionsCount > 0 ? `${totalCollectionsCount}` : undefined,
-          },
-          { id: 'analytics' as ActiveTab, label: 'Analytics', icon: BarChart3 },
-          { id: 'settings' as ActiveTab, label: 'Settings', icon: Sliders },
-        ].map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onTabChange(item.id)}
-              className={`flex flex-col items-center py-1.5 px-3 rounded-lg text-[10px] font-semibold transition relative ${
-                isActive ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 'text-muted'
-              }`}
-            >
-              <Icon className="w-4 h-4 mb-0.5" />
-              <span>{item.label}</span>
-              {item.badge && (
-                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-500" />
-              )}
-            </button>
-          );
-        })}
+        {/* Home */}
+        <button
+          type="button"
+          onClick={() => onTabChange('dashboard')}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
+            activeTab === 'dashboard'
+              ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+              : 'text-muted hover:text-primary'
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4 mb-0.5" />
+          <span className="text-[10px]">Home</span>
+        </button>
+
+        {/* Library */}
+        <button
+          type="button"
+          onClick={() => onTabChange('library')}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
+            activeTab === 'library' || activeTab === 'deck_detail'
+              ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+              : 'text-muted hover:text-primary'
+          }`}
+        >
+          <FolderTree className="w-4 h-4 mb-0.5" />
+          <span className="text-[10px]">Library</span>
+        </button>
+
+        {/* Active Study Session Tab (if session running) */}
+        {hasActiveSession && (
+          <button
+            type="button"
+            onClick={() => onTabChange('study')}
+            className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition min-tap-target relative ${
+              activeTab === 'study'
+                ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                : 'text-cyan-500'
+            }`}
+          >
+            <div className="relative">
+              <PlayCircle className="w-5 h-5 mb-0.5 text-cyan-500 animate-pulse" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+            </div>
+            <span className="text-[10px] font-bold">Study</span>
+          </button>
+        )}
+
+        {/* Collections */}
+        <button
+          type="button"
+          onClick={() => onTabChange('collections')}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target relative ${
+            activeTab === 'collections'
+              ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+              : 'text-muted hover:text-primary'
+          }`}
+        >
+          <div className="relative">
+            <Bookmark className="w-4 h-4 mb-0.5" />
+            {totalCollectionsCount > 0 && (
+              <span className="absolute -top-1 -right-2 px-1 py-0.2 rounded-full bg-amber-500 text-slate-950 font-mono text-[9px] font-bold">
+                {totalCollectionsCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px]">Saved</span>
+        </button>
+
+        {/* Analytics (if no active session) */}
+        {!hasActiveSession && (
+          <button
+            type="button"
+            onClick={() => onTabChange('analytics')}
+            className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
+              activeTab === 'analytics'
+                ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                : 'text-muted hover:text-primary'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 mb-0.5" />
+            <span className="text-[10px]">Analytics</span>
+          </button>
+        )}
+
+        {/* More Options Drawer Trigger */}
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
+            ['backup', 'trash', 'settings', 'help', 'editor', 'import'].includes(activeTab)
+              ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+              : 'text-muted hover:text-primary'
+          }`}
+          aria-label="More navigation options"
+        >
+          <MoreHorizontal className="w-4 h-4 mb-0.5" />
+          <span className="text-[10px]">More</span>
+        </button>
       </nav>
+
+      {/* Mobile Slide-Up Action Sheet (Access 100% of platform tools) */}
+      {isMobileMenuOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-slate-950/75 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <div
+            className="w-full max-h-[80vh] bg-surface rounded-t-3xl border-t border-subtle shadow-2xl p-5 space-y-4 animate-slide-up pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="w-12 h-1.5 rounded-full bg-muted/40 mx-auto -mt-2 mb-3" />
+
+            <div className="flex items-center justify-between pb-3 border-b border-subtle">
+              <div>
+                <h3 className="text-sm font-bold text-primary">All Features & Hubs</h3>
+                <p className="text-[11px] text-muted">Complete navigation for mobile</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1 rounded-lg text-muted hover:text-primary"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Hubs Grid */}
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              {/* Analytics */}
+              <button
+                type="button"
+                onClick={() => {
+                  onTabChange('analytics');
+                  setIsMobileMenuOpen(false);
+                }}
+                className="p-3 rounded-2xl bg-subtle/80 hover:bg-subtle border border-subtle flex items-center gap-3 text-left transition active:scale-95"
+              >
+                <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Analytics</div>
+                  <div className="text-[10px] text-muted">Stats & mastery</div>
+                </div>
+              </button>
+
+              {/* Backups & Restore */}
+              <button
+                type="button"
+                onClick={() => {
+                  onTabChange('backup');
+                  setIsMobileMenuOpen(false);
+                }}
+                className="p-3 rounded-2xl bg-subtle/80 hover:bg-subtle border border-subtle flex items-center gap-3 text-left transition active:scale-95"
+              >
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Backups</div>
+                  <div className="text-[10px] text-muted">Import & export</div>
+                </div>
+              </button>
+
+              {/* Trash Center */}
+              <button
+                type="button"
+                onClick={() => {
+                  onTabChange('trash');
+                  setIsMobileMenuOpen(false);
+                }}
+                className="p-3 rounded-2xl bg-subtle/80 hover:bg-subtle border border-subtle flex items-center gap-3 text-left transition active:scale-95"
+              >
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Trash Bin</div>
+                  <div className="text-[10px] text-muted">{trashCount} recoverable</div>
+                </div>
+              </button>
+
+              {/* Settings */}
+              <button
+                type="button"
+                onClick={() => {
+                  onTabChange('settings');
+                  setIsMobileMenuOpen(false);
+                }}
+                className="p-3 rounded-2xl bg-subtle/80 hover:bg-subtle border border-subtle flex items-center gap-3 text-left transition active:scale-95"
+              >
+                <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                  <Sliders className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Settings</div>
+                  <div className="text-[10px] text-muted">Theme & data</div>
+                </div>
+              </button>
+
+              {/* Help & Guide */}
+              <button
+                type="button"
+                onClick={() => {
+                  onTabChange('help');
+                  setIsMobileMenuOpen(false);
+                }}
+                className="p-3 rounded-2xl bg-subtle/80 hover:bg-subtle border border-subtle flex items-center gap-3 text-left transition active:scale-95"
+              >
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <HelpCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Help Center</div>
+                  <div className="text-[10px] text-muted">Exams & shortcuts</div>
+                </div>
+              </button>
+
+              {/* Import Questions */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenImportPrompt();
+                }}
+                className="p-3 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 flex items-center gap-3 text-left transition active:scale-95 text-cyan-600 dark:text-cyan-400"
+              >
+                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400">
+                  <UploadCloud className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Import Questions</div>
+                  <div className="text-[10px] text-secondary">Word, TXT, JSON</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

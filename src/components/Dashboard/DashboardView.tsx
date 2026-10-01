@@ -377,7 +377,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Collections Breakdown Row */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
           <button
             onClick={() => onNavigateTab('collections')}
             className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"

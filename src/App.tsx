@@ -865,7 +865,7 @@ export default function App() {
         />
 
         {/* Dynamic Workspace Content with Independent Scrolling */}
-        <main className="flex-1 h-full overflow-y-auto">
+        <main className={`flex-1 h-full overflow-y-auto ${activeTab === 'study' ? 'pb-2 md:pb-0' : 'pb-20 md:pb-0'}`}>
           {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <ErrorBoundary fallbackTitle="Dashboard Error" onReset={reloadData}>

@@ -430,3 +430,32 @@
 .animate-timer-pulse {
   animation: timerPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Safe Area Inset Helpers */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)) !important;
+}
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
+}
+
+/* Minimum Tap Target for Accessible Touch Ergonomics */
+.min-tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Slide Up Bottom Sheet Animation */
+@keyframes slideUpBottomSheet {
+  from {
+    transform: translateY(100%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-slide-up {
+  animation: slideUpBottomSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

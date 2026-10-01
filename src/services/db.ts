@@ -455,13 +455,35 @@ class IndexedDBStorage {
   }
 
   // --- Import Full Database Dump ---
-  async importFullDump(dump: any): Promise<void> {
-    if (!dump || !dump.data) throw new Error('Invalid backup file format');
-    const { profiles, settings, decks, questions, question_status, attempts, sessions, trash } = dump.data;
+  async importFullDump(dump: any, mode: 'merge' | 'overwrite' = 'merge'): Promise<void> {
+    if (!dump || (!dump.data && !dump.decks && !dump.questions)) {
+      throw new Error('Invalid backup file format: Missing data envelope or question structures.');
+    }
+    const data = dump.data || dump;
+    const { profiles, settings, decks, questions, question_status, attempts, sessions, trash } = data;
+
+    const db = await this.getDB();
+    if (mode === 'overwrite') {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(
+          ['decks', 'questions', 'sessions', 'attempts', 'question_status', 'trash'],
+          'readwrite'
+        );
+        tx.objectStore('decks').clear();
+        tx.objectStore('questions').clear();
+        tx.objectStore('sessions').clear();
+        tx.objectStore('attempts').clear();
+        tx.objectStore('question_status').clear();
+        try {
+          tx.objectStore('trash').clear();
+        } catch {}
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      });
+    }
 
     const putAll = async (storeName: string, items?: any[]) => {
       if (!items || !items.length) return;
-      const db = await this.getDB();
       const tx = db.transaction(storeName, 'readwrite');
       const store = tx.objectStore(storeName);
       for (const item of items) {

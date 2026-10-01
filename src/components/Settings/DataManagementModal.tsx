@@ -175,10 +175,10 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in select-none">
-      <div className="w-full max-w-lg bg-surface border border-subtle rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in select-none">
+      <div className="w-full max-w-lg max-h-[92vh] flex flex-col bg-surface border border-subtle rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
         {/* Header Bar */}
-        <div className="p-4 sm:p-5 border-b border-subtle bg-subtle/40 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-subtle bg-subtle/40 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div
               className={`p-2 rounded-xl border ${
@@ -205,7 +205,7 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 space-y-5 text-xs">
+        <div className="p-5 sm:p-6 space-y-5 text-xs overflow-y-auto flex-1">
           {errorMessage && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 font-medium">
               <AlertTriangle className="w-4 h-4 shrink-0" />

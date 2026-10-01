@@ -127,10 +127,10 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
         </Tooltip>
       </div>
 
-      {/* Explorer 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Explorer 2-Column Grid (Responsive Split View for Tablet & Desktop) */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-start">
         {/* Left Side: Academic Explorer Tree (Year -> Module -> Subject) */}
-        <div className="lg:col-span-4 p-4 rounded-2xl bg-surface border border-subtle space-y-3 shadow-card">
+        <div className="md:col-span-5 lg:col-span-4 p-4 rounded-2xl bg-surface border border-subtle space-y-3 shadow-card">
           <div className="flex items-center justify-between text-xs font-bold text-secondary uppercase tracking-wider pb-2 border-b border-subtle">
             <span>Academic Curriculum</span>
           </div>
@@ -227,7 +227,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
         </div>
 
         {/* Right Side: Lecture Decks corresponding to selection */}
-        <div className="lg:col-span-8 space-y-4">
+        <div className="md:col-span-7 lg:col-span-8 space-y-4">
           {/* Active path display */}
           <div className="p-3.5 rounded-xl bg-surface border border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-card">
             <div className="flex items-center gap-1.5 text-secondary font-mono truncate">

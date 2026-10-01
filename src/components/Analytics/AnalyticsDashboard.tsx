@@ -454,7 +454,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-10 sm:grid-cols-15 md:grid-cols-20 gap-1.5 pt-1">
+        <div className="grid grid-cols-10 sm:grid-cols-12 md:grid-cols-[repeat(20,minmax(0,1fr))] gap-1.5 pt-1">
           {heatMapDays.map((day) => {
             let bg = 'bg-subtle border-subtle';
             if (day.count > 0 && day.count < 3) bg = 'bg-cyan-200 dark:bg-cyan-900/80 border-cyan-400 dark:border-cyan-800';
