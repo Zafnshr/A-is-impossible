@@ -4,22 +4,44 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>A+ is Impossible</title>
-    <meta name="description" content="Medical question-bank & study platform for Egyptian medical students with offline IndexedDB storage, high-yield analytics, and rich deck import." />
+    <meta name="description" content="Medical question-bank & study platform with offline storage, high-yield analytics, and rich deck import." />
     <meta property="og:title" content="A+ is Impossible" />
-    <meta property="og:description" content="Medical question-bank & study platform for Egyptian medical students with offline IndexedDB storage, high-yield analytics, and rich deck import." />
+    <meta property="og:description" content="Medical question-bank & study platform with offline storage, high-yield analytics, and rich deck import." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#090d16" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f172a'/%3E%3Cpath d='M30 65 L44 32 L56 32 L70 65 L58 65 L55 57 L45 57 L42 65 Z M47 50 L53 50 L50 40 Z' fill='%2338bdf8'/%3E%3Ctext x='66' y='46' font-size='26' font-weight='900' fill='%23f43f5e' font-family='system-ui'%3E%2B%3C/text%3E%3C/svg%3E" />
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f172a'/%3E%3Cpath d='M30 65 L44 32 L56 32 L70 65 L58 65 L55 57 L45 57 L42 65 Z M47 50 L53 50 L50 40 Z' fill='%2338bdf8'/%3E%3Ctext x='66' y='46' font-size='26' font-weight='900' fill='%23f43f5e' font-family='system-ui'%3E%2B%3C/text%3E%3C/svg%3E" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <!-- Non-blocking asynchronous font loading with native system fallbacks: never blocks rendering on Chinese CDNs (Tencent EdgeOne) or offline -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+    </noscript>
+
+    <!-- Ultra-resilient In-line Environment Bootstrap, Theme Engine, and Anti-Black-Screen Diagnostics -->
     <script>
       (function() {
+        // 1. Environment & Global Polyfills for Standalone Offline Operation
+        window.process = window.process || { env: { NODE_ENV: 'production' }, browser: true, platform: 'browser' };
+        window.global = window.global || window;
+
+        // 2. Unregister any stale or broken service workers from prior deployments
+        if ('serviceWorker' in navigator) {
+          try {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              for (var i = 0; i < regs.length; i++) {
+                regs[i].unregister();
+              }
+            }).catch(function() {});
+          } catch(e) {}
+        }
+
+        // 3. Theme Initialization
         try {
           var t = localStorage.getItem('a_plus_theme');
           if (t === 'light' || (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) {
@@ -29,7 +51,102 @@
             document.documentElement.classList.add('theme-dark', 'dark');
             document.documentElement.classList.remove('theme-light');
           }
-        } catch (e) {}
+        } catch (e) {
+          document.documentElement.classList.add('theme-dark', 'dark');
+        }
+
+        // 4. Standalone Startup Watchdog & Diagnostics Engine
+        var startupErrors = [];
+        var isMounted = false;
+        var watchdogTimer = null;
+
+        function renderDiagnosticUI(title, reason, detectedPhase, details) {
+          var root = document.getElementById('root');
+          if (!root) {
+            root = document.createElement('div');
+            root.id = 'root';
+            document.body.appendChild(root);
+          }
+
+          var isDark = !document.documentElement.classList.contains('theme-light');
+          var bg = isDark ? '#090d16' : '#f8fafc';
+          var cardBg = isDark ? '#0f172a' : '#ffffff';
+          var border = isDark ? '#1e293b' : '#e2e8f0';
+          var textPrimary = isDark ? '#f8fafc' : '#0f172a';
+          var textSecondary = isDark ? '#94a3b8' : '#475569';
+          var redColor = '#ef4444';
+          var cyanColor = '#06b6d4';
+
+          root.innerHTML = [
+            '<div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:' + bg + ';font-family:system-ui,-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;">',
+              '<div style="max-width:580px;width:100%;background:' + cardBg + ';border:1px solid ' + border + ';border-radius:24px;padding:32px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);color:' + textPrimary + ';">',
+                '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">',
+                  '<div style="width:40px;height:40px;border-radius:12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);display:flex;align-items:center;justify-content:center;color:' + redColor + ';font-weight:900;font-size:20px;">!</div>',
+                  '<div>',
+                    '<h1 style="font-size:18px;font-weight:800;margin:0;letter-spacing:-0.02em;">' + title + '</h1>',
+                    '<p style="font-size:12px;color:' + textSecondary + ';margin:2px 0 0 0;">A+ is Impossible · Self-Diagnostics Engine</p>',
+                  '</div>',
+                '</div>',
+                '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:12px 14px;margin-bottom:16px;">',
+                  '<div style="font-size:11px;font-weight:700;color:' + redColor + ';text-transform:uppercase;margin-bottom:4px;">Failure Cause:</div>',
+                  '<div style="font-size:13px;font-family:monospace;word-break:break-word;">' + reason + '</div>',
+                '</div>',
+                '<div style="font-size:12px;color:' + textSecondary + ';line-height:1.6;margin-bottom:20px;">',
+                  '<div><strong>Detected Stage:</strong> ' + detectedPhase + '</div>',
+                  '<div><strong>Host Protocol:</strong> ' + window.location.protocol + ' (' + (window.location.host || 'local file') + ')</div>',
+                  '<div><strong>Storage Support:</strong> ' + ('indexedDB' in window ? 'IndexedDB available' : 'IndexedDB unavailable') + ' · ' + ('localStorage' in window ? 'LocalStorage available' : 'LocalStorage blocked') + '</div>',
+                '</div>',
+                '<div style="display:flex;gap:10px;flex-wrap:wrap;">',
+                  '<button onclick="window.location.reload()" style="flex:1;min-width:140px;padding:12px 16px;border-radius:12px;background:' + cyanColor + ';color:#090d16;font-weight:700;font-size:12px;border:none;cursor:pointer;">Reload Application</button>',
+                  '<button onclick="try{localStorage.clear();sessionStorage.clear();window.location.reload();}catch(e){alert(e.message);}" style="padding:12px 16px;border-radius:12px;background:rgba(255,255,255,0.08);color:' + textPrimary + ';font-weight:600;font-size:12px;border:1px solid ' + border + ';cursor:pointer;">Clear Cache & Reset</button>',
+                '</div>',
+              '</div>',
+            '</div>'
+          ].join('');
+        }
+
+        window.__A_PLUS_STARTUP__ = {
+          errors: startupErrors,
+          isMounted: false,
+          markMounted: function() {
+            isMounted = true;
+            this.isMounted = true;
+            if (watchdogTimer) {
+              clearTimeout(watchdogTimer);
+              watchdogTimer = null;
+            }
+          },
+          reportError: function(err, phase) {
+            var msg = err && (err.message || err.toString()) || 'Unknown runtime error during startup';
+            var stack = err && err.stack || '';
+            startupErrors.push({ message: msg, stack: stack, phase: phase });
+            renderDiagnosticUI('Application Startup Error', msg, phase || 'Runtime Execution', stack);
+          }
+        };
+
+        window.addEventListener('error', function(event) {
+          if (!isMounted) {
+            window.__A_PLUS_STARTUP__.reportError(event.error || event.message, 'Top-Level Global Exception');
+          }
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (!isMounted) {
+            window.__A_PLUS_STARTUP__.reportError(event.reason, 'Unhandled Promise Rejection');
+          }
+        });
+
+        // 5-second Watchdog: If nothing mounts to #root, render diagnostics
+        watchdogTimer = setTimeout(function() {
+          if (!isMounted) {
+            var rootEl = document.getElementById('root');
+            var hasChildren = rootEl && rootEl.childNodes && rootEl.childNodes.length > 0;
+            if (!hasChildren) {
+              var lastError = startupErrors.length > 0 ? startupErrors[startupErrors.length - 1].message : 'Mount Watchdog Timeout: React did not mount to #root container within 5 seconds.';
+              renderDiagnosticUI('Application Startup Delayed', lastError, 'Mount Watchdog', 'The application bundle loaded but the user interface was not rendered into the DOM.');
+            }
+          }
+        }, 5000);
       })();
     </script>
   </head>
@@ -38,4 +155,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

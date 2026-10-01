@@ -19,87 +19,139 @@ const DB_VERSION = 2;
 
 class IndexedDBStorage {
   private db: IDBDatabase | null = null;
-  private initPromise: Promise<IDBDatabase> | null = null;
+  private initPromise: Promise<IDBDatabase | null> | null = null;
+  public isMemoryMode: boolean = false;
 
-  public async getDB(): Promise<IDBDatabase> {
+  private memoryStores: Record<string, Map<string, any>> = {
+    profiles: new Map(),
+    settings: new Map(),
+    decks: new Map(),
+    questions: new Map(),
+    question_status: new Map(),
+    attempts: new Map(),
+    sessions: new Map(),
+    session_history: new Map(),
+    trash: new Map(),
+  };
+
+  private seedMemoryFromInitialSnapshot() {
+    if (typeof window !== 'undefined' && (window as any).__A_PLUS_INITIAL_DATA__) {
+      try {
+        const dump = (window as any).__A_PLUS_INITIAL_DATA__;
+        const data = dump.data || dump;
+        if (data.decks) data.decks.forEach((d: any) => this.memoryStores.decks.set(d.id, d));
+        if (data.questions) data.questions.forEach((q: any) => this.memoryStores.questions.set(q.id, q));
+        if (data.settings) data.settings.forEach((s: any) => this.memoryStores.settings.set(s.profileId, s));
+        if (data.profiles) data.profiles.forEach((p: any) => this.memoryStores.profiles.set(p.id, p));
+        if (data.question_status) data.question_status.forEach((qs: any) => this.memoryStores.question_status.set(`${qs.profileId}_${qs.questionId}`, qs));
+        if (data.attempts) data.attempts.forEach((a: any) => this.memoryStores.attempts.set(a.id, a));
+        if (data.sessions) data.sessions.forEach((s: any) => this.memoryStores.sessions.set(s.profileId, s));
+        if (data.session_history) data.session_history.forEach((sh: any) => this.memoryStores.session_history.set(sh.id, sh));
+        if (data.trash) data.trash.forEach((t: any) => this.memoryStores.trash.set(t.id, t));
+        console.log('[db] Successfully seeded memory fallback storage from initial embedded snapshot.');
+      } catch (e) {
+        console.warn('[db] Failed to seed memory storage from snapshot:', e);
+      }
+    }
+  }
+
+  public async getDB(): Promise<IDBDatabase | null> {
     if (this.db) return this.db;
+    if (this.isMemoryMode) return null;
     if (this.initPromise) return this.initPromise;
 
-    this.initPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-
-        // Profiles store
-        if (!db.objectStoreNames.contains('profiles')) {
-          db.createObjectStore('profiles', { keyPath: 'id' });
+    this.initPromise = new Promise((resolve) => {
+      try {
+        if (typeof indexedDB === 'undefined') {
+          console.warn('[db] IndexedDB is undefined in this environment. Activating in-memory storage fallback.');
+          this.isMemoryMode = true;
+          this.seedMemoryFromInitialSnapshot();
+          return resolve(null);
         }
 
-        // Settings store (by profileId)
-        if (!db.objectStoreNames.contains('settings')) {
-          db.createObjectStore('settings', { keyPath: 'profileId' });
-        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-        // Decks store
-        if (!db.objectStoreNames.contains('decks')) {
-          const deckStore = db.createObjectStore('decks', { keyPath: 'id' });
-          deckStore.createIndex('by_year', 'year', { unique: false });
-          deckStore.createIndex('by_module', 'module', { unique: false });
-          deckStore.createIndex('by_subject', 'subject', { unique: false });
-        }
+        request.onupgradeneeded = (event) => {
+          const db = (event.target as IDBOpenDBRequest).result;
 
-        // Questions store
-        if (!db.objectStoreNames.contains('questions')) {
-          const qStore = db.createObjectStore('questions', { keyPath: 'id' });
-          qStore.createIndex('by_deckId', 'deckId', { unique: false });
-        }
+          // Profiles store
+          if (!db.objectStoreNames.contains('profiles')) {
+            db.createObjectStore('profiles', { keyPath: 'id' });
+          }
 
-        // Question User Status (composite: profileId_questionId)
-        if (!db.objectStoreNames.contains('question_status')) {
-          const qsStore = db.createObjectStore('question_status', { keyPath: ['profileId', 'questionId'] });
-          qsStore.createIndex('by_profileId', 'profileId', { unique: false });
-          qsStore.createIndex('by_favorite', ['profileId', 'isFavorite'], { unique: false });
-          qsStore.createIndex('by_flagged', ['profileId', 'isFlagged'], { unique: false });
-          qsStore.createIndex('by_incorrect', ['profileId', 'isIncorrect'], { unique: false });
-        }
+          // Settings store (by profileId)
+          if (!db.objectStoreNames.contains('settings')) {
+            db.createObjectStore('settings', { keyPath: 'profileId' });
+          }
 
-        // Attempts history
-        if (!db.objectStoreNames.contains('attempts')) {
-          const attStore = db.createObjectStore('attempts', { keyPath: 'id' });
-          attStore.createIndex('by_profileId', 'profileId', { unique: false });
-          attStore.createIndex('by_questionId', 'questionId', { unique: false });
-          attStore.createIndex('by_timestamp', 'timestamp', { unique: false });
-        }
+          // Decks store
+          if (!db.objectStoreNames.contains('decks')) {
+            const deckStore = db.createObjectStore('decks', { keyPath: 'id' });
+            deckStore.createIndex('by_year', 'year', { unique: false });
+            deckStore.createIndex('by_module', 'module', { unique: false });
+            deckStore.createIndex('by_subject', 'subject', { unique: false });
+          }
 
-        // Active Sessions (by profileId)
-        if (!db.objectStoreNames.contains('sessions')) {
-          db.createObjectStore('sessions', { keyPath: 'profileId' });
-        }
+          // Questions store
+          if (!db.objectStoreNames.contains('questions')) {
+            const qStore = db.createObjectStore('questions', { keyPath: 'id' });
+            qStore.createIndex('by_deckId', 'deckId', { unique: false });
+          }
 
-        // Session History store (permanent historical study records)
-        if (!db.objectStoreNames.contains('session_history')) {
-          const sHistStore = db.createObjectStore('session_history', { keyPath: 'id' });
-          sHistStore.createIndex('by_profileId', 'profileId', { unique: false });
-          sHistStore.createIndex('by_completedAt', 'completedAt', { unique: false });
-          sHistStore.createIndex('by_date', 'date', { unique: false });
-        }
+          // Question User Status (composite: profileId_questionId)
+          if (!db.objectStoreNames.contains('question_status')) {
+            const qsStore = db.createObjectStore('question_status', { keyPath: ['profileId', 'questionId'] });
+            qsStore.createIndex('by_profileId', 'profileId', { unique: false });
+            qsStore.createIndex('by_favorite', ['profileId', 'isFavorite'], { unique: false });
+            qsStore.createIndex('by_flagged', ['profileId', 'isFlagged'], { unique: false });
+            qsStore.createIndex('by_incorrect', ['profileId', 'isIncorrect'], { unique: false });
+          }
 
-        // Trash Bin
-        if (!db.objectStoreNames.contains('trash')) {
-          const trashStore = db.createObjectStore('trash', { keyPath: 'id' });
-          trashStore.createIndex('by_profileId', 'profileId', { unique: false });
-        }
-      };
+          // Attempts history
+          if (!db.objectStoreNames.contains('attempts')) {
+            const attStore = db.createObjectStore('attempts', { keyPath: 'id' });
+            attStore.createIndex('by_profileId', 'profileId', { unique: false });
+            attStore.createIndex('by_questionId', 'questionId', { unique: false });
+            attStore.createIndex('by_timestamp', 'timestamp', { unique: false });
+          }
 
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve(this.db);
-      };
+          // Active Sessions (by profileId)
+          if (!db.objectStoreNames.contains('sessions')) {
+            db.createObjectStore('sessions', { keyPath: 'profileId' });
+          }
 
-      request.onerror = () => {
-        reject(request.error);
-      };
+          // Session History store (permanent historical study records)
+          if (!db.objectStoreNames.contains('session_history')) {
+            const sHistStore = db.createObjectStore('session_history', { keyPath: 'id' });
+            sHistStore.createIndex('by_profileId', 'profileId', { unique: false });
+            sHistStore.createIndex('by_completedAt', 'completedAt', { unique: false });
+            sHistStore.createIndex('by_date', 'date', { unique: false });
+          }
+
+          // Trash Bin
+          if (!db.objectStoreNames.contains('trash')) {
+            const trashStore = db.createObjectStore('trash', { keyPath: 'id' });
+            trashStore.createIndex('by_profileId', 'profileId', { unique: false });
+          }
+        };
+
+        request.onsuccess = () => {
+          this.db = request.result;
+          resolve(this.db);
+        };
+
+        request.onerror = () => {
+          console.warn('[db] indexedDB.open failed. Activating resilient in-memory storage fallback:', request.error);
+          this.isMemoryMode = true;
+          this.seedMemoryFromInitialSnapshot();
+          resolve(null);
+        };
+      } catch (err) {
+        console.warn('[db] Synchronous indexedDB access failed. Activating in-memory storage fallback:', err);
+        this.isMemoryMode = true;
+        this.seedMemoryFromInitialSnapshot();
+        resolve(null);
+      }
     });
 
     return this.initPromise;
@@ -111,7 +163,40 @@ class IndexedDBStorage {
     mode: IDBTransactionMode,
     callback: (store: IDBObjectStore) => IDBRequest | void
   ): Promise<T> {
-    const db = await this.getDB();
+    await this.getDB();
+    if (this.isMemoryMode) {
+      const storeMap = this.memoryStores[storeName] || new Map();
+      const fakeStore: any = {
+        get: (key: any) => {
+          const lookupKey = Array.isArray(key) ? key.join('_') : String(key);
+          return { result: storeMap.get(lookupKey) };
+        },
+        getAll: () => ({
+          result: Array.from(storeMap.values()),
+        }),
+        put: (val: any) => {
+          const key = val.id || val.profileId || (val.questionId ? `${val.profileId}_${val.questionId}` : `item_${Date.now()}`);
+          storeMap.set(String(key), val);
+          return {};
+        },
+        delete: (key: any) => {
+          const lookupKey = Array.isArray(key) ? key.join('_') : String(key);
+          storeMap.delete(lookupKey);
+          return {};
+        },
+        clear: () => {
+          storeMap.clear();
+          return {};
+        },
+      };
+      const req = callback(fakeStore);
+      if (req && 'result' in req) {
+        return (req as any).result as T;
+      }
+      return undefined as unknown as T;
+    }
+
+    const db = this.db!;
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, mode);
       const store = tx.objectStore(storeName);
@@ -246,13 +331,17 @@ class IndexedDBStorage {
   }
 
   async getQuestionsByDeck(deckId: string): Promise<Question[]> {
-    const db = await this.getDB();
+    await this.getDB();
+    if (this.isMemoryMode) {
+      return Array.from(this.memoryStores.questions.values()).filter((q) => q.deckId === deckId);
+    }
+    const db = this.db!;
     return new Promise((resolve, reject) => {
       const tx = db.transaction('questions', 'readonly');
       const store = tx.objectStore('questions');
       const index = store.index('by_deckId');
       const req = index.getAll(deckId);
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
   }
@@ -308,7 +397,11 @@ class IndexedDBStorage {
   }
 
   async getAllStatusForProfile(profileId: string): Promise<QuestionUserStatus[]> {
-    const db = await this.getDB();
+    await this.getDB();
+    if (this.isMemoryMode) {
+      return Array.from(this.memoryStores.question_status.values()).filter((s) => s.profileId === profileId);
+    }
+    const db = this.db!;
     return new Promise((resolve, reject) => {
       const tx = db.transaction('question_status', 'readonly');
       const store = tx.objectStore('question_status');
@@ -329,7 +422,11 @@ class IndexedDBStorage {
   }
 
   async getAttemptsByProfile(profileId: string): Promise<UserAttemptRecord[]> {
-    const db = await this.getDB();
+    await this.getDB();
+    if (this.isMemoryMode) {
+      return Array.from(this.memoryStores.attempts.values()).filter((a) => a.profileId === profileId);
+    }
+    const db = this.db!;
     return new Promise((resolve, reject) => {
       const tx = db.transaction('attempts', 'readonly');
       const store = tx.objectStore('attempts');
@@ -355,8 +452,14 @@ class IndexedDBStorage {
 
   // --- Study Session History (Single Source of Truth) ---
   async getSessionHistory(profileId: string = 'workspace'): Promise<StudySessionRecord[]> {
-    const db = await this.getDB();
-    if (!db.objectStoreNames.contains('session_history')) return [];
+    await this.getDB();
+    if (this.isMemoryMode) {
+      return Array.from(this.memoryStores.session_history.values())
+        .filter((s) => s.profileId === profileId)
+        .sort((a, b) => a.completedAt - b.completedAt);
+    }
+    const db = this.db;
+    if (!db || !db.objectStoreNames.contains('session_history')) return [];
     try {
       const records = await new Promise<StudySessionRecord[]>((resolve, reject) => {
         const tx = db.transaction('session_history', 'readonly');
@@ -373,20 +476,35 @@ class IndexedDBStorage {
   }
 
   async saveSessionRecord(record: StudySessionRecord): Promise<void> {
-    const db = await this.getDB();
-    if (!db.objectStoreNames.contains('session_history')) return;
+    await this.getDB();
+    if (this.isMemoryMode) {
+      this.memoryStores.session_history.set(record.id, record);
+      return;
+    }
+    const db = this.db;
+    if (!db || !db.objectStoreNames.contains('session_history')) return;
     await this.transaction('session_history', 'readwrite', (store) => store.put(record));
   }
 
   async deleteSessionRecord(id: string): Promise<void> {
-    const db = await this.getDB();
-    if (!db.objectStoreNames.contains('session_history')) return;
+    await this.getDB();
+    if (this.isMemoryMode) {
+      this.memoryStores.session_history.delete(id);
+      return;
+    }
+    const db = this.db;
+    if (!db || !db.objectStoreNames.contains('session_history')) return;
     await this.transaction('session_history', 'readwrite', (store) => store.delete(id));
   }
 
   async clearSessionHistory(profileId: string = 'workspace'): Promise<void> {
-    const db = await this.getDB();
-    if (!db.objectStoreNames.contains('session_history')) return;
+    await this.getDB();
+    if (this.isMemoryMode) {
+      this.memoryStores.session_history.clear();
+      return;
+    }
+    const db = this.db;
+    if (!db || !db.objectStoreNames.contains('session_history')) return;
     const history = await this.getSessionHistory(profileId);
     for (const h of history) {
       await this.transaction('session_history', 'readwrite', (store) => store.delete(h.id));
@@ -516,7 +634,11 @@ class IndexedDBStorage {
 
   // --- Trash Bin ---
   async getTrashItems(profileId: string): Promise<TrashItem[]> {
-    const db = await this.getDB();
+    await this.getDB();
+    if (this.isMemoryMode) {
+      return Array.from(this.memoryStores.trash.values()).filter((t) => t.profileId === profileId);
+    }
+    const db = this.db!;
     return new Promise((resolve, reject) => {
       const tx = db.transaction('trash', 'readonly');
       const store = tx.objectStore('trash');
@@ -584,14 +706,38 @@ class IndexedDBStorage {
 
   // --- Export Full Database Dump ---
   async exportFullDump(): Promise<any> {
+    await this.getDB();
+    if (this.isMemoryMode) {
+      return {
+        version: 2,
+        exportedAt: Date.now(),
+        platform: 'A+ is Impossible',
+        data: {
+          profiles: Array.from(this.memoryStores.profiles.values()),
+          settings: Array.from(this.memoryStores.settings.values()),
+          decks: Array.from(this.memoryStores.decks.values()),
+          questions: Array.from(this.memoryStores.questions.values()),
+          question_status: Array.from(this.memoryStores.question_status.values()),
+          attempts: Array.from(this.memoryStores.attempts.values()),
+          sessions: Array.from(this.memoryStores.sessions.values()),
+          session_history: Array.from(this.memoryStores.session_history.values()),
+          trash: Array.from(this.memoryStores.trash.values()),
+        },
+      };
+    }
+
     const profiles = await this.getProfiles();
     const decks = await this.getDecks();
     const questions = await this.getQuestions();
 
-    const db = await this.getDB();
+    const db = this.db!;
     const getStoreAll = (name: string): Promise<any[]> =>
       new Promise((resolve) => {
         try {
+          if (!db.objectStoreNames.contains(name)) {
+            resolve([]);
+            return;
+          }
           const tx = db.transaction(name, 'readonly');
           const req = tx.objectStore(name).getAll();
           req.onsuccess = () => resolve(req.result || []);
@@ -634,7 +780,33 @@ class IndexedDBStorage {
     const data = dump.data || dump;
     const { profiles, settings, decks, questions, question_status, attempts, sessions, session_history, trash } = data;
 
-    const db = await this.getDB();
+    await this.getDB();
+    if (this.isMemoryMode) {
+      if (mode === 'overwrite') {
+        Object.values(this.memoryStores).forEach((map) => map.clear());
+      }
+      const putMem = (storeName: string, items?: any[]) => {
+        if (!items || !items.length) return;
+        const store = this.memoryStores[storeName];
+        if (!store) return;
+        for (const item of items) {
+          const key = storeName === 'question_status' ? `${item.profileId}_${item.questionId}` : (item.id || item.profileId);
+          store.set(String(key), item);
+        }
+      };
+      putMem('profiles', profiles);
+      putMem('settings', settings);
+      putMem('decks', decks);
+      putMem('questions', questions);
+      putMem('question_status', question_status);
+      putMem('attempts', attempts);
+      putMem('sessions', sessions);
+      putMem('session_history', session_history);
+      putMem('trash', trash);
+      return;
+    }
+
+    const db = this.db!;
     if (mode === 'overwrite') {
       await new Promise((resolve, reject) => {
         const storeNames = ['decks', 'questions', 'sessions', 'attempts', 'question_status', 'trash'];
@@ -762,7 +934,19 @@ class IndexedDBStorage {
    * Keeps profile and preferences.
    */
   async deleteAllDecks(): Promise<void> {
-    const db = await this.getDB();
+    await this.getDB();
+    if (this.isMemoryMode) {
+      this.memoryStores.decks.clear();
+      this.memoryStores.questions.clear();
+      this.memoryStores.sessions.clear();
+      this.memoryStores.attempts.clear();
+      this.memoryStores.question_status.clear();
+      this.memoryStores.session_history.clear();
+      this.memoryStores.trash.clear();
+      return;
+    }
+
+    const db = this.db!;
     await new Promise((resolve, reject) => {
       const storeNames = ['decks', 'questions', 'sessions', 'attempts', 'question_status'];
       if (db.objectStoreNames.contains('session_history')) {
@@ -783,8 +967,7 @@ class IndexedDBStorage {
 
     // Also clear trash items
     try {
-      const dbInstance = await this.getDB();
-      const tx = dbInstance.transaction('trash', 'readwrite');
+      const tx = db.transaction('trash', 'readwrite');
       tx.objectStore('trash').clear();
       await new Promise((resolve) => {
         tx.oncomplete = () => resolve(true);
@@ -801,6 +984,10 @@ class IndexedDBStorage {
    * Restores platform to pristine first-launch state.
    */
   async factoryResetPlatform(): Promise<void> {
+    if (this.isMemoryMode) {
+      Object.values(this.memoryStores).forEach((map) => map.clear());
+    }
+
     // 1. Close current connection
     if (this.db) {
       this.db.close();
@@ -810,10 +997,18 @@ class IndexedDBStorage {
 
     // 2. Delete IndexedDB database
     await new Promise((resolve) => {
-      const req = indexedDB.deleteDatabase(DB_NAME);
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => resolve(true);
-      req.onblocked = () => resolve(true);
+      if (typeof indexedDB === 'undefined') {
+        resolve(true);
+        return;
+      }
+      try {
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => resolve(true);
+        req.onblocked = () => resolve(true);
+      } catch {
+        resolve(true);
+      }
     });
 
     // 3. Clear LocalStorage and SessionStorage

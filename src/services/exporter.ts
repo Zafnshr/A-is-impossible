@@ -160,6 +160,11 @@ export function validateStandaloneHtml(html: string): { valid: boolean; errors: 
     errors.push('Embedded database snapshot script is missing');
   }
 
+  // 9. Verify process polyfill is present
+  if (!html.includes('window.process')) {
+    errors.push('Process polyfill environment is missing');
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -169,16 +174,19 @@ export function validateStandaloneHtml(html: string): { valid: boolean; errors: 
 /**
  * Generates a self-contained Single-File HTML bundle containing the entire
  * application code, IndexedDB storage engine, default decks, and study features,
- * ready to deploy directly onto GitHub Pages, Netlify, Vercel, or run locally offline
- * by double-clicking the file on any computer.
+ * ready to deploy directly onto Tencent EdgeOne Pages, GitHub Pages, Netlify, Vercel,
+ * or run locally offline by double-clicking the file on any computer.
  */
-export async function exportSingleFileHtml(): Promise<StandaloneExportResult> {
+export async function exportSingleFileHtml(
+  targetFilename: string = 'index.html'
+): Promise<StandaloneExportResult> {
   try {
     const fullDump = await dbService.exportFullDump();
     const dumpJson = JSON.stringify(fullDump).replace(/<\/script>/gi, '<\\/script>');
     const injectionScript = `<script>
   // A+ is Impossible Standalone Offline Bootstrap
-  window.process = window.process || { env: { NODE_ENV: 'production' } };
+  window.process = window.process || { env: { NODE_ENV: 'production' }, browser: true, platform: 'browser' };
+  window.global = window.global || window;
   window.__A_PLUS_INITIAL_DATA__ = ${dumpJson};
 </script>`;
 
@@ -254,21 +262,22 @@ export async function exportSingleFileHtml(): Promise<StandaloneExportResult> {
       };
     }
 
-    // 4. Inject database snapshot
+    // 4. Inject database snapshot IMMEDIATELY after <head> so it executes before any app bundles
     let finalHtml: string = bundleTemplate;
     if (bundleTemplate.includes('window.__A_PLUS_INITIAL_DATA__')) {
       finalHtml = bundleTemplate.replace(
-        /<script[^>]*>window\.__A_PLUS_INITIAL_DATA__[\s\S]*?<\/script>/gi,
+        /<script[^>]*>[\s\S]*?window\.__A_PLUS_INITIAL_DATA__[\s\S]*?<\/script>/gi,
         injectionScript
       );
-    } else if (bundleTemplate.includes('</head>')) {
-      finalHtml = bundleTemplate.replace('</head>', `${injectionScript}\n</head>`);
+    } else if (/<head[^>]*>/i.test(bundleTemplate)) {
+      finalHtml = bundleTemplate.replace(/(<head[^>]*>)/i, `$1\n${injectionScript}\n`);
     } else {
       finalHtml = `${injectionScript}\n${bundleTemplate}`;
     }
 
-    // Sanitize inline scripts: remove crossorigin attribute that can trigger origin null CORS blocks on file://
+    // Sanitize inline scripts and links: remove crossorigin attributes that can trigger origin null CORS blocks on file:// or EdgeOne
     finalHtml = finalHtml.replace(/<script\b([^>]*)\bcrossorigin(?:=["'][^"']*["'])?([^>]*)>/gi, '<script$1$2>');
+    finalHtml = finalHtml.replace(/<link\b([^>]*)\bcrossorigin(?:=["'][^"']*["'])?([^>]*)>/gi, '<link$1$2>');
 
     // 5. Rigorous Validation Check
     const validation = validateStandaloneHtml(finalHtml);
@@ -284,10 +293,10 @@ export async function exportSingleFileHtml(): Promise<StandaloneExportResult> {
     }
 
     // 6. Download verified file
-    downloadHtmlFile('a-plus-is-impossible.html', finalHtml);
+    downloadHtmlFile(targetFilename, finalHtml);
     return {
       success: true,
-      filename: 'a-plus-is-impossible.html',
+      filename: targetFilename,
       sizeBytes: new Blob([finalHtml]).size,
     };
   } catch (err: any) {

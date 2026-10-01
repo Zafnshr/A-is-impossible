@@ -53,19 +53,19 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
   const [trashFeedback, setTrashFeedback] = useState<string | null>(null);
 
   // Standalone HTML Export state
-  const [isExportingHtml, setIsExportingHtml] = useState<boolean>(false);
+  const [isExportingHtml, setIsExportingHtml] = useState<string | null>(null);
   const [htmlExportSuccess, setHtmlExportSuccess] = useState<string | null>(null);
   const [htmlExportError, setHtmlExportError] = useState<{ reason: string; suggestedFix: string } | null>(null);
 
-  const handleExportSingleFile = async () => {
-    setIsExportingHtml(true);
+  const handleExportSingleFile = async (targetFilename: string = 'index.html') => {
+    setIsExportingHtml(targetFilename);
     setHtmlExportError(null);
     setHtmlExportSuccess(null);
     try {
-      const result: StandaloneExportResult = await exportSingleFileHtml();
+      const result: StandaloneExportResult = await exportSingleFileHtml(targetFilename);
       if (result.success) {
-        const sizeMb = result.sizeBytes ? (result.sizeBytes / (1024 * 1024)).toFixed(2) : '1.08';
-        setHtmlExportSuccess(`Successfully verified and downloaded "${result.filename}" (${sizeMb} MB)! 100% offline capable.`);
+        const sizeMb = result.sizeBytes ? (result.sizeBytes / (1024 * 1024)).toFixed(2) : '1.14';
+        setHtmlExportSuccess(`Successfully verified and downloaded "${result.filename}" (${sizeMb} MB)! 100% offline & static-host ready.`);
       } else if (result.error) {
         setHtmlExportError(result.error);
       }
@@ -75,7 +75,7 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
         suggestedFix: 'Rebuild the application or use JSON export as a fallback.',
       });
     } finally {
-      setIsExportingHtml(false);
+      setIsExportingHtml(null);
     }
   };
 
@@ -201,18 +201,18 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
       {activeTab === 'export' && (
         <div className="space-y-6">
           {/* Standalone Single-File HTML Generation */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-3">
+          <div className="p-5 sm:p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" /> Single-File Standalone HTML Generation
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle text-primary border border-subtle self-start sm:self-auto">
-                GitHub Pages · Netlify · Vercel · Offline Local
+                Tencent EdgeOne · Netlify · Vercel · Local USB / File
               </span>
             </div>
             <p className="text-xs sm:text-sm text-secondary leading-relaxed">
               Package the entire platform and your loaded question banks into <strong>ONE single deployable HTML file</strong>.
-              You can deploy it directly onto GitHub Pages, Netlify, Vercel, or open it offline by double-clicking it on your device.
+              Everything is bundled inline: application code, styles, storage engine, and diagnostic recovery watchdog. No server required.
             </p>
 
             {htmlExportSuccess && (
@@ -222,25 +222,89 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
               </div>
             )}
 
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={handleExportSingleFile}
-                disabled={isExportingHtml}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
-              >
-                {isExportingHtml ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Packaging & Validating Standalone HTML...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    <span>Download Standalone HTML (a-plus-is-impossible.html)</span>
-                  </>
-                )}
-              </button>
+            {htmlExportError && (
+              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/25 space-y-2 text-xs text-rose-700 dark:text-rose-300 animate-in fade-in">
+                <div className="flex items-center gap-2 font-bold text-rose-600 dark:text-rose-400">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>Standalone Export Diagnostic Notice</span>
+                </div>
+                <p className="font-mono text-[11px] bg-rose-500/10 p-2 rounded border border-rose-500/20">{htmlExportError.reason}</p>
+                <p className="text-secondary text-[11px]"><strong>Recommendation:</strong> {htmlExportError.suggestedFix}</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Option A: For Static Hosting (index.html) */}
+              <div className="p-3.5 rounded-xl bg-subtle border border-subtle flex flex-col justify-between space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-primary flex items-center gap-1.5">
+                      <FileCode className="w-3.5 h-3.5 text-cyan-500" />
+                      Static Web Hosting Build
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-semibold">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-secondary leading-snug">
+                    Saved as <code>index.html</code>. Upload directly to Tencent EdgeOne Pages, Netlify, Vercel, or GitHub Pages with zero configuration.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleExportSingleFile('index.html')}
+                  disabled={Boolean(isExportingHtml)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                >
+                  {isExportingHtml === 'index.html' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Validating index.html...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download For Web Hosting (index.html)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Option B: For Local Offline Double-Click */}
+              <div className="p-3.5 rounded-xl bg-subtle border border-subtle flex flex-col justify-between space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-primary flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                      Portable Offline File
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold">
+                      file://
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-secondary leading-snug">
+                    Saved as <code>a-plus-is-impossible.html</code>. Store on USB drives, local desktop, or tablets for offline study without any server.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleExportSingleFile('a-plus-is-impossible.html')}
+                  disabled={Boolean(isExportingHtml)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface hover:bg-surface-elevated border border-subtle hover:border-cyan-500/40 disabled:opacity-50 text-primary font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                >
+                  {isExportingHtml === 'a-plus-is-impossible.html' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Validating portable HTML...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Download Portable (a-plus-is-impossible.html)</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
