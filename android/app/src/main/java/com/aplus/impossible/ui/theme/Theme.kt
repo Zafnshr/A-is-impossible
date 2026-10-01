@@ -1,14 +1,28 @@
 package com.aplus.impossible.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
 import androidx.core.view.WindowCompat
+
+fun BorderStroke.copy(
+    width: Dp = this.width,
+    brush: Brush = this.brush
+): BorderStroke = BorderStroke(width, brush)
+
+fun BorderStroke.copy(
+    width: Dp = this.width,
+    color: Color
+): BorderStroke = BorderStroke(width, SolidColor(color))
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryCyan,
