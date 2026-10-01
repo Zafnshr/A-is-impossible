@@ -782,6 +782,18 @@ export default function App() {
     triggerAutoSave();
   };
 
+  const handleUpdateQuestionStatus = useCallback((status: QuestionUserStatus) => {
+    setUserStatuses((prev) => {
+      const idx = prev.findIndex((s) => s.questionId === status.questionId);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = status;
+        return copy;
+      }
+      return [...prev, status];
+    });
+  }, []);
+
   // Active session questions
   const sessionQuestions = useMemo(() => {
     if (!activeSession) return [];
@@ -927,6 +939,8 @@ export default function App() {
                   questions={sessionQuestions}
                   decksMap={decksMap}
                   settings={settings}
+                  userStatuses={userStatuses}
+                  onUpdateQuestionStatus={handleUpdateQuestionStatus}
                   onUpdateSession={handleUpdateSession}
                   onCompleteSessionWithSummary={handleCompleteSessionWithSummary}
                   onEndEarlySaveAndExit={handleEndEarlySaveAndExit}

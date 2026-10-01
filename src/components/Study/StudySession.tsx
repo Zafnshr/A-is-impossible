@@ -37,12 +37,15 @@ import {
 import { dbService } from '../../services/db';
 import { Tooltip } from '../Tooltip';
 import { OrderDebugModal } from './OrderDebugModal';
+import { QuestionMapPanel, evaluateQuestionCorrectness } from './QuestionMapPanel';
 
 interface StudySessionProps {
   session: StudySessionState;
   questions: Question[];
   decksMap: Record<string, Deck>;
   settings: UserSettings;
+  userStatuses?: QuestionUserStatus[];
+  onUpdateQuestionStatus?: (status: QuestionUserStatus) => void;
   onUpdateSession: (updated: StudySessionState) => void;
   onCompleteSessionWithSummary: (summary: SessionCompletionSummary) => void;
   onEndEarlySaveAndExit: () => void;
@@ -55,6 +58,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
   questions,
   decksMap,
   settings,
+  userStatuses = [],
+  onUpdateQuestionStatus,
   onUpdateSession,
   onCompleteSessionWithSummary,
   onEndEarlySaveAndExit,
@@ -69,7 +74,23 @@ export const StudySession: React.FC<StudySessionProps> = ({
   const [qStatus, setQStatus] = useState<QuestionUserStatus | null>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
-  const [navigatorOpen, setNavigatorOpen] = useState(false);
+  const [isQuestionMapOpen, setIsQuestionMapOpen] = useState(true);
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    userStatuses.forEach((us) => {
+      if (us.isFlagged) s.add(us.questionId);
+    });
+    return s;
+  });
+
+  // Sync flaggedIds when userStatuses prop updates
+  useEffect(() => {
+    const s = new Set<string>();
+    userStatuses.forEach((us) => {
+      if (us.isFlagged) s.add(us.questionId);
+    });
+    setFlaggedIds(s);
+  }, [userStatuses]);
   const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
   const [orderDebugOpen, setOrderDebugOpen] = useState(false);
 
@@ -233,37 +254,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
   const isRevealed = !!session.revealedQuestions[currentQuestion.id];
   const currentAnswer = session.userAnswers[currentQuestion.id];
 
-  const isCorrect = ((): boolean => {
-    if (!isSubmitted) return false;
-    const ans = session.userAnswers[currentQuestion.id];
-    if (ans === undefined || ans === null) return false;
-
-    if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
-      return currentQuestion.correctAnswers.includes(ans);
-    }
-    if (currentQuestion.type === 'multiple_mcq') {
-      return (
-        Array.isArray(ans) &&
-        [...ans].sort().join(',') === [...currentQuestion.correctAnswers].sort().join(',')
-      );
-    }
-    if (currentQuestion.type === 'matching') {
-      return (
-        !!currentQuestion.matchingPairs &&
-        currentQuestion.matchingPairs.every((p) => ans[p.id] === p.right)
-      );
-    }
-    if (currentQuestion.type === 'ordering') {
-      return JSON.stringify(ans) === JSON.stringify(currentQuestion.correctOrder);
-    }
-    if (currentQuestion.type === 'case_study') {
-      return (
-        !!currentQuestion.subQuestions &&
-        currentQuestion.subQuestions.every((sub) => ans[sub.id] === sub.correctAnswer)
-      );
-    }
-    return false;
-  })();
+  const isCorrect = isSubmitted && evaluateQuestionCorrectness(currentQuestion, session.userAnswers[currentQuestion.id]);
 
   const toggleTimer = () => {
     onUpdateSession({
@@ -317,7 +308,6 @@ export const StudySession: React.FC<StudySessionProps> = ({
       currentIndex: index,
       lastSavedAt: Date.now(),
     });
-    setNavigatorOpen(false);
   };
 
   const handleSelectSingleOption = (optionIndex: number) => {
@@ -562,13 +552,22 @@ export const StudySession: React.FC<StudySessionProps> = ({
     const updated = { ...qStatus, isFavorite: !qStatus.isFavorite };
     setQStatus(updated);
     await dbService.saveQuestionStatus(updated);
+    if (onUpdateQuestionStatus) onUpdateQuestionStatus(updated);
   };
 
   const handleToggleFlag = async () => {
     if (!qStatus) return;
-    const updated = { ...qStatus, isFlagged: !qStatus.isFlagged };
+    const isNowFlagged = !qStatus.isFlagged;
+    const updated = { ...qStatus, isFlagged: isNowFlagged };
     setQStatus(updated);
+    setFlaggedIds((prev) => {
+      const next = new Set(prev);
+      if (isNowFlagged) next.add(currentQuestion.id);
+      else next.delete(currentQuestion.id);
+      return next;
+    });
     await dbService.saveQuestionStatus(updated);
+    if (onUpdateQuestionStatus) onUpdateQuestionStatus(updated);
   };
 
   const handleSaveNote = async () => {
@@ -653,7 +652,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
   }, [questions, decksMap]);
 
   return (
-    <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full px-3 sm:px-6 py-4 space-y-4">
+    <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-3 sm:px-6 py-4 space-y-4">
       {/* Top Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-subtle">
         <div className="flex items-center gap-2 text-xs">
@@ -712,136 +711,86 @@ export const StudySession: React.FC<StudySessionProps> = ({
         </div>
       </div>
 
-      {/* Question Header & Navigator Launcher */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setNavigatorOpen(!navigatorOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-subtle hover:bg-subtle/80 border border-subtle text-xs font-bold text-primary transition"
-          >
-            <Layers className="w-3.5 h-3.5 text-cyan-500" />
-            <span>
-              Q {currentQIndex + 1} of {questions.length}
-            </span>
-          </button>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle border border-subtle text-secondary capitalize">
-            {currentQuestion.type.replace('_', ' ')}
-          </span>
-          <Tooltip content="Inspect question order debug pipeline and transformation logs">
-            <button
-              onClick={() => setOrderDebugOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[11px] font-mono font-semibold text-cyan-600 dark:text-cyan-400 transition active:scale-95"
-            >
-              <Sliders className="w-3 h-3" />
-              <span>Order Debug</span>
-            </button>
-          </Tooltip>
-        </div>
-
-        {/* Favorite, Flag, Notes */}
-        <div className="flex items-center gap-1.5">
-          <Tooltip content="Favorite Question (F)">
-            <button
-              onClick={handleToggleFavorite}
-              className={`p-2 rounded-lg border text-xs transition ${
-                qStatus?.isFavorite
-                  ? 'bg-amber-500/20 border-amber-500 text-amber-500'
-                  : 'bg-subtle border-subtle text-secondary hover:text-primary'
-              }`}
-            >
-              <Star className={`w-4 h-4 ${qStatus?.isFavorite ? 'fill-amber-500' : ''}`} />
-            </button>
-          </Tooltip>
-
-          <Tooltip content="Flag Question (R)">
-            <button
-              onClick={handleToggleFlag}
-              className={`p-2 rounded-lg border text-xs transition ${
-                qStatus?.isFlagged
-                  ? 'bg-amber-500/20 border-amber-500 text-amber-500'
-                  : 'bg-subtle border-subtle text-secondary hover:text-primary'
-              }`}
-            >
-              <Flag className={`w-4 h-4 ${qStatus?.isFlagged ? 'fill-amber-500' : ''}`} />
-            </button>
-          </Tooltip>
-
-          <Tooltip content="Personal High-Yield Note">
-            <button
-              onClick={() => setNoteOpen(!noteOpen)}
-              className={`p-2 rounded-lg border text-xs transition ${
-                noteOpen || (qStatus?.userNote && qStatus.userNote.trim().length > 0)
-                  ? 'bg-cyan-500/20 border-cyan-500 text-cyan-600 dark:text-cyan-400'
-                  : 'bg-subtle border-subtle text-secondary hover:text-primary'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-            </button>
-          </Tooltip>
-        </div>
-      </div>
-
-      {/* Question Navigator */}
-      {navigatorOpen && (
-        <div className="p-4 bg-surface border border-subtle rounded-2xl shadow-card space-y-3">
-          <div className="flex items-center justify-between text-xs font-bold text-primary uppercase tracking-wider">
-            <span>Question Navigator</span>
-            <div className="flex items-center gap-3 text-[10px] text-secondary font-normal">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded bg-subtle border border-subtle" /> Unvisited
+      {/* Main Layout Area: Question Column + Docked Question Map */}
+      <div className="flex-1 flex flex-col lg:flex-row gap-5 items-start min-h-0 w-full">
+        {/* Left/Center Question Column */}
+        <div className="flex-1 w-full min-w-0 space-y-4">
+          {/* Question Header & Question Map Launcher */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsQuestionMapOpen(!isQuestionMapOpen)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer ${
+                  isQuestionMapOpen
+                    ? 'bg-cyan-500/10 border-cyan-500/40 text-cyan-600 dark:text-cyan-400'
+                    : 'bg-subtle hover:bg-subtle/80 border-subtle text-primary'
+                }`}
+                aria-label="Toggle Question Map"
+              >
+                <Layers className="w-3.5 h-3.5 text-cyan-500" />
+                <span>
+                  Q {currentQIndex + 1} of {questions.length}
+                </span>
+                <span className="hidden sm:inline text-[10px] text-muted ml-0.5">
+                  {isQuestionMapOpen ? '(Map On)' : '(Map Off)'}
+                </span>
+              </button>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle border border-subtle text-secondary capitalize">
+                {currentQuestion.type.replace('_', ' ')}
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded bg-cyan-500" /> Current
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded bg-emerald-600" /> Correct
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded bg-rose-600" /> Incorrect
-              </span>
+              <Tooltip content="Inspect question order debug pipeline and transformation logs">
+                <button
+                  onClick={() => setOrderDebugOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[11px] font-mono font-semibold text-cyan-600 dark:text-cyan-400 transition active:scale-95"
+                >
+                  <Sliders className="w-3 h-3" />
+                  <span>Order Debug</span>
+                </button>
+              </Tooltip>
+            </div>
+
+            {/* Favorite, Flag, Notes */}
+            <div className="flex items-center gap-1.5">
+              <Tooltip content="Favorite Question (F)">
+                <button
+                  onClick={handleToggleFavorite}
+                  className={`p-2 rounded-lg border text-xs transition ${
+                    qStatus?.isFavorite
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-500'
+                      : 'bg-subtle border-subtle text-secondary hover:text-primary'
+                  }`}
+                >
+                  <Star className={`w-4 h-4 ${qStatus?.isFavorite ? 'fill-amber-500' : ''}`} />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Flag Question (R)">
+                <button
+                  onClick={handleToggleFlag}
+                  className={`p-2 rounded-lg border text-xs transition ${
+                    qStatus?.isFlagged
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-500'
+                      : 'bg-subtle border-subtle text-secondary hover:text-primary'
+                  }`}
+                >
+                  <Flag className={`w-4 h-4 ${qStatus?.isFlagged ? 'fill-amber-500' : ''}`} />
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Personal High-Yield Note">
+                <button
+                  onClick={() => setNoteOpen(!noteOpen)}
+                  className={`p-2 rounded-lg border text-xs transition ${
+                    noteOpen || (qStatus?.userNote && qStatus.userNote.trim().length > 0)
+                      ? 'bg-cyan-500/20 border-cyan-500 text-cyan-600 dark:text-cyan-400'
+                      : 'bg-subtle border-subtle text-secondary hover:text-primary'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                </button>
+              </Tooltip>
             </div>
           </div>
-
-          <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-            {groupedQuestions.map((group, gIdx) => (
-              <div key={gIdx} className="space-y-1.5">
-                {groupedQuestions.length > 1 && (
-                  <div className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 uppercase">
-                    {group.deckTitle}
-                  </div>
-                )}
-                <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-12 gap-1.5">
-                  {group.items.map(({ q, index }) => {
-                    const isCur = index === currentQIndex;
-                    const isSub = session.submittedQuestions[q.id];
-                    let btnColor = 'bg-subtle text-secondary border border-subtle';
-                    if (isCur) {
-                      btnColor = 'bg-cyan-500 text-slate-950 font-bold ring-2 ring-cyan-400';
-                    } else if (isSub) {
-                      const ans = session.userAnswers[q.id];
-                      const correct =
-                        q.type === 'single_mcq' || q.type === 'true_false'
-                          ? q.correctAnswers.includes(ans)
-                          : true;
-                      btnColor = correct ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white';
-                    }
-
-                    return (
-                      <button
-                        key={q.id}
-                        onClick={() => handleJump(index)}
-                        className={`h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition hover:scale-105 ${btnColor}`}
-                      >
-                        {index + 1}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Personal Note Drawer */}
       {noteOpen && (
@@ -900,15 +849,16 @@ export const StudySession: React.FC<StudySessionProps> = ({
             {currentQuestion.options.map((opt, idx) => {
               const isSelected = currentAnswer === idx;
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
+              const showValidation = isSubmitted || isRevealed;
 
               let style = 'border-subtle bg-subtle hover:bg-subtle/80 text-primary';
-              if (isSelected && !isSubmitted) {
+              if (isSelected && !showValidation) {
                 style = 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-200 ring-1 ring-cyan-500';
-              } else if (isSubmitted) {
+              } else if (showValidation) {
                 if (isCorrectOpt) {
-                  style = 'border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/80';
+                  style = 'border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/80 font-semibold';
                 } else if (isSelected && !isCorrectOpt) {
-                  style = 'border-rose-500/80 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 ring-1 ring-rose-500/80';
+                  style = 'border-rose-500/80 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 ring-1 ring-rose-500/80 line-through';
                 } else {
                   style = 'border-subtle bg-subtle/40 text-muted opacity-60';
                 }
@@ -926,8 +876,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
                     {String.fromCharCode(65 + idx)}
                   </span>
                   <span className="flex-1 pt-0.5 leading-relaxed">{opt}</span>
-                  {isSubmitted && isCorrectOpt && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
-                  {isSubmitted && isSelected && !isCorrectOpt && <XCircle className="w-5 h-5 text-rose-500 shrink-0" />}
+                  {showValidation && isCorrectOpt && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
+                  {showValidation && isSelected && !isCorrectOpt && <XCircle className="w-5 h-5 text-rose-500 shrink-0" />}
                 </button>
               );
             })}
@@ -941,15 +891,16 @@ export const StudySession: React.FC<StudySessionProps> = ({
               const list: number[] = Array.isArray(currentAnswer) ? currentAnswer : [];
               const isSelected = list.includes(idx);
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
+              const showValidation = isSubmitted || isRevealed;
 
               let style = 'border-subtle bg-subtle hover:bg-subtle/80 text-primary';
-              if (isSelected && !isSubmitted) {
+              if (isSelected && !showValidation) {
                 style = 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-200 ring-1 ring-cyan-500';
-              } else if (isSubmitted) {
+              } else if (showValidation) {
                 if (isCorrectOpt) {
-                  style = 'border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/80';
+                  style = 'border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/80 font-semibold';
                 } else if (isSelected && !isCorrectOpt) {
-                  style = 'border-rose-500/80 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 ring-1 ring-rose-500/80';
+                  style = 'border-rose-500/80 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 ring-1 ring-rose-500/80 line-through';
                 } else {
                   style = 'border-subtle bg-subtle/40 text-muted opacity-60';
                 }
@@ -967,8 +918,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
                     {String.fromCharCode(65 + idx)}
                   </span>
                   <span className="flex-1 pt-0.5 leading-relaxed">{opt}</span>
-                  {isSubmitted && isCorrectOpt && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
-                  {isSubmitted && isSelected && !isCorrectOpt && <XCircle className="w-5 h-5 text-rose-500 shrink-0" />}
+                  {showValidation && isCorrectOpt && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
+                  {showValidation && isSelected && !isCorrectOpt && <XCircle className="w-5 h-5 text-rose-500 shrink-0" />}
                 </button>
               );
             })}
@@ -1230,28 +1181,186 @@ export const StudySession: React.FC<StudySessionProps> = ({
           </div>
         )}
 
-        {/* Immediate Reveal on Submit: Correct / Incorrect + Explanation */}
+        {/* Immediate Reveal on Submit or Reveal Answer: Comprehensive Correct Answer Review */}
         {(isSubmitted || isRevealed) && (
-          <div className="p-4 sm:p-5 rounded-xl border border-cyan-500/30 bg-cyan-50/50 dark:bg-cyan-950/20 space-y-3">
+          <div className="p-4 sm:p-5 rounded-2xl border border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/15 space-y-3.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-cyan-700 dark:text-cyan-300 uppercase tracking-wide flex items-center gap-1.5">
-                <BookOpen className="w-4 h-4 text-cyan-500" /> Explanation & Clinical Rationale
+              <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Correct Answer Review
               </span>
-              {isSubmitted && (
+              {isSubmitted ? (
                 <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded ${
+                  className={`text-xs font-bold px-2.5 py-0.5 rounded-lg border ${
                     isCorrect
-                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                      : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800'
                   }`}
                 >
-                  {isCorrect ? 'Correct!' : 'Incorrect'}
+                  {isCorrect ? 'Correct (+1)' : 'Incorrect'}
+                </span>
+              ) : (
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg border bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800">
+                  Answer Revealed
                 </span>
               )}
             </div>
 
+            {/* Single MCQ */}
+            {currentQuestion.type === 'single_mcq' && (
+              <div className="space-y-1">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Correct Answer:
+                </div>
+                <div className="flex items-center gap-2 text-sm font-bold text-primary">
+                  <span className="w-6 h-6 rounded-md bg-emerald-500 text-slate-950 font-mono flex items-center justify-center text-xs shrink-0 font-bold">
+                    {String.fromCharCode(65 + (currentQuestion.correctAnswers[0] ?? 0))}
+                  </span>
+                  <span>
+                    {String.fromCharCode(65 + (currentQuestion.correctAnswers[0] ?? 0))}){' '}
+                    {currentQuestion.options[currentQuestion.correctAnswers[0] ?? 0]}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Multiple MCQ */}
+            {currentQuestion.type === 'multiple_mcq' && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Correct Answers:
+                </div>
+                <div className="space-y-1 pl-1">
+                  {currentQuestion.correctAnswers.map((ansIdx) => (
+                    <div key={ansIdx} className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-primary">
+                      <span className="w-5 h-5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 font-mono font-bold flex items-center justify-center text-[10px] shrink-0">
+                        {String.fromCharCode(65 + ansIdx)}
+                      </span>
+                      <span>
+                        {String.fromCharCode(65 + ansIdx)}) {currentQuestion.options[ansIdx]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* True / False */}
+            {currentQuestion.type === 'true_false' && (
+              <div className="space-y-1">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Correct Answer:
+                </div>
+                <div className="flex items-center gap-2 text-sm font-bold text-primary">
+                  <span className="w-6 h-6 rounded-md bg-emerald-500 text-slate-950 font-mono flex items-center justify-center text-xs shrink-0 font-bold">
+                    {currentQuestion.correctAnswers.includes(0) ? 'T' : 'F'}
+                  </span>
+                  <span>
+                    {currentQuestion.correctAnswers.includes(0)
+                      ? (currentQuestion.options[0] || 'True')
+                      : (currentQuestion.options[1] || 'False')}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Matching */}
+            {currentQuestion.type === 'matching' && currentQuestion.matchingPairs && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Correct Matching:
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {currentQuestion.matchingPairs.map((pair, pIdx) => {
+                    const letter = String.fromCharCode(65 + pIdx);
+                    return (
+                      <div
+                        key={pair.id || pIdx}
+                        className="p-2.5 rounded-xl border border-emerald-500/30 bg-surface flex items-center justify-between text-xs gap-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold flex items-center justify-center text-[10px] shrink-0">
+                            {letter}
+                          </span>
+                          <span className="font-semibold text-primary truncate">{pair.left}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-muted">→</span>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            {pair.right}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Ordering */}
+            {currentQuestion.type === 'ordering' && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Correct Order:
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 font-mono text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2 flex-wrap">
+                  {currentQuestion.correctOrder
+                    ? currentQuestion.correctOrder.map((idx) => idx + 1).join(' → ')
+                    : currentQuestion.options.map((_, i) => i + 1).join(' → ')}
+                </div>
+                <div className="space-y-1.5 pl-1">
+                  {(currentQuestion.correctOrder || currentQuestion.options.map((_, i) => i)).map((itemIdx, pos) => (
+                    <div key={pos} className="flex items-center gap-2 text-xs font-semibold text-primary">
+                      <span className="w-5 h-5 rounded-md bg-emerald-500/20 border border-emerald-500/40 font-mono font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-[10px]">
+                        {pos + 1}
+                      </span>
+                      <span>{currentQuestion.options[itemIdx]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Case Study Subquestions */}
+            {currentQuestion.type === 'case_study' && currentQuestion.subQuestions && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Subquestions Correct Answers:
+                </div>
+                <div className="space-y-2">
+                  {currentQuestion.subQuestions.map((sub, sIdx) => (
+                    <div key={sub.id || sIdx} className="p-3 rounded-xl bg-surface border border-subtle space-y-1.5">
+                      <div className="text-[11px] font-bold text-secondary">
+                        Subquestion {sIdx + 1}
+                      </div>
+                      <div className="text-xs font-medium text-primary">
+                        {sub.question}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-xs">
+                        <span className="font-bold text-emerald-700 dark:text-emerald-400">Correct Answer:</span>
+                        <span className="w-5 h-5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold flex items-center justify-center text-[10px]">
+                          {String.fromCharCode(65 + sub.correctAnswer)}
+                        </span>
+                        <span className="text-primary font-semibold">
+                          {sub.options[sub.correctAnswer]}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Explanation & Clinical Rationale - ONLY SHOWN IF EXPLANATION EXISTS */}
+        {(isSubmitted || isRevealed) && currentQuestion.explanation && currentQuestion.explanation.trim().length > 0 && (
+          <div className="p-4 sm:p-5 rounded-2xl border border-cyan-500/30 bg-cyan-50/40 dark:bg-cyan-950/20 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-700 dark:text-cyan-300 uppercase tracking-wide">
+              <BookOpen className="w-4 h-4 text-cyan-500" />
+              <span>Explanation & Clinical Rationale</span>
+            </div>
             <p className="text-xs sm:text-sm text-secondary leading-relaxed whitespace-pre-line break-words">
-              {currentQuestion.explanation || 'No rationale specified.'}
+              {currentQuestion.explanation.trim()}
             </p>
           </div>
         )}
@@ -1315,6 +1424,47 @@ export const StudySession: React.FC<StudySessionProps> = ({
           </div>
         </div>
       </div>
+      </div>
+
+        {/* Desktop Docked Question Map Panel */}
+        {isQuestionMapOpen && (
+          <div className="hidden lg:block w-72 xl:w-80 shrink-0 sticky top-4 h-[calc(100vh-6.5rem)]">
+            <QuestionMapPanel
+              questions={questions}
+              decksMap={decksMap}
+              session={session}
+              currentQIndex={currentQIndex}
+              userStatuses={userStatuses}
+              flaggedIds={flaggedIds}
+              onJump={handleJump}
+              isOpen={isQuestionMapOpen}
+              onClose={() => setIsQuestionMapOpen(false)}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Slide-Over Drawer for Question Map */}
+      {isQuestionMapOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-80 max-w-[85vw] h-full p-2 bg-surface shadow-2xl animate-in slide-in-from-right">
+            <QuestionMapPanel
+              questions={questions}
+              decksMap={decksMap}
+              session={session}
+              currentQIndex={currentQIndex}
+              userStatuses={userStatuses}
+              flaggedIds={flaggedIds}
+              onJump={(idx) => {
+                handleJump(idx);
+                setIsQuestionMapOpen(false);
+              }}
+              isOpen={true}
+              onClose={() => setIsQuestionMapOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* End Session Confirmation Dialog */}
       {endSessionModalOpen && (
