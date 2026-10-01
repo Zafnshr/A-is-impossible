@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Allows manual trigger from GitHub Actions web UI with a single click
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,21 +21,16 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Ensure Gradle Wrapper
-        working-directory: android
+      - name: Accept Android Licenses
         run: |
-          gradle wrapper --gradle-version 8.7
-          chmod +x gradlew
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x android/gradlew
 
       - name: Build Debug APK with Gradle
         working-directory: android
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -43,11 +38,3 @@ jobs:
           name: A-Plus-Is-Impossible-Debug-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
-
-      - name: Create GitHub Release (Optional on tags)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: android/app/build/outputs/apk/debug/app-debug.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
