@@ -30,18 +30,7 @@
         window.process = window.process || { env: { NODE_ENV: 'production' }, browser: true, platform: 'browser' };
         window.global = window.global || window;
 
-        // 2. Unregister any stale or broken service workers from prior deployments
-        if ('serviceWorker' in navigator) {
-          try {
-            navigator.serviceWorker.getRegistrations().then(function(regs) {
-              for (var i = 0; i < regs.length; i++) {
-                regs[i].unregister();
-              }
-            }).catch(function() {});
-          } catch(e) {}
-        }
-
-        // 3. Theme Initialization
+        // 2. Theme Initialization
         try {
           var t = localStorage.getItem('a_plus_theme');
           if (t === 'light') {
