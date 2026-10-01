@@ -965,67 +965,184 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
         {/* Matching */}
         {currentQuestion.type === 'matching' && currentQuestion.matchingPairs && (
-          <div className="space-y-2.5 text-xs">
-            {currentQuestion.matchingPairs.map((pair) => (
-              <div
-                key={pair.id}
-                className="p-3 rounded-xl border border-subtle bg-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-              >
-                <span className="font-semibold text-primary sm:max-w-xs">{pair.left}</span>
-                <select
-                  value={matchingSelections[pair.id] || ''}
-                  onChange={(e) => handleMatchingChange(pair.id, e.target.value)}
-                  disabled={isSubmitted}
-                  className="p-2 bg-surface border border-subtle rounded-lg text-primary text-xs"
+          <div className="space-y-3 text-xs">
+            {currentQuestion.matchingPairs.map((pair) => {
+              const userSelection = matchingSelections[pair.id] || '';
+              const isPairCorrect = userSelection === pair.right;
+
+              if (isSubmitted || isRevealed) {
+                return (
+                  <div
+                    key={pair.id}
+                    className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition ${
+                      isPairCorrect
+                        ? 'border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/20'
+                        : 'border-rose-500/40 bg-rose-50/20 dark:bg-rose-950/20'
+                    }`}
+                  >
+                    <span className="font-bold text-primary sm:max-w-xs">{pair.left}</span>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-muted">Your Match:</span>
+                        <span
+                          className={`font-mono text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                            isPairCorrect
+                              ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300'
+                              : 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-300 line-through'
+                          }`}
+                        >
+                          {userSelection || '(None selected)'}
+                          {isPairCorrect ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 inline" />
+                          ) : (
+                            <XCircle className="w-3.5 h-3.5 text-rose-500 inline" />
+                          )}
+                        </span>
+                      </div>
+                      {!isPairCorrect && (
+                        <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
+                          <span className="text-[11px]">Correct Match:</span>
+                          <span className="bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded font-mono text-xs">
+                            {pair.right}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={pair.id}
+                  className="p-3 rounded-xl border border-subtle bg-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                 >
-                  <option value="">Select matching target...</option>
-                  {currentQuestion.matchingPairs?.map((p) => (
-                    <option key={p.id} value={p.right}>
-                      {p.right}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
+                  <span className="font-semibold text-primary sm:max-w-xs">{pair.left}</span>
+                  <select
+                    value={matchingSelections[pair.id] || ''}
+                    onChange={(e) => handleMatchingChange(pair.id, e.target.value)}
+                    disabled={isSubmitted}
+                    className="p-2 bg-surface border border-subtle rounded-lg text-primary text-xs"
+                  >
+                    <option value="">Select matching target...</option>
+                    {currentQuestion.matchingPairs?.map((p) => (
+                      <option key={p.id} value={p.right}>
+                        {p.right}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
           </div>
         )}
 
         {/* Ordering */}
         {currentQuestion.type === 'ordering' && (
-          <div className="space-y-2 text-xs">
-            {orderingList.map((itemIdx, pos) => (
-              <div
-                key={itemIdx}
-                className="p-3 rounded-xl border border-subtle bg-subtle flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="w-5 h-5 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold flex items-center justify-center text-[10px]">
-                    {pos + 1}
-                  </span>
-                  <span className="font-semibold text-primary">
-                    {currentQuestion.options[itemIdx]}
-                  </span>
+          <div className="space-y-4 text-xs">
+            {isSubmitted || isRevealed ? (
+              <div className="space-y-4">
+                {/* Your Submitted Order */}
+                <div className="space-y-2">
+                  <div className="text-[11px] font-bold uppercase tracking-wide text-muted">
+                    Your Submitted Sequence:
+                  </div>
+                  <div className="space-y-1.5">
+                    {orderingList.map((itemIdx, pos) => {
+                      const expectedIdx = currentQuestion.correctOrder?.[pos];
+                      const isPosCorrect = itemIdx === expectedIdx;
+                      return (
+                        <div
+                          key={itemIdx}
+                          className={`p-3 rounded-xl border flex items-center justify-between ${
+                            isPosCorrect
+                              ? 'border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/20'
+                              : 'border-rose-500/40 bg-rose-50/20 dark:bg-rose-950/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className={`w-5 h-5 rounded font-mono font-bold flex items-center justify-center text-[10px] ${
+                                isPosCorrect
+                                  ? 'bg-emerald-500 text-slate-950'
+                                  : 'bg-rose-500 text-white'
+                              }`}
+                            >
+                              {pos + 1}
+                            </span>
+                            <span className="font-semibold text-primary">
+                              {currentQuestion.options[itemIdx]}
+                            </span>
+                          </div>
+                          {isPosCorrect ? (
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Correct Position
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                              <XCircle className="w-4 h-4 text-rose-500" /> Incorrect Position
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                {!isSubmitted && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleMoveOrderItem(pos, pos - 1)}
-                      disabled={pos === 0}
-                      className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30"
-                    >
-                      <MoveUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleMoveOrderItem(pos, pos + 1)}
-                      disabled={pos === orderingList.length - 1}
-                      className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30"
-                    >
-                      <MoveDown className="w-3.5 h-3.5" />
-                    </button>
+
+                {/* Correct Sequence Order */}
+                {currentQuestion.correctOrder && (
+                  <div className="p-3.5 rounded-xl border border-emerald-500/40 bg-emerald-50/30 dark:bg-emerald-950/30 space-y-2">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Correct Sequence Order:
+                    </div>
+                    <div className="space-y-1 pl-1">
+                      {currentQuestion.correctOrder.map((correctItemIdx, pos) => (
+                        <div key={pos} className="flex items-center gap-2 text-xs font-semibold text-primary">
+                          <span className="w-5 h-5 rounded-md bg-emerald-500/20 border border-emerald-500/40 font-mono font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-[10px]">
+                            {pos + 1}
+                          </span>
+                          <span>{currentQuestion.options[correctItemIdx]}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
-            ))}
+            ) : (
+              <div className="space-y-2">
+                {orderingList.map((itemIdx, pos) => (
+                  <div
+                    key={itemIdx}
+                    className="p-3 rounded-xl border border-subtle bg-subtle flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-5 h-5 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold flex items-center justify-center text-[10px]">
+                        {pos + 1}
+                      </span>
+                      <span className="font-semibold text-primary">
+                        {currentQuestion.options[itemIdx]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleMoveOrderItem(pos, pos - 1)}
+                        disabled={pos === 0}
+                        className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30"
+                      >
+                        <MoveUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleMoveOrderItem(pos, pos + 1)}
+                        disabled={pos === orderingList.length - 1}
+                        className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30"
+                      >
+                        <MoveDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1034,26 +1151,66 @@ export const StudySession: React.FC<StudySessionProps> = ({
           <div className="space-y-4 pt-2">
             {currentQuestion.subQuestions.map((sub, sIdx) => {
               const chosen = caseAnswers[sub.id];
+              const isSubCorrect = chosen === sub.correctAnswer;
+              const hasSubmitted = isSubmitted || isRevealed;
+
               return (
-                <div key={sub.id} className="p-4 rounded-xl border border-subtle bg-subtle space-y-2 text-xs">
-                  <div className="font-bold text-primary">
-                    Sub-question {sIdx + 1}: {sub.question}
-                  </div>
-                  <div className="space-y-1.5 pl-2">
-                    {sub.options.map((opt, oIdx) => (
-                      <button
-                        key={oIdx}
-                        onClick={() => handleCaseAnswerChange(sub.id, oIdx)}
-                        disabled={isSubmitted}
-                        className={`w-full text-left p-2 rounded-lg border ${
-                          chosen === oIdx
-                            ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/40 text-cyan-800 dark:text-cyan-200'
-                            : 'border-subtle bg-surface text-primary'
+                <div key={sub.id} className="p-4 rounded-xl border border-subtle bg-subtle space-y-3 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 font-bold text-primary">
+                    <span>
+                      Sub-question {sIdx + 1}: {sub.question}
+                    </span>
+                    {hasSubmitted && (
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded font-mono shrink-0 ${
+                          isSubCorrect
+                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                            : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
                         }`}
                       >
-                        {opt}
-                      </button>
-                    ))}
+                        {isSubCorrect ? 'Correct (+1)' : `Incorrect | Correct: Option ${String.fromCharCode(65 + sub.correctAnswer)}`}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 pl-2">
+                    {sub.options.map((opt, oIdx) => {
+                      const isChosen = chosen === oIdx;
+                      const isCorrectOpt = sub.correctAnswer === oIdx;
+
+                      let style = 'border-subtle bg-surface text-primary';
+                      if (!hasSubmitted) {
+                        if (isChosen) {
+                          style = 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/40 text-cyan-800 dark:text-cyan-200 ring-1 ring-cyan-500';
+                        }
+                      } else {
+                        if (isCorrectOpt) {
+                          style = 'border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/80 font-semibold';
+                        } else if (isChosen && !isCorrectOpt) {
+                          style = 'border-rose-500/80 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 ring-1 ring-rose-500/80 line-through';
+                        } else {
+                          style = 'border-subtle bg-surface/50 text-muted opacity-60';
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={oIdx}
+                          onClick={() => handleCaseAnswerChange(sub.id, oIdx)}
+                          disabled={isSubmitted}
+                          className={`w-full text-left p-2.5 rounded-lg border flex items-center justify-between transition ${style}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded font-mono font-bold flex items-center justify-center text-[10px] bg-subtle text-secondary">
+                              {String.fromCharCode(65 + oIdx)}
+                            </span>
+                            <span>{opt}</span>
+                          </div>
+                          {hasSubmitted && isCorrectOpt && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />}
+                          {hasSubmitted && isChosen && !isCorrectOpt && <XCircle className="w-4 h-4 text-rose-500 shrink-0" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );

@@ -908,7 +908,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
           </div>
 
           {/* Diagnostic Metrics Grid: All 6 types */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
             <div className="p-3 rounded-xl bg-subtle border border-subtle">
               <span className="text-muted text-[10px] uppercase font-semibold block">Total Detected</span>
               <div className="text-xl font-black text-primary mt-1">
@@ -931,8 +931,15 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             </div>
 
             <div className="p-3 rounded-xl bg-subtle border border-subtle">
-              <span className="text-muted text-[10px] uppercase font-semibold block">Matching</span>
+              <span className="text-muted text-[10px] uppercase font-semibold block">True / False</span>
               <div className="text-xl font-black text-emerald-500 mt-1">
+                {previewResult.typeBreakdown.true_false}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-subtle border border-subtle">
+              <span className="text-muted text-[10px] uppercase font-semibold block">Matching</span>
+              <div className="text-xl font-black text-teal-500 mt-1">
                 {previewResult.typeBreakdown.matching}
               </div>
             </div>
@@ -1078,6 +1085,59 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Document Block Inspector (when showDebugView is enabled) */}
+          {showDebugView && previewResult?.documentBlocks && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between text-xs font-bold text-amber-800 dark:text-amber-300">
+                <span className="flex items-center gap-1.5 uppercase tracking-wide">
+                  <Bug className="w-4 h-4 text-amber-500" /> Document Block View ({previewResult.documentBlocks.length} Blocks Segmented)
+                </span>
+                <span className="text-[11px] font-normal text-muted font-mono">
+                  Sequential Block Boundaries
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-amber-500/20 text-muted text-[10px] uppercase">
+                      <th className="pb-1.5">Block</th>
+                      <th className="pb-1.5">Question ID</th>
+                      <th className="pb-1.5">Detected Type</th>
+                      <th className="pb-1.5">Source Lines</th>
+                      <th className="pb-1.5">Parser Used</th>
+                      <th className="pb-1.5">Answer Token</th>
+                      <th className="pb-1.5">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/15">
+                    {previewResult.documentBlocks.map((b, idx) => (
+                      <tr key={idx} className="hover:bg-amber-500/5">
+                        <td className="py-1.5 font-bold text-primary">#{idx + 1}</td>
+                        <td className="py-1.5 text-secondary">Q{b.questionNumber}</td>
+                        <td className="py-1.5">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-subtle border border-subtle">
+                            {b.detectedType}
+                          </span>
+                        </td>
+                        <td className="py-1.5 text-cyan-600 dark:text-cyan-400">
+                          L{b.startLine} - L{b.endLine}
+                        </td>
+                        <td className="py-1.5 text-secondary">{b.parserUsed}</td>
+                        <td className="py-1.5 text-emerald-600 dark:text-emerald-400">{b.rawAnswerToken || '—'}</td>
+                        <td className="py-1.5">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
+                            ✓ PASS
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Question Cards List */}
           <div className="space-y-5 max-h-[640px] overflow-y-auto pr-1">
