@@ -30,6 +30,7 @@ import { ImportWizard } from './components/Import/ImportWizard';
 import { CollectionsView } from './components/Collections/CollectionsView';
 import { AnalyticsDashboard } from './components/Analytics/AnalyticsDashboard';
 import { BackupCenter } from './components/Backup/BackupCenter';
+import { TrashCenter } from './components/Trash/TrashCenter';
 import { HelpCenter } from './components/Help/HelpCenter';
 import { SettingsView } from './components/Settings/SettingsView';
 import { GlobalSearchModal } from './components/Search/GlobalSearchModal';
@@ -1196,15 +1197,24 @@ export default function App() {
             </ErrorBoundary>
           )}
 
+          {/* TAB: TRASH CENTER */}
+          {activeTab === 'trash' && (
+            <ErrorBoundary fallbackTitle="Trash Center Error" onReset={reloadData}>
+              <TrashCenter
+                trashItems={trashItems}
+                onRestoreTrashItem={handleRestoreTrashItem}
+                onPermanentlyDeleteTrash={handlePermanentlyDeleteTrash}
+                onClearAllTrash={handleClearAllTrash}
+                onOpenLibrary={() => setActiveTab('library')}
+              />
+            </ErrorBoundary>
+          )}
+
           {/* TAB: BACKUP CENTER */}
           {activeTab === 'backup' && (
             <ErrorBoundary fallbackTitle="Backup Center Error" onReset={reloadData}>
               <BackupCenter
                 decks={decks}
-                trashItems={trashItems}
-                onRestoreTrashItem={handleRestoreTrashItem}
-                onPermanentlyDeleteTrash={handlePermanentlyDeleteTrash}
-                onClearAllTrash={handleClearAllTrash}
                 onDatabaseRestored={reloadData}
               />
             </ErrorBoundary>

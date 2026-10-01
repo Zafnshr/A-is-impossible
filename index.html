@@ -44,7 +44,7 @@
         // 3. Theme Initialization
         try {
           var t = localStorage.getItem('a_plus_theme');
-          if (t === 'light' || (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+          if (t === 'light') {
             document.documentElement.classList.add('theme-light');
             document.documentElement.classList.remove('theme-dark', 'dark');
           } else {

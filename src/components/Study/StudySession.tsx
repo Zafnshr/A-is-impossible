@@ -111,6 +111,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
   const [matchingSelections, setMatchingSelections] = useState<Record<string, string>>({});
   const [orderingList, setOrderingList] = useState<number[]>([]);
   const [caseAnswers, setCaseAnswers] = useState<Record<string, number>>({});
+  const [focusedOptionIndex, setFocusedOptionIndex] = useState<number | null>(null);
+  const [selectedOrderingPos, setSelectedOrderingPos] = useState<number>(0);
 
   // Solved vs Remaining calculation
   const solvedCount = Object.keys(session.submittedQuestions).length;
@@ -158,6 +160,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
     } else if (currentQuestion.type === 'case_study') {
       setCaseAnswers({});
     }
+
+    setFocusedOptionIndex(null);
+    setSelectedOrderingPos(0);
   }, [currentQuestion?.id]);
 
   // Session reference to always have freshest state without stale closures
@@ -186,6 +191,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
     };
   }, [session.timerRunning]);
 
+  const isSubmitted = currentQuestion ? !!session.submittedQuestions[currentQuestion.id] : false;
+  const isRevealed = currentQuestion ? !!session.revealedQuestions[currentQuestion.id] : false;
+
   // Keyboard navigation shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -204,27 +212,112 @@ export const StudySession: React.FC<StudySessionProps> = ({
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         handlePrevious();
+      } else if (e.key === 'ArrowUp') {
+        if (!isSubmitted && currentQuestion) {
+          e.preventDefault();
+          if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
+            const optLen = currentQuestion.options.length;
+            if (optLen > 0) {
+              const curAns =
+                typeof session.userAnswers[currentQuestion.id] === 'number'
+                  ? (session.userAnswers[currentQuestion.id] as number)
+                  : -1;
+              const nextIdx = curAns <= 0 ? optLen - 1 : curAns - 1;
+              handleSelectSingleOption(nextIdx);
+              setFocusedOptionIndex(nextIdx);
+            }
+          } else if (currentQuestion.type === 'multiple_mcq') {
+            const optLen = currentQuestion.options.length;
+            if (optLen > 0) {
+              setFocusedOptionIndex((prev) => (prev === null || prev <= 0 ? optLen - 1 : prev - 1));
+            }
+          } else if (currentQuestion.type === 'ordering') {
+            const len = orderingList.length;
+            if (len > 0) {
+              setSelectedOrderingPos((prev) => (prev <= 0 ? len - 1 : prev - 1));
+            }
+          }
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (!isSubmitted && currentQuestion) {
+          e.preventDefault();
+          if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
+            const optLen = currentQuestion.options.length;
+            if (optLen > 0) {
+              const curAns =
+                typeof session.userAnswers[currentQuestion.id] === 'number'
+                  ? (session.userAnswers[currentQuestion.id] as number)
+                  : -1;
+              const nextIdx = curAns < 0 ? 0 : (curAns + 1) % optLen;
+              handleSelectSingleOption(nextIdx);
+              setFocusedOptionIndex(nextIdx);
+            }
+          } else if (currentQuestion.type === 'multiple_mcq') {
+            const optLen = currentQuestion.options.length;
+            if (optLen > 0) {
+              setFocusedOptionIndex((prev) => (prev === null || prev >= optLen - 1 ? 0 : prev + 1));
+            }
+          } else if (currentQuestion.type === 'ordering') {
+            const len = orderingList.length;
+            if (len > 0) {
+              setSelectedOrderingPos((prev) => (prev + 1) % len);
+            }
+          }
+        }
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (!isSubmitted) handleSubmitCurrent();
         else handleNext();
-      } else if (e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        handleToggleFavorite();
       } else if (e.key.toLowerCase() === 'r') {
+        // Retry Question shortcut
+        e.preventDefault();
+        if (isSubmitted || isRevealed) {
+          handleRetry();
+        }
+      } else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'g') {
+        // Flag / Mark question shortcut
         e.preventDefault();
         handleToggleFlag();
+      } else if (e.key.toLowerCase() === 'f') {
+        // Favorite question shortcut
+        e.preventDefault();
+        handleToggleFavorite();
       } else if (e.key === ' ' || e.key === 'Spacebar') {
         e.preventDefault();
-        handleReveal();
+        if (currentQuestion?.type === 'multiple_mcq' && !isSubmitted && focusedOptionIndex !== null) {
+          handleToggleMultipleOption(focusedOptionIndex);
+        } else {
+          handleReveal();
+        }
       } else if (e.key >= '1' && e.key <= '9') {
-        const optIdx = parseInt(e.key, 10) - 1;
-        if (currentQuestion && optIdx < currentQuestion.options.length && !isSubmitted) {
-          if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
-            handleSelectSingleOption(optIdx);
+        const num = parseInt(e.key, 10);
+        if (currentQuestion && !isSubmitted) {
+          if (currentQuestion.type === 'ordering') {
+            const targetPos = num - 1;
+            if (targetPos >= 0 && targetPos < orderingList.length) {
+              e.preventDefault();
+              const fromPos = selectedOrderingPos;
+              if (fromPos >= 0 && fromPos < orderingList.length && fromPos !== targetPos) {
+                handleMoveOrderItem(fromPos, targetPos);
+              }
+              setSelectedOrderingPos(targetPos);
+            }
+          } else if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
+            const optIdx = num - 1;
+            if (optIdx < currentQuestion.options.length) {
+              e.preventDefault();
+              handleSelectSingleOption(optIdx);
+              setFocusedOptionIndex(optIdx);
+            }
           } else if (currentQuestion.type === 'multiple_mcq') {
-            handleToggleMultipleOption(optIdx);
+            const optIdx = num - 1;
+            if (optIdx < currentQuestion.options.length) {
+              e.preventDefault();
+              handleToggleMultipleOption(optIdx);
+              setFocusedOptionIndex(optIdx);
+            }
           }
+          // Note: Explicitly do NOT add this ordering number behavior to Matching or Case-Based questions.
         }
       }
     };
@@ -236,8 +329,14 @@ export const StudySession: React.FC<StudySessionProps> = ({
     currentQuestion,
     session.userAnswers,
     session.submittedQuestions,
+    session.revealedQuestions,
     settings,
     qStatus,
+    isSubmitted,
+    isRevealed,
+    orderingList,
+    selectedOrderingPos,
+    focusedOptionIndex,
   ]);
 
   if (!currentQuestion) {
@@ -256,8 +355,6 @@ export const StudySession: React.FC<StudySessionProps> = ({
     );
   }
 
-  const isSubmitted = !!session.submittedQuestions[currentQuestion.id];
-  const isRevealed = !!session.revealedQuestions[currentQuestion.id];
   const currentAnswer = session.userAnswers[currentQuestion.id];
 
   const isCorrect = isSubmitted && evaluateQuestionCorrectness(currentQuestion, session.userAnswers[currentQuestion.id]);
@@ -779,7 +876,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 </button>
               </Tooltip>
 
-              <Tooltip content="Flag Question (R)">
+              <Tooltip content="Flag Question (M)">
                 <button
                   onClick={handleToggleFlag}
                   className={`p-2 rounded-lg border text-xs transition ${
@@ -866,9 +963,12 @@ export const StudySession: React.FC<StudySessionProps> = ({
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
               const showValidation = isSubmitted || isRevealed;
 
+              const isFocused = focusedOptionIndex === idx && !showValidation;
               let style = 'border-subtle bg-subtle hover:bg-subtle/80 text-primary';
               if (isSelected && !showValidation) {
                 style = 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-200 ring-1 ring-cyan-500';
+              } else if (isFocused) {
+                style = 'border-cyan-500/60 bg-cyan-500/10 text-primary ring-1 ring-cyan-500/50';
               } else if (showValidation) {
                 if (isCorrectOpt) {
                   style = 'border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/80 font-semibold';
@@ -882,7 +982,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
               return (
                 <button
                   key={idx}
-                  onClick={() => handleSelectSingleOption(idx)}
+                  onClick={() => {
+                    handleSelectSingleOption(idx);
+                    setFocusedOptionIndex(idx);
+                  }}
                   onDoubleClick={() => handleOptionDoubleClick(idx)}
                   disabled={isSubmitted}
                   className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
@@ -908,9 +1011,12 @@ export const StudySession: React.FC<StudySessionProps> = ({
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
               const showValidation = isSubmitted || isRevealed;
 
+              const isFocused = focusedOptionIndex === idx && !showValidation;
               let style = 'border-subtle bg-subtle hover:bg-subtle/80 text-primary';
               if (isSelected && !showValidation) {
                 style = 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-800 dark:text-cyan-200 ring-1 ring-cyan-500';
+              } else if (isFocused) {
+                style = 'border-cyan-500/60 bg-cyan-500/10 text-primary ring-1 ring-cyan-500/50';
               } else if (showValidation) {
                 if (isCorrectOpt) {
                   style = 'border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-500/80 font-semibold';
@@ -924,7 +1030,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
               return (
                 <button
                   key={idx}
-                  onClick={() => handleToggleMultipleOption(idx)}
+                  onClick={() => {
+                    handleToggleMultipleOption(idx);
+                    setFocusedOptionIndex(idx);
+                  }}
                   onDoubleClick={() => handleMultipleOptionDoubleClick(idx)}
                   disabled={isSubmitted}
                   className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
@@ -1088,37 +1197,72 @@ export const StudySession: React.FC<StudySessionProps> = ({
               </div>
             ) : (
               <div className="space-y-2">
-                {orderingList.map((itemIdx, pos) => (
-                  <div
-                    key={itemIdx}
-                    className="p-3 rounded-xl border border-subtle bg-subtle flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-5 h-5 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold flex items-center justify-center text-[10px]">
-                        {pos + 1}
-                      </span>
-                      <span className="font-semibold text-primary">
-                        {currentQuestion.options[itemIdx]}
-                      </span>
+                <div className="flex items-center justify-between text-[11px] text-muted px-1">
+                  <span>Arrange sequence:</span>
+                  <span className="font-mono text-[10px] text-cyan-600 dark:text-cyan-400">
+                    Use ↑ / ↓ to select · Press 1–{orderingList.length} to position
+                  </span>
+                </div>
+                {orderingList.map((itemIdx, pos) => {
+                  const isSelectedPos = pos === selectedOrderingPos;
+                  return (
+                    <div
+                      key={itemIdx}
+                      onClick={() => setSelectedOrderingPos(pos)}
+                      className={`p-3 rounded-xl border transition flex items-center justify-between cursor-pointer ${
+                        isSelectedPos
+                          ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/40 ring-1 ring-cyan-500 shadow-sm'
+                          : 'border-subtle bg-subtle hover:bg-subtle/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`w-5 h-5 rounded font-mono font-bold flex items-center justify-center text-[10px] ${
+                            isSelectedPos
+                              ? 'bg-cyan-500 text-slate-950'
+                              : 'bg-surface border border-subtle text-cyan-600 dark:text-cyan-400'
+                          }`}
+                        >
+                          {pos + 1}
+                        </span>
+                        <span className="font-semibold text-primary">
+                          {currentQuestion.options[itemIdx]}
+                        </span>
+                        {isSelectedPos && (
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-700 dark:text-cyan-300">
+                            Active (Press 1–{orderingList.length})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveOrderItem(pos, pos - 1);
+                            setSelectedOrderingPos(Math.max(0, pos - 1));
+                          }}
+                          disabled={pos === 0}
+                          className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30 cursor-pointer"
+                        >
+                          <MoveUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveOrderItem(pos, pos + 1);
+                            setSelectedOrderingPos(Math.min(orderingList.length - 1, pos + 1));
+                          }}
+                          disabled={pos === orderingList.length - 1}
+                          className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30 cursor-pointer"
+                        >
+                          <MoveDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleMoveOrderItem(pos, pos - 1)}
-                        disabled={pos === 0}
-                        className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30"
-                      >
-                        <MoveUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleMoveOrderItem(pos, pos + 1)}
-                        disabled={pos === orderingList.length - 1}
-                        className="p-1 rounded bg-surface border border-subtle text-secondary hover:text-primary disabled:opacity-30"
-                      >
-                        <MoveDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1440,7 +1584,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                   className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-semibold text-xs transition border border-subtle min-tap-target cursor-pointer active:scale-95"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Retry</span>
+                  <span>Retry (R)</span>
                 </button>
                 <button
                   type="button"
