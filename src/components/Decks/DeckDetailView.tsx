@@ -17,9 +17,12 @@ import {
   Pencil,
   Check,
   X,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { Deck, Question, UserAttemptRecord, QuestionUserStatus } from '../../types';
 import { Tooltip } from '../Tooltip';
+import { openOfficialQuestionGenerator } from '../../services/gemLink';
 
 interface DeckDetailViewProps {
   deck: Deck;
@@ -404,8 +407,30 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
         </div>
 
         {deckQuestions.length === 0 ? (
-          <div className="p-8 text-center bg-surface rounded-2xl border border-dashed border-subtle text-xs text-muted">
-            This deck contains no questions yet. Use the Question Editor or Import Wizard to add questions.
+          <div className="p-8 sm:p-10 text-center bg-surface rounded-2xl border border-dashed border-subtle space-y-3">
+            <BookOpen className="w-8 h-8 text-muted mx-auto" />
+            <h4 className="text-sm font-bold text-primary">No Questions Yet</h4>
+            <p className="text-xs text-secondary max-w-sm mx-auto">
+              This deck contains no questions yet. Use our official Gemini Gem to generate formatted questions from your slides, then import them here.
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+              <button
+                type="button"
+                onClick={openOfficialQuestionGenerator}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Generate Questions Using Official AI Generator</span>
+                <ExternalLink className="w-3 h-3 opacity-70" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onEditDeck(deck.id)}
+                className="px-4 py-2 rounded-xl bg-subtle hover:bg-subtle/80 border border-subtle text-primary font-bold text-xs transition active:scale-95"
+              >
+                Open Question Editor
+              </button>
+            </div>
           </div>
         ) : (
           deckQuestions.map((q, idx) => {

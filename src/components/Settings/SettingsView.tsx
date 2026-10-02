@@ -18,12 +18,14 @@ import {
   Flame,
   X,
   Info,
+  ExternalLink,
 } from 'lucide-react';
 import { UserSettings } from '../../types';
 import { createDefaultSettings } from '../../services/defaultSettings';
 import { Tooltip } from '../Tooltip';
 import { dbService } from '../../services/db';
 import { DataManagementModal, DangerActionType } from './DataManagementModal';
+import { getGemUrl, setGemUrl, openGemInBrowser } from '../../services/gemLink';
 
 interface SettingsViewProps {
   settings?: UserSettings;
@@ -40,6 +42,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [dangerModalOpen, setDangerModalOpen] = useState(false);
   const [selectedDangerAction, setSelectedDangerAction] = useState<DangerActionType | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [gemUrlInput, setGemUrlInput] = useState<string>(getGemUrl());
 
   // Safe fallback to prevent any undefined crash
   const safeSettings: UserSettings = settings || createDefaultSettings('workspace');
@@ -330,7 +333,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* 5. App Version & Offline Cache Sync */}
+        {/* 5. Medical Question Gem Link */}
+        <div className="p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" /> Medical Question Gem Link
+              </h2>
+              <p className="text-xs text-secondary mt-0.5">
+                Target URL for your custom Gemini Gem. Clicking &apos;Open Gem&apos; anywhere in the app will redirect to this link.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openGemInBrowser(gemUrlInput)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 flex items-center gap-2 transition cursor-pointer self-start sm:self-auto shadow-sm"
+            >
+              <span>Open Gem</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            <input
+              type="url"
+              value={gemUrlInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                setGemUrlInput(val);
+                setGemUrl(val);
+              }}
+              placeholder="https://gemini.google.com/gems/..."
+              className="w-full p-3 bg-subtle border border-subtle rounded-xl text-xs text-primary font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+            <p className="text-[11px] text-muted">
+              Paste the link of your custom Gemini Gem here. Changes are saved automatically.
+            </p>
+          </div>
+        </div>
+
+        {/* 6. App Version & Offline Cache Sync */}
         <div className="p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>

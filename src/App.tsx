@@ -37,6 +37,10 @@ import { GlobalSearchModal } from './components/Search/GlobalSearchModal';
 import { OnboardingWizardModal } from './components/FirstLaunch/OnboardingWizardModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { IconicLoadingScreen } from './components/Loading/IconicLoadingScreen';
+import { User } from '@supabase/supabase-js';
+import { AuthModal } from './components/Auth/AuthModal';
+import { openOfficialQuestionGenerator } from './services/gemLink';
+import { cloudAuthService, cloudSyncService } from './services/supabase';
 import {
   generateStudyQuestions,
   guaranteedShuffle,
@@ -83,6 +87,13 @@ export default function App() {
   const [initialStudyDeckId, setInitialStudyDeckId] = useState<string | undefined>(undefined);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [onboardingWizardOpen, setOnboardingWizardOpen] = useState(false);
+
+  // Cloud Auth & Sync state (Google OAuth + Supabase Cloud)
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+
 
   // Import wizard prefill metadata
   const [importPrefill, setImportPrefill] = useState<
@@ -241,6 +252,126 @@ export default function App() {
     window.addEventListener('keydown', handleGlobalKeys);
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
+
+  // Cloud Auth & Background Sync listener
+  useEffect(() => {
+    let isMounted = true;
+
+    const unsubscribe = cloudAuthService.onAuthStateChange(async (user) => {
+      if (!isMounted) return;
+      setCurrentUser(user);
+      if (user) {
+        try {
+          setIsSyncing(true);
+          const currentDecks = await dbService.getDecks();
+          const currentQuestions = await dbService.getQuestions();
+          const currentStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
+          const currentHistory = await dbService.getSessionHistory(WORKSPACE_ID);
+          const result = await cloudSyncService.syncAll(
+            user.id,
+            currentDecks,
+            currentQuestions,
+            currentStatuses,
+            currentHistory
+          );
+          if (isMounted) setLastSyncedAt(result.syncedAt);
+          for (const d of result.decks) {
+            await dbService.saveDeck(d);
+          }
+          await dbService.saveQuestions(result.questions);
+          for (const s of result.statuses) {
+            await dbService.saveStatus(s);
+          }
+          await reloadData();
+        } catch (err) {
+          console.error('[CloudSync] Auto-sync failed on auth change:', err);
+        } finally {
+          if (isMounted) setIsSyncing(false);
+        }
+      }
+    });
+
+    cloudAuthService.getCurrentUser().then(async (user) => {
+      if (!isMounted) return;
+      setCurrentUser(user);
+      if (user) {
+        try {
+          setIsSyncing(true);
+          const currentDecks = await dbService.getDecks();
+          const currentQuestions = await dbService.getQuestions();
+          const currentStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
+          const currentHistory = await dbService.getSessionHistory(WORKSPACE_ID);
+          const result = await cloudSyncService.syncAll(
+            user.id,
+            currentDecks,
+            currentQuestions,
+            currentStatuses,
+            currentHistory
+          );
+          if (isMounted) setLastSyncedAt(result.syncedAt);
+          for (const d of result.decks) {
+            await dbService.saveDeck(d);
+          }
+          await dbService.saveQuestions(result.questions);
+          for (const s of result.statuses) {
+            await dbService.saveStatus(s);
+          }
+          await reloadData();
+        } catch (err) {
+          console.error('[CloudSync] Initial sync error:', err);
+        } finally {
+          if (isMounted) setIsSyncing(false);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [reloadData]);
+
+  const handleSignInWithGoogle = async () => {
+    await cloudAuthService.signInWithGoogle();
+  };
+
+  const handleSignOut = async () => {
+    await cloudAuthService.signOut();
+    setCurrentUser(null);
+  };
+
+  const handleForceSync = async () => {
+    if (!currentUser) return;
+    try {
+      setIsSyncing(true);
+      const currentDecks = await dbService.getDecks();
+      const currentQuestions = await dbService.getQuestions();
+      const currentStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
+      const currentHistory = await dbService.getSessionHistory(WORKSPACE_ID);
+      const result = await cloudSyncService.syncAll(
+        currentUser.id,
+        currentDecks,
+        currentQuestions,
+        currentStatuses,
+        currentHistory
+      );
+      setLastSyncedAt(result.syncedAt);
+      for (const d of result.decks) {
+        await dbService.saveDeck(d);
+      }
+      await dbService.saveQuestions(result.questions);
+      for (const s of result.statuses) {
+        await dbService.saveStatus(s);
+      }
+      await reloadData();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleOpenGem = () => {
+    openOfficialQuestionGenerator();
+  };
 
   const decksMap = useMemo(() => {
     const map: Record<string, Deck> = {};
@@ -1024,6 +1155,9 @@ export default function App() {
         lastSavedAt={lastSavedAt}
         activeTimerText={activeTimerText}
         isTimerRunning={activeSession?.timerRunning}
+        currentUser={currentUser}
+        isSyncing={isSyncing}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
         onOpenHelp={() => setActiveTab('help')}
         onStartTour={() => setOnboardingWizardOpen(true)}
@@ -1043,6 +1177,7 @@ export default function App() {
           totalCollectionsCount={userStatuses.filter((s) => s.isFavorite || s.isFlagged || s.isIncorrect).length}
           trashCount={trashItems.length}
           onOpenImportPrompt={() => handleCreateDeckPrompt()}
+          onOpenGem={handleOpenGem}
         />
 
         {/* Dynamic Workspace Content with Independent Scrolling */}
@@ -1203,6 +1338,7 @@ export default function App() {
                 initialPrefill={importPrefill}
                 onCompleteImport={handleCompleteImport}
                 onCancel={() => setActiveTab('library')}
+                onOpenGem={handleOpenGem}
               />
             </ErrorBoundary>
           )}
@@ -1220,6 +1356,7 @@ export default function App() {
                 onDuplicateQuestion={handleDuplicateQuestion}
                 onReorderQuestions={handleReorderQuestions}
                 onRenameDeck={handleRenameDeck}
+                onOpenGem={handleOpenGem}
                 onBackToDeck={() => {
                   if (editorDeckId && decksMap[editorDeckId]) {
                     handleOpenDeckDetail(decksMap[editorDeckId]);
@@ -1340,6 +1477,21 @@ export default function App() {
         }}
         onOpenLibrary={() => setActiveTab('library')}
       />
+
+      {/* Cloud Authentication & Sync Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        isSyncing={isSyncing}
+        lastSyncedAt={lastSyncedAt}
+        onSignInWithGoogle={handleSignInWithGoogle}
+        onSignOut={handleSignOut}
+        onForceSync={handleForceSync}
+        localDecksCount={decks.length}
+        localQuestionsCount={questions.length}
+      />
+
         </div>
       )}
 

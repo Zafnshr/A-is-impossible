@@ -14,8 +14,11 @@ import {
   Trash2,
   Check,
   X,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { Deck, Question } from '../../types';
+import { openOfficialQuestionGenerator } from '../../services/gemLink';
 import {
   getAcademicYears,
   getModulesForYear,
@@ -116,15 +119,29 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
           </p>
         </div>
 
-        <Tooltip content="Create or import a lecture deck at this current academic location">
-          <button
-            onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Lecture Deck</span>
-          </button>
-        </Tooltip>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tooltip content="Open official Gemini Gem to generate MCQs from lecture slides">
+            <button
+              type="button"
+              onClick={openOfficialQuestionGenerator}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 hover:from-indigo-500/20 hover:to-cyan-500/20 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs shadow-sm transition active:scale-95"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-cyan-500 animate-pulse" />
+              <span>Official Question Generator</span>
+              <ExternalLink className="w-3 h-3 opacity-70" />
+            </button>
+          </Tooltip>
+
+          <Tooltip content="Create or import a lecture deck at this current academic location">
+            <button
+              onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Lecture Deck</span>
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       {/* Explorer 2-Column Grid (Responsive Split View for Tablet & Desktop) */}
@@ -258,12 +275,23 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
               <p className="text-xs text-secondary max-w-sm mx-auto">
                 No decks exist under {selectedModule} → {selectedSubject} yet.
               </p>
-              <button
-                onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
-              >
-                Create Lecture Deck Here
-              </button>
+              <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={openOfficialQuestionGenerator}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Generate Questions Using Official AI Generator</span>
+                  <ExternalLink className="w-3 h-3 opacity-70" />
+                </button>
+                <button
+                  onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
+                >
+                  Create Lecture Deck Here
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

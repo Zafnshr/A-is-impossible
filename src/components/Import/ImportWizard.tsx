@@ -26,6 +26,7 @@ import {
   ListOrdered,
   Shuffle,
   BookOpen,
+  ExternalLink,
 } from 'lucide-react';
 import {
   parseFileContent,
@@ -56,6 +57,7 @@ interface ImportWizardProps {
     existingDeckId?: string
   ) => void;
   onCancel: () => void;
+  onOpenGem?: () => void;
 }
 
 interface EditableQuestionItem {
@@ -79,6 +81,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   initialPrefill,
   onCompleteImport,
   onCancel,
+  onOpenGem,
 }) => {
   // Predefined academic structure (centralized)
   const defaultYr = initialPrefill?.year || getDefaultYear();
@@ -772,31 +775,74 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             </div>
 
             {/* Mode Toggle Button */}
-            <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs">
-              <button
-                type="button"
-                onClick={handleSwitchToUpload}
-                className={`px-3 py-1 rounded-lg font-bold transition ${
-                  inputMode === 'upload'
-                    ? 'bg-surface text-primary shadow-sm'
-                    : 'text-muted hover:text-primary'
-                }`}
-              >
-                Upload File
-              </button>
-              <button
-                type="button"
-                onClick={handleSwitchToPaste}
-                className={`px-3 py-1 rounded-lg font-bold transition ${
-                  inputMode === 'paste'
-                    ? 'bg-surface text-primary shadow-sm'
-                    : 'text-muted hover:text-primary'
-                }`}
-              >
-                Paste Text
-              </button>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs">
+                <button
+                  type="button"
+                  onClick={handleSwitchToUpload}
+                  className={`px-3 py-1 rounded-lg font-bold transition ${
+                    inputMode === 'upload'
+                      ? 'bg-surface text-primary shadow-sm'
+                      : 'text-muted hover:text-primary'
+                  }`}
+                >
+                  Upload File
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwitchToPaste}
+                  className={`px-3 py-1 rounded-lg font-bold transition ${
+                    inputMode === 'paste'
+                      ? 'bg-surface text-primary shadow-sm'
+                      : 'text-muted hover:text-primary'
+                  }`}
+                >
+                  Paste Text
+                </button>
+              </div>
+
+              {onOpenGem && (
+                <button
+                  type="button"
+                  onClick={onOpenGem}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-indigo-600/15 to-cyan-600/15 hover:from-indigo-600/25 hover:to-cyan-600/25 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:border-cyan-500 transition shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-500 animate-pulse" />
+                  <span>Open Gem</span>
+                </button>
+              )}
             </div>
           </div>
+
+          {/* Official Question Generator Gem Shortcut Banner */}
+          {onOpenGem && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-indigo-500/10 to-transparent border border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5">
+                  <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-primary">Don&apos;t have questions yet?</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400">
+                      Official Gemini Gem
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-secondary mt-0.5 leading-relaxed">
+                    Upload your lecture document to our official Gemini Gem to automatically generate clinical MCQs, then copy &amp; paste them below.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenGem}
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 shrink-0 self-start sm:self-auto"
+              >
+                <span>Open Official Question Generator</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-90" />
+              </button>
+            </div>
+          )}
 
           {/* Lecture Name Input */}
           <div className="space-y-1.5 text-xs">

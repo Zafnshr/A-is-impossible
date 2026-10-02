@@ -8,6 +8,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
+import { User } from '@supabase/supabase-js';
 import { UserSettings } from '../types';
 import { Tooltip } from './Tooltip';
 import { BrandLogo } from './Brand/BrandLogo';
@@ -18,6 +19,9 @@ interface NavbarProps {
   lastSavedAt?: number;
   activeTimerText?: string;
   isTimerRunning?: boolean;
+  currentUser?: User | null;
+  isSyncing?: boolean;
+  onOpenAuthModal?: () => void;
   onOpenGlobalSearch: () => void;
   onOpenHelp: () => void;
   onStartTour: () => void;
@@ -28,6 +32,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   settings,
   activeTimerText,
   isTimerRunning,
+  currentUser,
+  isSyncing,
+  onOpenAuthModal,
   onOpenGlobalSearch,
   onStartTour,
   onUpdateSettings,
@@ -132,6 +139,37 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
         </Tooltip>
+
+        {/* Cloud Sync & Guest Account Pill */}
+        {onOpenAuthModal && (
+          <Tooltip content={currentUser ? `Cloud Sync Active (${currentUser.email})` : 'Guest Mode (Local only) • Click to Sign In'}>
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition ${
+                currentUser
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                  : 'bg-subtle border-subtle text-secondary hover:text-primary'
+              }`}
+            >
+              {currentUser ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
+                  <span className="hidden sm:inline truncate max-w-[90px]">
+                    {currentUser.user_metadata?.full_name?.split(' ')[0] || currentUser.email?.split('@')[0]}
+                  </span>
+                  <span className="sm:hidden text-[10px] font-mono">Sync</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                  <span className="hidden sm:inline">Guest</span>
+                  <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">Sign In</span>
+                </>
+              )}
+            </button>
+          </Tooltip>
+        )}
       </div>
     </header>
   );

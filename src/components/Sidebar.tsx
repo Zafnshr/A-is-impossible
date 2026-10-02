@@ -15,6 +15,8 @@ import {
   X,
   MoreHorizontal,
   ChevronUp,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -40,6 +42,7 @@ interface SidebarProps {
   totalCollectionsCount: number;
   trashCount: number;
   onOpenImportPrompt: () => void;
+  onOpenGem?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -50,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   totalCollectionsCount,
   trashCount,
   onOpenImportPrompt,
+  onOpenGem,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -316,6 +320,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </button>
             </Tooltip>
+
+            {onOpenGem && (
+              <Tooltip content="Open Medical Question Gem" side={isCollapsed ? 'right' : 'top'}>
+                <button
+                  type="button"
+                  onClick={onOpenGem}
+                  className={`w-full h-9 rounded-xl bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 hover:from-indigo-500/20 hover:to-cyan-500/20 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 text-xs font-semibold flex items-center transition shadow-sm ${
+                    isCollapsed ? 'justify-center px-0' : 'justify-center px-3 gap-2'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-cyan-500 shrink-0 animate-pulse" />
+                  <div
+                    className={`overflow-hidden transition-all duration-200 ${
+                      isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[150px] opacity-100'
+                    }`}
+                  >
+                    <span className="whitespace-nowrap flex items-center gap-1">
+                      <span>Open Gem</span>
+                      <ExternalLink className="w-3 h-3 opacity-70" />
+                    </span>
+                  </div>
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
       </aside>
@@ -561,6 +589,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="text-[10px] text-secondary">Word, TXT, JSON</div>
                 </div>
               </button>
+
+              {/* Open Gem */}
+              {onOpenGem && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenGem();
+                  }}
+                  className="p-3 rounded-2xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 flex items-center gap-3 text-left transition active:scale-95 text-cyan-600 dark:text-cyan-400 col-span-2"
+                >
+                  <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400">
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-primary flex items-center gap-1.5">
+                      <span>Open Medical Gem</span>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                    </div>
+                    <div className="text-[10px] text-muted">Generate & test clinical questions</div>
+                  </div>
+                </button>
+              )}
             </div>
           </div>
         </div>

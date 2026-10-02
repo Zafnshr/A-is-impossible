@@ -20,6 +20,7 @@ import {
   Pencil,
   Check,
   X,
+  ExternalLink,
 } from 'lucide-react';
 import { Question, QuestionType, Deck } from '../../types';
 import { Tooltip } from '../Tooltip';
@@ -35,6 +36,7 @@ interface QuestionEditorProps {
   onReorderQuestions?: (newQuestions: Question[]) => void;
   onBackToDeck?: () => void;
   onRenameDeck?: (deckId: string, newLectureName: string) => void;
+  onOpenGem?: () => void;
 }
 
 export const QuestionEditor: React.FC<QuestionEditorProps> = ({
@@ -48,6 +50,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
   onReorderQuestions,
   onBackToDeck,
   onRenameDeck,
+  onOpenGem,
 }) => {
   const activeDeckId = selectedDeckId || (decks.length > 0 ? decks[0].id : '');
   const activeDeck = decks.find((d) => d.id === activeDeckId);
@@ -312,6 +315,20 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
               <span>Add Question</span>
             </button>
           </Tooltip>
+
+          {onOpenGem && (
+            <Tooltip content="Open your medical question generator Gem in browser">
+              <button
+                type="button"
+                onClick={onOpenGem}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Open Gem</span>
+                <ExternalLink className="w-3 h-3 opacity-80" />
+              </button>
+            </Tooltip>
+          )}
         </div>
       </div>
 
@@ -760,6 +777,38 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   <p className="leading-relaxed">{draft.explanation}</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Empty State when no questions exist in deck */}
+        {!draft && (
+          <div className="lg:col-span-9 p-12 text-center rounded-2xl bg-surface border border-dashed border-subtle space-y-4">
+            <BookOpen className="w-10 h-10 text-muted mx-auto" />
+            <h3 className="text-base font-bold text-primary">No Questions in this Deck Yet</h3>
+            <p className="text-xs text-secondary max-w-md mx-auto">
+              You can manually add questions, or use our official Gemini Gem to generate high-yield clinical MCQs from your lecture documents.
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+              {onOpenGem && (
+                <button
+                  type="button"
+                  onClick={onOpenGem}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                >
+                  <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" />
+                  <span>Generate Questions Using Official AI Generator</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleAddNewQuestion}
+                className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Question Manually</span>
+              </button>
             </div>
           </div>
         )}
