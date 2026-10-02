@@ -26,6 +26,7 @@ import {
   Laptop,
 } from 'lucide-react';
 import { Tooltip } from '../Tooltip';
+import { BrandLogo } from '../Brand/BrandLogo';
 
 interface HelpCenterProps {
   onStartTour: () => void;
@@ -52,9 +53,9 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-subtle">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-primary flex items-center gap-2">
-            <HelpCircle className="w-6 h-6 text-cyan-500" />
-            Help Center & Knowledge Base
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-primary flex items-center gap-2.5">
+            <BrandLogo size={28} variant="icon" animated />
+            <span>Help Center & Knowledge Base</span>
           </h1>
           <p className="text-xs text-secondary mt-1 leading-relaxed">
             Beginner-friendly guides, full keyboard shortcut cheat sheet, medical question formats, and offline instructions.
@@ -107,7 +108,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
               <h2 className="text-base font-bold text-primary">Platform Overview & Workflow</h2>
             </div>
             <p className="text-xs sm:text-sm text-secondary leading-relaxed">
-              <strong>A+ is Impossible</strong> is designed as a local-first medical board preparation and study application. It eliminates unnecessary cloud latency, supports high-volume clinical question banks, and keeps 100% of your data private on your own device.
+              <strong>A is Impossible</strong> is designed as a local-first medical board preparation and study application. It eliminates unnecessary cloud latency, supports high-volume clinical question banks, and keeps 100% of your data private on your own device.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-2">
@@ -488,7 +489,7 @@ ANSWER KEY:
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-mono font-bold flex items-center justify-center shrink-0 text-[10px]">2</span>
-                  <span>Click <strong>Download Portable (a-plus-is-impossible.html)</strong> to save to your laptop or USB drive, or <strong>Download For Web Hosting (index.html)</strong> for static hosting.</span>
+                  <span>Click <strong>Download Portable (a-is-impossible.html)</strong> to save to your laptop or USB drive, or <strong>Download For Web Hosting (index.html)</strong> for static hosting.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-mono font-bold flex items-center justify-center shrink-0 text-[10px]">3</span>

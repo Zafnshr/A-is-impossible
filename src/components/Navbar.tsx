@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { UserSettings } from '../types';
 import { Tooltip } from './Tooltip';
+import { BrandLogo } from './Brand/BrandLogo';
 
 interface NavbarProps {
   settings: UserSettings;
@@ -44,26 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 w-full h-15 border-b border-subtle bg-surface/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 transition-colors pt-[env(safe-area-inset-top,0px)]">
       {/* Brand & Academic Breadcrumb */}
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center font-black text-cyan-500 text-sm tracking-tight shadow-sm shrink-0">
-            A+
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-sm sm:text-base tracking-tight text-primary whitespace-nowrap">
-                A+ is Impossible
-              </span>
-              <span className="hidden md:inline-flex text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-subtle border border-subtle text-cyan-600 dark:text-cyan-400">
-                Medical Q-Bank
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-muted">
-              <span className="hidden sm:inline">Egyptian Medical Curriculum</span>
-              <span className="hidden sm:inline">·</span>
-              <span className="font-semibold text-primary">Year 2</span>
-            </div>
-          </div>
-        </div>
+        <BrandLogo size={32} variant="full" animated />
       </div>
 
       {/* Center: Global Search Bar */}

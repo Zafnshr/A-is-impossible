@@ -1,5 +1,5 @@
 /**
- * Architectural Redesign: Medical Question Parser for "A+ is Impossible"
+ * Architectural Redesign: Medical Question Parser for "A is Impossible"
  * True Sequential Document Parser with Explicit Question Boundaries
  *
  * Core Pipeline:

@@ -61,7 +61,7 @@ const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
 };
 
 function formatQuestionForClipboard(q: Question, deck?: Deck): string {
-  let text = `[A+ is Impossible] ${
+  let text = `[A is Impossible] ${
     deck ? `${deck.module} · ${deck.subject} · ${deck.lectureName}` : 'Medical Question'
   }\n`;
   text += `--------------------------------------------------\n\n`;

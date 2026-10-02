@@ -57,7 +57,7 @@ export class RootErrorBoundary extends Component<Props, State> {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `a-plus-emergency-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `a-is-impossible-emergency-backup-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -91,7 +91,7 @@ export class RootErrorBoundary extends Component<Props, State> {
               </div>
               <div>
                 <h1 className="text-xl font-bold tracking-tight text-white">System Diagnostics & Recovery</h1>
-                <p className="text-xs text-slate-400 font-mono">A+ is Impossible · Application Safety Shield</p>
+                <p className="text-xs text-slate-400 font-mono">A is Impossible · Application Safety Shield</p>
               </div>
             </div>
 

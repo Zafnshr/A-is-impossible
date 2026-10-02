@@ -87,7 +87,7 @@ export function validateBackupJson(jsonString: string): ValidationResult {
       diagnostics: [
         'No valid decks, questions, or profile entities were found in this file.',
         'Expected data keys: "decks", "questions", "profiles", or "data".',
-        'Verify that you exported this file from A+ is Impossible or formatted it per specification.',
+        'Verify that you exported this file from A is Impossible or formatted it per specification.',
       ],
     };
   }
@@ -114,7 +114,7 @@ export function validateBackupJson(jsonString: string): ValidationResult {
     sessionsCount: sessions.length,
     hasSettings,
     exportedAt: parsed.exportedAt || undefined,
-    platform: parsed.platform || 'A+ is Impossible',
+    platform: parsed.platform || 'A is Impossible',
     version: parsed.version || 1,
   };
 

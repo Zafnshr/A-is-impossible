@@ -1,5 +1,5 @@
 /**
- * Type definitions for "A+ is Impossible"
+ * Type definitions for "A is Impossible"
  * Professional Medical Question-Bank & Study Platform
  */
 

@@ -1,43 +1,36 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Activity, Sparkles, ShieldCheck, Zap, Cpu, CheckCircle2 } from 'lucide-react';
+import { Sparkles, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
 
 interface IconicLoadingScreenProps {
   onComplete: () => void;
   theme?: 'dark' | 'light';
 }
 
-interface SynapticNode {
+interface AmbientParticle {
   x: number;
   y: number;
   vx: number;
   vy: number;
-  radius: number;
-  baseAlpha: number;
-  pulsePhase: number;
+  size: number;
+  alpha: number;
+  pulseSpeed: number;
+  phase: number;
 }
 
 export const IconicLoadingScreen: React.FC<IconicLoadingScreenProps> = ({
   onComplete,
   theme = 'dark',
 }) => {
-  // Staged timeline state (0 to 6)
+  // Staged timeline state (0 to 5)
   const [stage, setStage] = useState<number>(0);
   const [progress, setProgress] = useState<number>(0);
-  const [telemetryIndex, setTelemetryIndex] = useState<number>(0);
+  const [statusText, setStatusText] = useState<string>('Initializing Workspace Core...');
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const isDark = theme === 'dark';
 
-  const telemetrySteps = [
-    'Initializing Neural Spaced-Repetition Core...',
-    'Calibrating Clinical Diagnostic Matrices...',
-    'Indexing High-Yield USMLE / Medical Question Bank...',
-    'Synchronizing Active Recall Synaptic Networks...',
-    'Diagnostic Telemetry Verified. Workspace Ready.',
-  ];
-
-  // Canvas: Neural Synaptic Mesh + Medical EKG Pulse Line
+  // High-DPI Ambient Stardust Particle Field (Lightweight 60fps canvas)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -45,135 +38,61 @@ export const IconicLoadingScreen: React.FC<IconicLoadingScreenProps> = ({
     if (!ctx) return;
 
     let animId: number;
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let width = 0;
+    let height = 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    const onResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+    const resize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.scale(dpr, dpr);
     };
-    window.addEventListener('resize', onResize);
 
-    // Initialize 45 synaptic nodes
-    const nodeCount = Math.min(50, Math.floor((width * height) / 25000));
-    const nodes: SynapticNode[] = Array.from({ length: nodeCount }, () => ({
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Subtle 35 ambient particles
+    const particleCount = Math.min(36, Math.floor((width * height) / 28000));
+    const particles: AmbientParticle[] = Array.from({ length: particleCount }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.45,
-      vy: (Math.random() - 0.5) * 0.45,
-      radius: Math.random() * 2 + 1.2,
-      baseAlpha: Math.random() * 0.5 + 0.25,
-      pulsePhase: Math.random() * Math.PI * 2,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: -0.2 - Math.random() * 0.35, // Gentle upward drift
+      size: Math.random() * 1.8 + 0.8,
+      alpha: Math.random() * 0.6 + 0.2,
+      pulseSpeed: Math.random() * 0.02 + 0.01,
+      phase: Math.random() * Math.PI * 2,
     }));
-
-    // EKG line parameters
-    let ekgOffset = 0;
-    const ekgPoints = [
-      0, 0, 0, 0, 0.05, -0.05, 0, 0, 0.15, -0.85, 0.95, -0.2, 0, 0, 0.2, 0.05, 0, 0, 0, 0,
-    ];
 
     let lastTime = performance.now();
 
     const render = (time: number) => {
-      const dt = (time - lastTime) / 1000;
       lastTime = time;
-
       ctx.clearRect(0, 0, width, height);
 
-      // 1. Draw subtle background coordinate grid
-      ctx.strokeStyle = isDark ? 'rgba(34, 211, 238, 0.025)' : 'rgba(6, 182, 212, 0.04)';
-      ctx.lineWidth = 1;
-      const gridSize = 60;
-      for (let x = 0; x < width; x += gridSize) {
+      // Draw subtle drift particles
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.phase += p.pulseSpeed;
+
+        if (p.x < -10) p.x = width + 10;
+        if (p.x > width + 10) p.x = -10;
+        if (p.y < -10) p.y = height + 10;
+
+        const currentAlpha = p.alpha * (0.65 + 0.35 * Math.sin(p.phase));
+
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-      for (let y = 0; y < height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
-
-      // 2. Draw Medical EKG Pulse Line across middle-lower third
-      const ekgY = height * 0.76;
-      ctx.save();
-      ctx.beginPath();
-      ctx.strokeStyle = isDark ? 'rgba(6, 182, 212, 0.22)' : 'rgba(6, 182, 212, 0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = isDark ? 'rgba(34, 211, 238, 0.6)' : 'rgba(6, 182, 212, 0.4)';
-
-      ekgOffset = (ekgOffset + dt * 140) % width;
-      const step = 4;
-      for (let x = 0; x < width; x += step) {
-        // EKG wave cycle repeats every 240px
-        const cycleX = (x + ekgOffset) % 240;
-        const index = Math.floor((cycleX / 240) * ekgPoints.length);
-        const nextIndex = (index + 1) % ekgPoints.length;
-        const frac = (cycleX / 240) * ekgPoints.length - index;
-        const yAmp = (ekgPoints[index] * (1 - frac) + ekgPoints[nextIndex] * frac) * 28;
-
-        const plotY = ekgY + yAmp;
-        if (x === 0) ctx.moveTo(x, plotY);
-        else ctx.lineTo(x, plotY);
-      }
-      ctx.stroke();
-
-      // Glowing EKG Leading Cursor Head
-      const cursorX = (ekgOffset * 1.5) % width;
-      ctx.beginPath();
-      ctx.arc(cursorX, ekgY, 3, 0, Math.PI * 2);
-      ctx.fillStyle = isDark ? '#22d3ee' : '#0891b2';
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = '#22d3ee';
-      ctx.fill();
-      ctx.restore();
-
-      // 3. Update & Draw Synaptic Nodes & Filament Connections
-      nodes.forEach((n, i) => {
-        n.x += n.vx;
-        n.y += n.vy;
-        n.pulsePhase += 0.03;
-
-        if (n.x < 0) n.x = width;
-        if (n.x > width) n.x = 0;
-        if (n.y < 0) n.y = height;
-        if (n.y > height) n.y = 0;
-
-        // Connect nearby nodes with delicate filaments
-        for (let j = i + 1; j < nodes.length; j++) {
-          const n2 = nodes[j];
-          const dx = n.x - n2.x;
-          const dy = n.y - n2.y;
-          const dist = Math.hypot(dx, dy);
-          const maxDist = 120;
-
-          if (dist < maxDist) {
-            const lineAlpha = (1 - dist / maxDist) * (isDark ? 0.16 : 0.12);
-            ctx.beginPath();
-            ctx.moveTo(n.x, n.y);
-            ctx.lineTo(n2.x, n2.y);
-            ctx.strokeStyle = isDark
-              ? `rgba(34, 211, 238, ${lineAlpha})`
-              : `rgba(6, 182, 212, ${lineAlpha})`;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-        }
-
-        // Draw node with pulsing glow
-        const currentAlpha = n.baseAlpha + Math.sin(n.pulsePhase) * 0.15;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = isDark
-          ? `rgba(34, 211, 238, ${Math.max(0.1, currentAlpha)})`
-          : `rgba(6, 182, 212, ${Math.max(0.1, currentAlpha * 0.8)})`;
-        ctx.shadowBlur = n.radius * 4;
-        ctx.shadowColor = isDark ? 'rgba(34, 211, 238, 0.5)' : 'rgba(6, 182, 212, 0.3)';
+          ? `rgba(56, 189, 248, ${currentAlpha * 0.7})`
+          : `rgba(6, 182, 212, ${currentAlpha * 0.5})`;
+        ctx.shadowBlur = p.size * 4;
+        ctx.shadowColor = isDark ? '#38bdf8' : '#0891b2';
         ctx.fill();
       });
 
@@ -183,61 +102,56 @@ export const IconicLoadingScreen: React.FC<IconicLoadingScreenProps> = ({
     animId = requestAnimationFrame(render);
 
     return () => {
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener('resize', resize);
       cancelAnimationFrame(animId);
     };
   }, [isDark]);
 
-  // Orchestrated staged timeline with smooth percentage acceleration
+  // Orchestrated Timeline: Snappy, Fluid, and Cinematic (~2.2s total)
   useEffect(() => {
+    // Stage 1: Central Emblem Manifests (0.15s)
     const t0 = setTimeout(() => {
       setStage(1);
-      setProgress(15);
-      setTelemetryIndex(0);
+      setProgress(25);
+      setStatusText('Calibrating Neural Question Matrix...');
     }, 150);
 
+    // Stage 2: Glow & Resonance Ring Activate (0.65s)
     const t1 = setTimeout(() => {
       setStage(2);
-      setProgress(35);
-      setTelemetryIndex(1);
-    }, 600);
+      setProgress(55);
+      setStatusText('Indexing Clinical Curriculum...');
+    }, 650);
 
+    // Stage 3: Brand Name & Typography Reveal (1.2s)
     const t2 = setTimeout(() => {
       setStage(3);
-      setProgress(60);
-      setTelemetryIndex(2);
-    }, 1150);
+      setProgress(80);
+      setStatusText('Synchronizing Offline Storage...');
+    }, 1200);
 
+    // Stage 4: Tagline & Final Calibration (1.75s)
     const t3 = setTimeout(() => {
       setStage(4);
-      setProgress(82);
-      setTelemetryIndex(3);
+      setProgress(100);
+      setStatusText('Workspace Ready.');
     }, 1750);
 
+    // Stage 5: Dissolve Out into Application (2.2s)
     const t4 = setTimeout(() => {
-      setStage(5);
-      setProgress(95);
-      setTelemetryIndex(4);
-    }, 2300);
-
-    const t5 = setTimeout(() => {
-      setStage(6);
-      setProgress(100);
-    }, 2700);
-
-    const t6 = setTimeout(() => {
       setIsFadingOut(true);
-    }, 3100);
+    }, 2200);
 
-    const t7 = setTimeout(() => {
+    // Unmount and hand over to App (2.48s)
+    const t5 = setTimeout(() => {
       onComplete();
-    }, 3450);
+    }, 2480);
 
-    // Keyboard shortcut to skip intro immediately
+    // Instant skip on keyboard action (Escape, Space, Enter)
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') {
         setIsFadingOut(true);
-        setTimeout(onComplete, 200);
+        setTimeout(onComplete, 160);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -249,269 +163,264 @@ export const IconicLoadingScreen: React.FC<IconicLoadingScreenProps> = ({
       clearTimeout(t3);
       clearTimeout(t4);
       clearTimeout(t5);
-      clearTimeout(t6);
-      clearTimeout(t7);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onComplete]);
 
-  // Fast skip click
-  const handleFastSkip = () => {
+  const handleInstantSkip = () => {
     setIsFadingOut(true);
-    setTimeout(onComplete, 200);
+    setTimeout(onComplete, 160);
   };
 
   return (
     <div
-      onClick={handleFastSkip}
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between select-none overflow-hidden transition-opacity duration-350 ease-out cursor-pointer ${
-        isFadingOut ? 'opacity-0 pointer-events-none scale-102 blur-xs' : 'opacity-100 scale-100'
-      } ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}
+      onClick={handleInstantSkip}
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between select-none overflow-hidden transition-all duration-300 ease-out cursor-pointer ${
+        isFadingOut
+          ? 'opacity-0 scale-102 blur-sm pointer-events-none'
+          : 'opacity-100 scale-100'
+      } ${
+        isDark
+          ? 'bg-[#06080F] text-slate-100'
+          : 'bg-[#FAFBFC] text-slate-900'
+      }`}
     >
-      {/* Dynamic Cosmic Radial Glow & Light Cones */}
+      {/* Dynamic Ambient Aurora Background Glow */}
       <div
         className={`absolute inset-0 pointer-events-none transition-opacity duration-1000 ${
           stage >= 1 ? 'opacity-100' : 'opacity-0'
         }`}
         style={{
           background: isDark
-            ? 'radial-gradient(circle at 50% 45%, rgba(6, 182, 212, 0.18) 0%, rgba(99, 102, 241, 0.12) 30%, rgba(15, 23, 42, 0.8) 75%)'
-            : 'radial-gradient(circle at 50% 45%, rgba(6, 182, 212, 0.18) 0%, rgba(14, 165, 233, 0.08) 35%, rgba(248, 250, 252, 0.9) 75%)',
+            ? 'radial-gradient(circle at 50% 45%, rgba(6, 182, 212, 0.16) 0%, rgba(99, 102, 241, 0.08) 32%, rgba(6, 8, 15, 0.95) 75%)'
+            : 'radial-gradient(circle at 50% 45%, rgba(6, 182, 212, 0.14) 0%, rgba(14, 165, 233, 0.06) 35%, rgba(250, 251, 252, 0.95) 75%)',
         }}
       />
 
-      {/* Synaptic Mesh Canvas */}
+      {/* Floating Canvas Particles */}
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />
 
-      {/* Top HUD Telemetry Header */}
-      <header className="relative z-10 w-full px-6 sm:px-10 pt-6 flex items-center justify-between font-mono text-[10px] text-muted tracking-widest uppercase">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span className="text-cyan-600 dark:text-cyan-400 font-bold">
-            SYS: A+ MASTERY v2.5.0
+      {/* Top Header Telemetry Strip */}
+      <header className="relative z-10 w-full px-6 sm:px-10 pt-6 flex items-center justify-between font-mono text-[10px] tracking-widest uppercase">
+        <div className="flex items-center gap-2 text-muted">
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+          <span className="text-cyan-600 dark:text-cyan-400 font-bold tracking-wider">
+            A IS IMPOSSIBLE
           </span>
-          <span className="hidden sm:inline text-muted/60">{'//'}</span>
-          <span className="hidden sm:inline text-muted/80">ENCRYPTED LOCAL STORAGE</span>
+          <span className="hidden sm:inline text-muted/50">{'//'}</span>
+          <span className="hidden sm:inline text-muted/70">STUDY SYSTEM</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[9px] font-bold">
-            <Activity className="w-3 h-3 text-cyan-400" />
-            <span>USMLE / AMBOSS GRADE</span>
-          </div>
-          <span className="text-secondary font-mono">
-            {stage >= 6 ? 'ONLINE 100%' : 'CALIBRATING'}
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+            {stage >= 4 ? '100% READY' : `${progress}%`}
           </span>
         </div>
       </header>
 
-      {/* Center Cinematic Content Area */}
+      {/* Center Cinematic Emblem & Typography Presentation */}
       <main className="relative z-10 flex flex-col items-center justify-center max-w-lg w-full px-6 text-center space-y-7 my-auto">
-        {/* Animated Central Emblem with Orbital Rings */}
+        {/* Central Impossible Emblem with Orbital Rings */}
         <div
           className={`relative flex items-center justify-center transition-all duration-700 ease-out ${
             stage >= 1
               ? 'scale-100 opacity-100 translate-y-0'
-              : 'scale-75 opacity-0 translate-y-6'
+              : 'scale-80 opacity-0 translate-y-6'
           }`}
         >
-          {/* Outer Rotating Medical Calibration Orbit Ring */}
-          <div className="absolute w-36 h-36 sm:w-44 sm:h-44 rounded-full border border-cyan-500/20 border-dashed animate-[spin_20s_linear_infinite] pointer-events-none" />
+          {/* Outer Precision Orbital Dashed Ring */}
+          <div className="absolute w-44 h-44 sm:w-52 sm:h-52 rounded-full border border-cyan-500/20 border-dashed animate-[spin_24s_linear_infinite] pointer-events-none" />
 
-          {/* Middle Counter-Rotating Celestial Arc */}
-          <div className="absolute w-28 h-28 sm:w-36 sm:h-36 rounded-full border border-t-cyan-400/60 border-r-transparent border-b-indigo-400/40 border-l-transparent animate-[spin_12s_linear_infinite_reverse] pointer-events-none" />
+          {/* Inner Counter-Rotating Razor Filament */}
+          <div className="absolute w-36 h-36 sm:w-44 sm:h-44 rounded-full border border-t-cyan-400/50 border-r-transparent border-b-indigo-400/30 border-l-transparent animate-[spin_12s_linear_infinite_reverse] pointer-events-none" />
 
-          {/* Pulsing Outer Aurora Glow Halo */}
+          {/* Soft Aurora Halo Flare */}
           <div
-            className={`absolute -inset-6 rounded-3xl blur-2xl transition-opacity duration-1000 ${
+            className={`absolute -inset-6 rounded-full blur-2xl transition-opacity duration-1000 ${
               isDark
-                ? 'bg-gradient-to-tr from-cyan-500/40 via-teal-400/25 to-indigo-500/35'
-                : 'bg-gradient-to-tr from-cyan-400/30 via-teal-300/25 to-sky-400/30'
-            } animate-pulse`}
+                ? 'bg-gradient-to-tr from-cyan-500/35 via-teal-400/20 to-indigo-500/30'
+                : 'bg-gradient-to-tr from-cyan-400/25 via-teal-300/20 to-sky-400/25'
+            } animate-pulse pointer-events-none`}
           />
 
-          {/* Orbiting Satellite Particle */}
-          <div className="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-full animate-[spin_6s_linear_infinite] pointer-events-none">
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee]" />
+          {/* Orbiting Satellite Light Node */}
+          <div className="absolute w-40 h-40 sm:w-48 sm:h-48 rounded-full animate-[spin_7s_linear_infinite] pointer-events-none">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_12px_#38bdf8]" />
           </div>
 
-          {/* Glassmorphic Emblem Squircle */}
-          <div
-            className={`relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl p-[2px] shadow-2xl transition-transform duration-500 hover:scale-105 ${
-              isDark
-                ? 'bg-gradient-to-br from-cyan-400 via-teal-300 to-indigo-500 shadow-cyan-500/20'
-                : 'bg-gradient-to-br from-cyan-500 via-teal-400 to-sky-600 shadow-cyan-500/25'
-            }`}
-          >
-            <div
-              className={`w-full h-full rounded-[22px] flex items-center justify-center flex-col backdrop-blur-2xl border ${
-                isDark
-                  ? 'bg-slate-900/85 border-cyan-400/30 shadow-inner'
-                  : 'bg-white/90 border-cyan-500/20 shadow-inner'
-              }`}
+          {/* Luxury Impossible Monogram Mark */}
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center filter drop-shadow-[0_10px_25px_rgba(6,182,212,0.4)]">
+            <svg
+              viewBox="0 0 100 100"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-full h-full transform transition-transform duration-700 hover:scale-105"
             >
-              {/* Internal Specular Diagonal Light Sheen */}
-              <div className="absolute inset-0 rounded-[22px] bg-gradient-to-tr from-white/10 via-transparent to-transparent pointer-events-none" />
+              <defs>
+                <linearGradient id="loadA1" x1="20" y1="85" x2="50" y2="15" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#0ea5e9" />
+                  <stop offset="50%" stopColor="#38bdf8" />
+                  <stop offset="100%" stopColor="#e0f2fe" />
+                </linearGradient>
 
-              <span
-                className={`font-black tracking-tight text-4xl sm:text-5xl bg-gradient-to-br ${
-                  isDark
-                    ? 'from-white via-cyan-200 to-teal-300 drop-shadow-[0_2px_12px_rgba(34,211,238,0.5)]'
-                    : 'from-cyan-700 via-teal-600 to-sky-800 drop-shadow-sm'
-                } bg-clip-text text-transparent`}
-              >
-                A+
-              </span>
+                <linearGradient id="loadA2" x1="50" y1="15" x2="80" y2="85" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#e0f2fe" />
+                  <stop offset="50%" stopColor="#0284c7" />
+                  <stop offset="100%" stopColor="#0369a1" />
+                </linearGradient>
 
-              {/* Little pulse dot underneath logo */}
-              <div className="flex items-center gap-1 mt-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-[8px] font-mono font-bold tracking-widest text-cyan-600 dark:text-cyan-400">
-                  SYSTEM READY
-                </span>
-              </div>
-            </div>
+                <linearGradient id="loadCross" x1="25" y1="62" x2="75" y2="62" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#0369a1" />
+                  <stop offset="50%" stopColor="#06b6d4" />
+                  <stop offset="100%" stopColor="#22d3ee" />
+                </linearGradient>
+
+                <linearGradient id="loadCore" x1="50" y1="36" x2="50" y2="66" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2" />
+                </linearGradient>
+
+                <filter id="loadGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="2.5" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+
+              {/* Squircle Pod Backplate */}
+              <rect
+                x="3"
+                y="3"
+                width="94"
+                height="94"
+                rx="24"
+                fill={isDark ? '#090d16' : '#ffffff'}
+                fillOpacity={isDark ? '0.94' : '0.96'}
+                stroke={isDark ? 'rgba(6,182,212,0.35)' : 'rgba(6,182,212,0.45)'}
+                strokeWidth="1.5"
+              />
+
+              {/* Specular Diagonal Light Flare */}
+              <path
+                d="M3 45 L45 3 L97 3 L3 97 Z"
+                fill="white"
+                fillOpacity={isDark ? '0.04' : '0.1'}
+              />
+
+              {/* IMPOSSIBLE PENROSE TRIANGLE "A" GEOMETRY */}
+              {/* Left Ascending Column */}
+              <path
+                d="M 50 15 L 50 25 L 34 68 L 22 68 L 44 15 Z"
+                fill="url(#loadA1)"
+              />
+              <path
+                d="M 44 15 L 22 68 L 15 82 L 31 82 L 38 68 L 50 25 L 50 15 Z"
+                fill="#0284c7"
+                fillOpacity="0.9"
+              />
+
+              {/* Right Descending Column */}
+              <path
+                d="M 50 15 L 56 15 L 85 82 L 69 82 L 50 36 L 50 25 Z"
+                fill="url(#loadA2)"
+              />
+              <path
+                d="M 50 25 L 50 36 L 63 68 L 73 68 L 85 82 L 78 82 Z"
+                fill="#075985"
+              />
+
+              {/* Interlocking Impossible Crossbar */}
+              <path
+                d="M 31 56 L 69 56 L 64 68 L 36 68 Z"
+                fill="url(#loadCross)"
+                filter="url(#loadGlow)"
+              />
+              <path
+                d="M 36 68 L 64 68 L 58 78 L 42 78 Z"
+                fill="#0c4a6e"
+              />
+
+              {/* Radiant Inner Triangle Core */}
+              <polygon
+                points="50,34 62,56 38,56"
+                fill="url(#loadCore)"
+              />
+
+              {/* Apex Precision Laser Focal Point */}
+              <circle cx="50" cy="18" r="2.5" fill="#a5f3fc" />
+              <circle cx="50" cy="18" r="6" fill="#38bdf8" fillOpacity="0.4" />
+            </svg>
           </div>
         </div>
 
-        {/* Brand Name Typography */}
+        {/* Brand Name Typography Reveal (Stage 3+) */}
         <div
-          className={`space-y-1.5 transition-all duration-700 ease-out ${
+          className={`space-y-2 transition-all duration-700 ease-out ${
             stage >= 2
               ? 'opacity-100 translate-y-0 scale-100'
               : 'opacity-0 translate-y-4 scale-95'
           }`}
         >
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight flex items-center justify-center gap-2">
+            <span
+              className={`bg-gradient-to-r ${
+                isDark
+                  ? 'from-cyan-400 via-sky-300 to-teal-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.4)]'
+                  : 'from-cyan-600 via-sky-600 to-teal-600'
+              } bg-clip-text text-transparent font-black`}
+            >
+              A
+            </span>
             <span
               className={`bg-gradient-to-r ${
                 isDark
                   ? 'from-white via-slate-100 to-slate-300'
                   : 'from-slate-950 via-slate-900 to-slate-800'
-              } bg-clip-text text-transparent`}
+              } bg-clip-text text-transparent font-extrabold`}
             >
-              A+ is{' '}
-            </span>
-            <span
-              className={`bg-gradient-to-r ${
-                isDark
-                  ? 'from-cyan-400 via-teal-300 to-sky-400 drop-shadow-[0_0_20px_rgba(34,211,238,0.35)]'
-                  : 'from-cyan-600 via-teal-600 to-sky-700'
-              } bg-clip-text text-transparent`}
-            >
-              Impossible
+              is Impossible
             </span>
           </h1>
 
-          <p className="text-[11px] font-mono tracking-widest uppercase text-cyan-600 dark:text-cyan-400 font-bold flex items-center justify-center gap-2">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Professional Medical Question-Bank Platform</span>
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          {/* Tagline Reveal (Stage 4+) */}
+          <p
+            className={`text-xs sm:text-sm font-medium tracking-wide transition-all duration-700 ${
+              stage >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+            } ${isDark ? 'text-slate-400' : 'text-slate-600'}`}
+          >
+            Challenging the impossible. <span className="text-cyan-600 dark:text-cyan-400 font-semibold">Mastering every concept.</span>
           </p>
         </div>
 
-        {/* Dynamic Diagnostic Terminal Feed */}
-        <div className="h-10 flex items-center justify-center">
-          <div
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border font-mono text-xs transition-all duration-500 ${
-              stage >= 3
-                ? 'opacity-100 scale-100 translate-y-0'
-                : 'opacity-0 scale-95 translate-y-2'
-            } ${
-              isDark
-                ? 'bg-slate-900/80 border-cyan-500/25 text-cyan-300'
-                : 'bg-cyan-50/80 border-cyan-500/30 text-cyan-800'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse shrink-0" />
-            <span className="truncate max-w-[280px] sm:max-w-md font-medium text-[11px]">
-              {telemetrySteps[telemetryIndex]}
-            </span>
-          </div>
-        </div>
-
-        {/* Staged Iconic Taglines */}
-        <div className="h-14 flex flex-col items-center justify-center space-y-1 text-xs sm:text-sm font-medium">
-          {/* Tagline 1: Master every lecture. */}
-          <div
-            className={`flex items-center gap-2 transition-all duration-500 ${
-              stage >= 4
-                ? 'opacity-100 translate-y-0'
-                : 'opacity-0 -translate-y-2 pointer-events-none'
-            } ${isDark ? 'text-slate-100' : 'text-slate-900'}`}
-          >
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-            <span className="font-bold tracking-wide text-sm sm:text-base">
-              Master every lecture.
-            </span>
-          </div>
-
-          {/* Tagline 2: One question at a time. */}
-          <div
-            className={`flex items-center gap-2 transition-all duration-500 ${
-              stage >= 5
-                ? 'opacity-100 translate-y-0'
-                : 'opacity-0 translate-y-2 pointer-events-none'
-            } ${isDark ? 'text-cyan-400/90' : 'text-cyan-700'}`}
-          >
-            <span className="font-serif italic text-xs sm:text-sm">
-              One question at a time.
-            </span>
-          </div>
-        </div>
-
-        {/* High-Tech Segmented Progress Bar */}
-        <div className="w-56 sm:w-64 space-y-2 pt-1">
-          <div
-            className={`h-1.5 w-full rounded-full overflow-hidden p-[1px] ${
-              isDark ? 'bg-slate-800/80 border border-slate-700/50' : 'bg-slate-200 border border-slate-300'
-            }`}
-          >
+        {/* Minimalist Laser Filament Progress Indicator */}
+        <div
+          className={`w-full max-w-xs space-y-2 transition-all duration-500 ${
+            stage >= 1 ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <div className="relative w-full h-1 bg-subtle rounded-full overflow-hidden border border-subtle">
             <div
-              className={`h-full rounded-full transition-all duration-500 ease-out ${
-                progress === 100
-                  ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 shadow-[0_0_12px_#34d399]'
-                  : 'bg-gradient-to-r from-cyan-500 via-teal-400 to-indigo-500 shadow-[0_0_10px_#22d3ee]'
-              }`}
+              className="h-full bg-gradient-to-r from-cyan-500 via-sky-400 to-teal-400 rounded-full transition-all duration-500 ease-out shadow-[0_0_12px_#38bdf8]"
               style={{ width: `${progress}%` }}
             />
           </div>
 
-          <div className="flex items-center justify-between text-[10px] font-mono text-muted px-0.5">
-            <span className="flex items-center gap-1">
-              {progress < 100 ? (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                  <span>Loading Assets</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  <span className="text-emerald-400 font-bold">Diagnostics Clear</span>
-                </>
-              )}
-            </span>
-            <span className="text-cyan-600 dark:text-cyan-400 font-black">
+          <div className="flex items-center justify-between text-[11px] font-mono text-muted">
+            <span className="truncate">{statusText}</span>
+            <span className="font-bold text-cyan-600 dark:text-cyan-400 ml-2">
               {progress}%
             </span>
           </div>
         </div>
       </main>
 
-      {/* Bottom HUD Footer & Skip Prompt */}
-      <footer className="relative z-10 w-full px-6 sm:px-10 pb-5 flex items-center justify-between font-mono text-[10px] text-muted">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-3.5 h-3.5 text-cyan-500" />
-          <span className="hidden sm:inline">OFFLINE-FIRST ARCHITECTURE // ZERO DATA LOSS</span>
-          <span className="sm:hidden">OFFLINE READY</span>
-        </div>
-
-        <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 hover:text-cyan-300 transition">
-          <span className="text-[10px] opacity-75">Click anywhere to skip</span>
-          <span className="px-1.5 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-[9px] font-bold">
-            SPACE ↵
-          </span>
-        </div>
+      {/* Bottom Hint Footer */}
+      <footer className="relative z-10 w-full px-6 pb-6 flex items-center justify-between text-muted text-[11px] font-mono">
+        <span className="hidden sm:inline">Press Space, Enter, or Click to Skip</span>
+        <span className="sm:hidden">Tap to Skip</span>
+        <span className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-semibold">
+          <span>Explore</span>
+          <ArrowRight className="w-3 h-3" />
+        </span>
       </footer>
     </div>
   );

@@ -1,5 +1,5 @@
 /**
- * Native IndexedDB Service for "A+ is Impossible"
+ * Native IndexedDB Service for "A is Impossible"
  * Full offline, zero-database-setup, indestructible browser storage.
  */
 import {
@@ -711,7 +711,7 @@ class IndexedDBStorage {
       return {
         version: 2,
         exportedAt: Date.now(),
-        platform: 'A+ is Impossible',
+        platform: 'A is Impossible',
         data: {
           profiles: Array.from(this.memoryStores.profiles.values()),
           settings: Array.from(this.memoryStores.settings.values()),
@@ -757,7 +757,7 @@ class IndexedDBStorage {
     return {
       version: 2,
       exportedAt: Date.now(),
-      platform: 'A+ is Impossible',
+      platform: 'A is Impossible',
       data: {
         profiles,
         settings,

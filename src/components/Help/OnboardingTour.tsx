@@ -28,7 +28,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
   const steps = [
     {
-      title: 'Welcome to A+ is Impossible',
+      title: 'Welcome to A is Impossible',
       subtitle: 'The Egyptian Medical Student Question Bank',
       icon: Sparkles,
       content:

@@ -205,16 +205,16 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-secondary leading-relaxed">
-                    Saved as <code>a-plus-is-impossible.html</code>. Store on USB drive or desktop for double-click offline study in any browser.
+                    Saved as <code>a-is-impossible.html</code>. Store on USB drive or desktop for double-click offline study in any browser.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleExportSingleFile('a-plus-is-impossible.html')}
+                  onClick={() => handleExportSingleFile('a-is-impossible.html')}
                   disabled={Boolean(isExportingHtml)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface hover:bg-surface-elevated border border-subtle hover:border-cyan-500/40 disabled:opacity-50 text-primary font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
                 >
-                  {isExportingHtml === 'a-plus-is-impossible.html' ? (
+                  {isExportingHtml === 'a-is-impossible.html' ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Packaging portable HTML...</span>
@@ -222,7 +222,7 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                   ) : (
                     <>
                       <Download className="w-4 h-4 text-indigo-500" />
-                      <span>Download Portable (a-plus-is-impossible.html)</span>
+                      <span>Download Portable (a-is-impossible.html)</span>
                     </>
                   )}
                 </button>

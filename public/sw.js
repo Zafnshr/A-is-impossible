@@ -1,9 +1,11 @@
-// Service Worker for "A+ is Impossible" Offline Capabilities & Fast Live Sync
-const CACHE_NAME = 'a-plus-cache-v5';
+// Service Worker for "A is Impossible" Offline Capabilities & Fast Live Sync
+const CACHE_NAME = 'a-is-impossible-cache-v6';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/manifest.webmanifest'
+  '/manifest.webmanifest',
+  '/brand/logo.png',
+  '/brand/logo-app-icon.png'
 ];
 
 self.addEventListener('install', (event) => {

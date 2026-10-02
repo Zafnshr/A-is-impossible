@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "A+ is Impossible",
-  "short_name": "A+ Impossible",
-  "description": "Medical question-bank & study platform for Egyptian medical students with offline IndexedDB storage and analytics.",
+  "name": "A is Impossible",
+  "short_name": "A Impossible",
+  "description": "Medical question-bank & study platform with offline IndexedDB storage, high-yield analytics, and rich deck import.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -12,13 +12,25 @@
   "categories": ["education", "medical"],
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23090d16'/%3E%3Cpath d='M60 130 L85 60 L107 60 L132 130 L112 130 L104 114 L88 114 L80 130 Z M92 98 L100 98 L96 82 Z' fill='%2338bdf8'/%3E%3Ctext x='125' y='92' font-size='50' font-weight='900' fill='%23f43f5e' font-family='system-ui'%3E%2B%3C/text%3E%3C/svg%3E",
+      "src": "/brand/logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/logo-app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='44' fill='%23080d1a'/%3E%3Cpath d='M96 32 L150 144 L118 144 L96 96 L74 144 L42 144 Z' fill='%2338bdf8'/%3E%3Cpolygon points='96,52 128,118 108,118 96,94 84,118 64,118' fill='%23080d1a'/%3E%3Cpolygon points='64,118 128,118 120,134 72,134' fill='%2306b6d4'/%3E%3C/svg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23090d16'/%3E%3Cpath d='M160 350 L225 160 L287 160 L352 350 L300 350 L278 305 L234 305 L212 350 Z M244 260 L268 260 L256 218 Z' fill='%2338bdf8'/%3E%3Ctext x='330' y='250' font-size='130' font-weight='900' fill='%23f43f5e' font-family='system-ui'%3E%2B%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%23080d1a'/%3E%3Cpath d='M256 85 L400 385 L315 385 L256 256 L197 385 L112 385 Z' fill='%2338bdf8'/%3E%3Cpolygon points='256,138 341,316 288,316 256,252 224,316 171,316' fill='%23080d1a'/%3E%3Cpolygon points='171,316 341,316 320,358 192,358' fill='%2306b6d4'/%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "maskable any"

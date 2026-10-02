@@ -1,5 +1,5 @@
 /**
- * Centralized Academic Curriculum Structure for "A+ is Impossible"
+ * Centralized Academic Curriculum Structure for "A is Impossible"
  *
  * The academic hierarchy is fixed and predefined:
  * Year → Module → Subject → Lecture Deck

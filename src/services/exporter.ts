@@ -1,5 +1,5 @@
 /**
- * Exporter Service for "A+ is Impossible"
+ * Exporter Service for "A is Impossible"
  * Supports selective JSON exports, full backups,
  * and Single-File Standalone HTML generation for GitHub Pages/Netlify/Vercel.
  */
@@ -32,7 +32,7 @@ export function downloadHtmlFile(filename: string, content: string) {
 export async function exportFullBackup(): Promise<void> {
   const dump = await dbService.exportFullDump();
   const dateStr = new Date().toISOString().slice(0, 10);
-  downloadJsonFile(`a-plus-backup-full-${dateStr}.json`, dump);
+  downloadJsonFile(`a-is-impossible-backup-full-${dateStr}.json`, dump);
 }
 
 export async function exportProfileBackup(profileId: string): Promise<void> {
@@ -56,7 +56,7 @@ export async function exportProfileBackup(profileId: string): Promise<void> {
     },
   };
   const nameSlug = profile?.name ? profile.name.toLowerCase().replace(/\s+/g, '-') : 'profile';
-  downloadJsonFile(`a-plus-profile-${nameSlug}.json`, dump);
+  downloadJsonFile(`a-is-impossible-profile-${nameSlug}.json`, dump);
 }
 
 export async function exportDeckBackup(deckId: string): Promise<void> {
@@ -96,7 +96,7 @@ export async function exportCollectionBackup(collectionType: 'favorites' | 'flag
     statuses: filteredStatus,
   };
 
-  downloadJsonFile(`a-plus-${collectionType}-collection.json`, dump);
+  downloadJsonFile(`a-is-impossible-${collectionType}-collection.json`, dump);
 }
 
 export interface StandaloneExportResult {
@@ -287,10 +287,13 @@ export async function exportSingleFileHtml(
 
     // 1. Try fetching from origin candidate URLs
     const candidateUrls = [
+      './a-is-impossible-singlefile.html',
+      '/a-is-impossible-singlefile.html',
       './a-plus-is-impossible-singlefile.html',
       '/a-plus-is-impossible-singlefile.html',
       './index.html',
       '/index.html',
+      'a-is-impossible-singlefile.html',
       'a-plus-is-impossible-singlefile.html',
       'index.html',
     ];
@@ -337,7 +340,7 @@ export async function exportSingleFileHtml(
         // Clone and sanitize head HTML - ONLY remove previous data snapshot, NEVER the application bundle!
         const headClone = document.head.cloneNode(true) as HTMLHeadElement;
         headClone.querySelectorAll('script').forEach((sc) => {
-          if (sc.id === 'a-plus-snapshot-data') {
+          if (sc.id === 'a-is-impossible-snapshot-data' || sc.id === 'a-plus-snapshot-data') {
             sc.remove();
           }
         });
@@ -345,7 +348,11 @@ export async function exportSingleFileHtml(
         // Also preserve any compiled bundle scripts that might be located in body
         let extraBodyScripts = '';
         bodyScripts.forEach((sc) => {
-          if (sc.id !== 'a-plus-snapshot-data' && (sc.textContent?.length || 0) >= 10000) {
+          if (
+            sc.id !== 'a-is-impossible-snapshot-data' &&
+            sc.id !== 'a-plus-snapshot-data' &&
+            (sc.textContent?.length || 0) >= 10000
+          ) {
             extraBodyScripts += sc.outerHTML + '\n';
           }
         });
@@ -362,7 +369,7 @@ export async function exportSingleFileHtml(
         error: {
           reason: 'Could not retrieve the compiled single-file bundle containing the React application runtime.',
           suggestedFix:
-            'If you are in local development, run "npm run build" to generate the offline distribution in public/a-plus-is-impossible-singlefile.html, or use "Full System Backup (JSON)" to export your study data.',
+            'If you are in local development, run "npm run build" to generate the offline distribution in public/a-is-impossible-singlefile.html, or use "Full System Backup (JSON)" to export your study data.',
         },
       };
     }
@@ -375,17 +382,19 @@ export async function exportSingleFileHtml(
       const doc = parser.parseFromString(bundleTemplate, 'text/html');
 
       // Find existing snapshot script or create a new one
-      let dataScript = doc.getElementById('a-plus-snapshot-data');
+      let dataScript =
+        doc.getElementById('a-is-impossible-snapshot-data') || doc.getElementById('a-plus-snapshot-data');
       if (!dataScript) {
         dataScript = doc.createElement('script');
-        dataScript.id = 'a-plus-snapshot-data';
+        dataScript.id = 'a-is-impossible-snapshot-data';
         doc.head.insertBefore(dataScript, doc.head.firstChild);
       }
 
       dataScript.textContent =
         'window.process = window.process || { env: { NODE_ENV: "production" }, browser: true, platform: "browser" };\n' +
         'window.global = window.global || window;\n' +
-        'window.__A_PLUS_INITIAL_DATA__ = ' + dumpJson + ';';
+        'window.__A_IS_IMPOSSIBLE_INITIAL_DATA__ = ' + dumpJson + ';\n' +
+        'window.__A_PLUS_INITIAL_DATA__ = window.__A_IS_IMPOSSIBLE_INITIAL_DATA__;';
 
       // Remove crossorigin attributes from scripts and links that break on file:// or strict CDNs
       doc.querySelectorAll('script[crossorigin], link[crossorigin]').forEach((el) => {

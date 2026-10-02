@@ -1,5 +1,5 @@
 /**
- * Centralized Question Type Registry for "A+ is Impossible"
+ * Centralized Question Type Registry for "A is Impossible"
  * Standardized across Parser, Diagnostics, Question Review, Study Engine, and Analytics.
  */
 import { QuestionType } from '../types';
