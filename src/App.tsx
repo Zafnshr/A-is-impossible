@@ -50,8 +50,19 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [hasCompletedIntroAnimation, setHasCompletedIntroAnimation] = useState(false);
 
-  // Settings
-  const [settings, setSettings] = useState<UserSettings>(createDefaultSettings(WORKSPACE_ID));
+  // Settings initialized synchronously with saved theme to prevent initial dark/light flash
+  const [settings, setSettings] = useState<UserSettings>(() => {
+    const defaultSettings = createDefaultSettings(WORKSPACE_ID);
+    try {
+      const savedTheme = localStorage.getItem('a_plus_theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        defaultSettings.theme = savedTheme;
+      }
+    } catch {
+      // Ignore storage restrictions
+    }
+    return defaultSettings;
+  });
 
   // Content entities
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -1001,18 +1012,11 @@ export default function App() {
     return `${m.toString().padStart(2, '0')}:${rem.toString().padStart(2, '0')}`;
   }, [activeSession]);
 
-  // Launch loading screen
-  if (!isReady || !hasCompletedIntroAnimation) {
-    return (
-      <IconicLoadingScreen
-        theme={settings.theme || 'dark'}
-        onComplete={() => setHasCompletedIntroAnimation(true)}
-      />
-    );
-  }
-
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-canvas">
+    <>
+      {/* Main Workspace Layout (Mounted once isReady is true, pre-rendering behind intro overlay) */}
+      {isReady && (
+        <div className="h-screen w-screen flex flex-col overflow-hidden bg-canvas">
       {/* Top Navbar with Top-Bar Search (NOT sidebar) */}
       <Navbar
         settings={settings}
@@ -1336,6 +1340,17 @@ export default function App() {
         }}
         onOpenLibrary={() => setActiveTab('library')}
       />
-    </div>
+        </div>
+      )}
+
+      {/* Iconic Loading & Ready Entry Screen Overlay */}
+      {!hasCompletedIntroAnimation && (
+        <IconicLoadingScreen
+          theme={settings.theme || 'dark'}
+          isAppReady={isReady}
+          onComplete={() => setHasCompletedIntroAnimation(true)}
+        />
+      )}
+    </>
   );
 }

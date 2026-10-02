@@ -38,10 +38,14 @@
             document.documentElement.classList.add('theme-light');
             document.documentElement.classList.remove('theme-dark', 'dark');
             document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.style.backgroundColor = '#F8FAFC';
+            document.documentElement.style.colorScheme = 'light';
           } else {
             document.documentElement.classList.add('theme-dark', 'dark');
             document.documentElement.classList.remove('theme-light');
             document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.backgroundColor = '#05070E';
+            document.documentElement.style.colorScheme = 'dark';
           }
         } catch (e) {
           document.documentElement.classList.add('theme-dark', 'dark');
