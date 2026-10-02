@@ -251,7 +251,7 @@ export const BackupImportWorkflow: React.FC<BackupImportWorkflowProps> = ({
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <label
                 htmlFor="backup-file-input"
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-2"
               >
                 <FileJson className="w-4 h-4" />
                 <span>Choose Backup JSON</span>
@@ -502,7 +502,7 @@ export const BackupImportWorkflow: React.FC<BackupImportWorkflowProps> = ({
                 type="button"
                 onClick={executeRestore}
                 disabled={isRestoring}
-                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition active:scale-95 disabled:opacity-50"
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition active:scale-95 disabled:opacity-50"
               >
                 {isRestoring ? (
                   <>

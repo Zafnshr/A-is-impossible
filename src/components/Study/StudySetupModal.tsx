@@ -366,9 +366,9 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
             <button
               type="button"
               onClick={handleLaunch}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
-              <Play className="w-4 h-4 fill-slate-950" />
+              <Play className="w-4 h-4 fill-white text-white" />
               <span>Start Studying</span>
             </button>
           </Tooltip>

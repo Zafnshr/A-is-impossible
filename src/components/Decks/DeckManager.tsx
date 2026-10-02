@@ -236,7 +236,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                 <button
                   onClick={() => setMergeModalOpen(true)}
                   disabled={selectedDeckIds.length < 2}
-                  className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-bold transition flex items-center gap-1"
+                  className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-bold transition flex items-center gap-1"
                 >
                   <GitMerge className="w-3.5 h-3.5" />
                   <span>Merge</span>
@@ -257,7 +257,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
           <Tooltip content="Create a new lecture question deck">
             <button
               onClick={openCreateModal}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Create Deck</span>
@@ -434,9 +434,9 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
                                               <Tooltip content="Start interactive study session for this deck">
                                                 <button
                                                   onClick={() => onStartStudyDeck(deck.id)}
-                                                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold transition"
+                                                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold transition shadow-sm active:scale-95"
                                                 >
-                                                  <Play className="w-3 h-3 fill-slate-950" />
+                                                  <Play className="w-3 h-3 fill-white text-white" />
                                                   <span>Study</span>
                                                 </button>
                                               </Tooltip>
@@ -590,7 +590,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
               >
                 Create Deck
               </button>
@@ -675,7 +675,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
               >
                 Save Changes
               </button>
@@ -734,7 +734,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
               </button>
               <button
                 onClick={handleSaveMove}
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
               >
                 Move Deck
               </button>
@@ -775,7 +775,7 @@ export const DeckManager: React.FC<DeckManagerProps> = ({
               <button
                 onClick={handlePerformMerge}
                 disabled={!mergeTitle.trim()}
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-bold text-xs shadow-sm transition"
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-bold text-xs shadow-sm transition active:scale-95"
               >
                 Confirm Merge
               </button>

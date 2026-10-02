@@ -306,7 +306,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
           <Tooltip content="Add brand new question to this deck">
             <button
               onClick={handleAddNewQuestion}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Add Question</span>
@@ -319,24 +319,24 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
       <div className="flex lg:hidden grid-cols-3 gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs">
         <button
           onClick={() => setMobileTab('list')}
-          className={`flex-1 py-1.5 rounded-lg font-bold transition ${
-            mobileTab === 'list' ? 'bg-cyan-600 text-slate-950' : 'text-secondary'
+          className={`flex-1 py-1.5 rounded-lg font-bold transition shrink-0 ${
+            mobileTab === 'list' ? 'bg-cyan-600 text-white' : 'text-secondary'
           }`}
         >
           Questions ({deckQuestions.length})
         </button>
         <button
           onClick={() => setMobileTab('editor')}
-          className={`flex-1 py-1.5 rounded-lg font-bold transition ${
-            mobileTab === 'editor' ? 'bg-cyan-600 text-slate-950' : 'text-secondary'
+          className={`flex-1 py-1.5 rounded-lg font-bold transition shrink-0 ${
+            mobileTab === 'editor' ? 'bg-cyan-600 text-white' : 'text-secondary'
           }`}
         >
           Editor
         </button>
         <button
           onClick={() => setMobileTab('preview')}
-          className={`flex-1 py-1.5 rounded-lg font-bold transition ${
-            mobileTab === 'preview' ? 'bg-cyan-600 text-slate-950' : 'text-secondary'
+          className={`flex-1 py-1.5 rounded-lg font-bold transition shrink-0 ${
+            mobileTab === 'preview' ? 'bg-cyan-600 text-white' : 'text-secondary'
           }`}
         >
           Live Preview
@@ -490,7 +490,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   <button
                     type="button"
                     onClick={handleSaveDraft}
-                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
                   >
                     <Save className="w-3.5 h-3.5" />
                     <span>Save</span>
@@ -809,7 +809,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   if (trimmed && onRenameDeck) onRenameDeck(activeDeck.id, trimmed);
                   setIsRenamingDeck(false);
                 }}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Save New Name</span>

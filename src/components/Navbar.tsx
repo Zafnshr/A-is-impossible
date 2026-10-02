@@ -45,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 w-full h-15 border-b border-subtle bg-surface/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 transition-colors pt-[env(safe-area-inset-top,0px)]">
       {/* Brand & Academic Breadcrumb */}
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-        <BrandLogo size={32} variant="full" animated />
+        <BrandLogo size={32} variant="full" animated theme={settings.theme} />
       </div>
 
       {/* Center: Global Search Bar */}

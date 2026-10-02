@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *, .theme-dark, .theme-dark *));
+
 @layer base {
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -280,11 +282,18 @@
 }
 
 /* Typography Hierarchy in Light Mode */
-.theme-light .text-white {
+/* Typography Hierarchy in Light Mode: regular card text-white becomes dark */
+.theme-light .text-white:not([class*="bg-cyan"]):not([class*="bg-emerald"]):not([class*="bg-purple"]):not([class*="bg-rose"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-red"]):not(button):not(a) {
   color: #0f172a !important;
 }
 
-/* Ensure text on solid vibrant buttons remains crisp white */
+/* Ensure text and icons on solid vibrant buttons remain crisp white */
+.theme-light .bg-cyan-600,
+.theme-light .bg-cyan-500,
+.theme-light .bg-emerald-600,
+.theme-light .bg-emerald-500,
+.theme-light .bg-purple-600,
+.theme-light .bg-amber-600,
 .theme-light .bg-rose-600,
 .theme-light .bg-rose-500,
 .theme-light .bg-red-600,
@@ -292,16 +301,51 @@
 .theme-light .bg-blue-600,
 .theme-light .bg-blue-500,
 .theme-light .bg-indigo-600,
-.theme-light .bg-emerald-600,
-.theme-light .bg-rose-600.text-white,
-.theme-light .bg-rose-500.text-white,
-.theme-light .bg-red-600.text-white,
-.theme-light .bg-blue-600.text-white,
-.theme-light .bg-rose-600 .text-white,
-.theme-light .bg-rose-500 .text-white,
-.theme-light .bg-red-600 .text-white,
-.theme-light .bg-blue-600 .text-white {
+.theme-light [class*="bg-cyan-600"],
+.theme-light [class*="bg-cyan-500"],
+.theme-light [class*="bg-emerald-600"],
+.theme-light [class*="bg-emerald-500"],
+.theme-light [class*="bg-purple-600"],
+.theme-light [class*="bg-amber-600"],
+.theme-light [class*="bg-rose-600"],
+.theme-light [class*="bg-rose-500"],
+.theme-light [class*="bg-blue-600"] {
   color: #ffffff !important;
+}
+
+.theme-light [class*="bg-cyan-600"] *,
+.theme-light [class*="bg-cyan-500"] *,
+.theme-light [class*="bg-emerald-600"] *,
+.theme-light [class*="bg-emerald-500"] *,
+.theme-light [class*="bg-purple-600"] *,
+.theme-light [class*="bg-amber-600"] *,
+.theme-light [class*="bg-rose-600"] *,
+.theme-light [class*="bg-rose-500"] *,
+.theme-light [class*="bg-blue-600"] * {
+  color: #ffffff !important;
+}
+
+.theme-light [class*="bg-cyan-600"] svg,
+.theme-light [class*="bg-cyan-500"] svg,
+.theme-light [class*="bg-emerald-600"] svg,
+.theme-light [class*="bg-emerald-500"] svg,
+.theme-light [class*="bg-purple-600"] svg,
+.theme-light [class*="bg-amber-600"] svg,
+.theme-light [class*="bg-rose-600"] svg,
+.theme-light [class*="bg-rose-500"] svg,
+.theme-light [class*="bg-blue-600"] svg {
+  color: #ffffff !important;
+  stroke: currentColor;
+}
+
+.theme-light [class*="bg-cyan-600"] .fill-white,
+.theme-light [class*="bg-cyan-500"] .fill-white,
+.theme-light [class*="bg-emerald-600"] .fill-white,
+.theme-light [class*="bg-emerald-500"] .fill-white,
+.theme-light [class*="bg-purple-600"] .fill-white,
+.theme-light [class*="bg-rose-600"] .fill-white,
+.theme-light [class*="bg-blue-600"] .fill-white {
+  fill: #ffffff !important;
 }
 
 .theme-light .text-slate-100 {

@@ -249,57 +249,12 @@ export const IconicLoadingScreen: React.FC<IconicLoadingScreenProps> = ({
           </div>
 
           {/* Luxury Slashed 'A' Mark */}
-          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center filter drop-shadow-[0_10px_25px_rgba(239,68,68,0.35)]">
-            <svg
-              viewBox="0 0 100 100"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-full h-full transform transition-transform duration-700 hover:scale-105"
-            >
-              {/* Squircle Pod Backplate */}
-              <rect
-                x="4"
-                y="4"
-                width="92"
-                height="92"
-                rx="22"
-                fill={isDark ? '#090d16' : '#ffffff'}
-                fillOpacity="0.96"
-                stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
-                strokeWidth="1.5"
-              />
-
-              {/* Geometric Letter 'A' */}
-              <path
-                d="M 50 16 L 80 82 L 67 82 L 59 64 L 41 64 L 33 82 L 20 82 Z M 50 35 L 56.5 52 L 43.5 52 Z"
-                fillRule="evenodd"
-                fill={isDark ? '#ffffff' : '#090d16'}
-              />
-
-              {/* Negative Space Knockout Gap for Red Slash */}
-              <rect
-                x="10"
-                y="43.5"
-                width="80"
-                height="15"
-                rx="7.5"
-                transform="rotate(-42 50 50)"
-                fill={isDark ? '#090d16' : '#ffffff'}
-                stroke={isDark ? '#090d16' : '#ffffff'}
-                strokeWidth="2"
-              />
-
-              {/* Strong Red Diagonal Slash */}
-              <rect
-                x="12"
-                y="45.5"
-                width="76"
-                height="11"
-                rx="5.5"
-                transform="rotate(-42 50 50)"
-                fill="#ef4444"
-              />
-            </svg>
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center filter drop-shadow-[0_10px_25px_rgba(239,68,68,0.35)] rounded-2xl overflow-hidden border border-white/10 dark:border-white/10 shadow-lg">
+            <img
+              src={isDark ? '/brand/logo-dark.png' : '/brand/logo-light.png'}
+              alt="A is Impossible"
+              className="w-full h-full object-cover transform transition-transform duration-700 hover:scale-105"
+            />
           </div>
         </div>
 

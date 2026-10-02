@@ -66,7 +66,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
           <button
             type="button"
             onClick={onStartTour}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer shrink-0"
           >
             <Sparkles className="w-4 h-4" />
             <span>Interactive Onboarding Tour</span>
@@ -75,7 +75,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
       </div>
 
       {/* Categorized Navigation Tabs (No "All Guides" section) */}
-      <div className="flex items-center gap-1.5 p-1 bg-subtle rounded-2xl border border-subtle overflow-x-auto text-xs shrink-0">
+      <div className="flex items-center gap-1.5 p-1 bg-subtle rounded-2xl border border-subtle overflow-x-auto text-xs shrink-0 max-w-full">
         {categories.map((cat) => {
           const Icon = cat.icon;
           const isActive = activeCategory === cat.id;
@@ -84,14 +84,14 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
               key={cat.id}
               type="button"
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition whitespace-nowrap min-tap-target cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition whitespace-nowrap min-tap-target cursor-pointer shrink-0 ${
                 isActive
                   ? 'bg-surface text-primary shadow-sm border border-subtle'
                   : 'text-secondary hover:text-primary'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-500' : 'text-muted'}`} />
-              <span>{cat.label}</span>
+              <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-cyan-500' : 'text-muted'}`} />
+              <span className="whitespace-nowrap shrink-0">{cat.label}</span>
             </button>
           );
         })}
@@ -194,44 +194,44 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
                 Choice Selection & Navigation
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Move choice selection up / Select previous</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Move choice selection up / Select previous</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     ↑ Up Arrow
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Move choice selection down / Select next</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Move choice selection down / Select next</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     ↓ Down Arrow
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Previous question</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Previous question</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     ← Left Arrow
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Next question</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Next question</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     → Right Arrow
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Select option directly (1 to 9)</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Select option directly (1 to 9)</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     1 - 9
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Ordering: Reposition active item</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Ordering: Reposition active item</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     1 - 9
                   </kbd>
                 </div>
@@ -244,44 +244,44 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
                 Submitting, Retrying & Explanations
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Submit answer / Advance to next question</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Submit answer / Advance to next question</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     Enter ↵
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Retry submitted question</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Retry submitted question</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     R
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Reveal answer key & explanation</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Reveal answer key & explanation</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     Spacebar
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Instant submit on option</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Instant submit on option</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     Double-Click
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Flag question for review</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Flag question for review</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     M / G
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Toggle favorite (star)</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Toggle favorite (star)</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     F
                   </kbd>
                 </div>
@@ -294,16 +294,16 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
                 System & Editor
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Open Global Search & Command Palette</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Open Global Search & Command Palette</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     Ctrl + K / ⌘K
                   </kbd>
                 </div>
 
-                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between text-xs">
-                  <span className="text-secondary font-medium">Undo last change in Question Editor</span>
-                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px]">
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Undo last change in Question Editor</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     Ctrl + Z
                   </kbd>
                 </div>

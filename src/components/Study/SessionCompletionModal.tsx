@@ -104,7 +104,7 @@ export const SessionCompletionModal: React.FC<SessionCompletionModalProps> = ({
           <div className="grid grid-cols-2 gap-2 text-xs">
             <button
               onClick={onRetrySession}
-              className="py-2.5 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold flex items-center justify-center gap-1.5 transition"
+              className="py-2.5 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold flex items-center justify-center gap-1.5 shadow-md transition active:scale-95"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Retry Session</span>

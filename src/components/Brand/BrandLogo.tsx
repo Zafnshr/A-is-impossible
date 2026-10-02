@@ -15,7 +15,6 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   theme = 'auto',
   animated = false,
   className = '',
-  useImage = false,
 }) => {
   // Dimension resolver
   const getPixelSize = (): number => {
@@ -40,85 +39,47 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center gap-3 select-none ${className}`}
+      className={`inline-flex items-center gap-2.5 sm:gap-3 select-none ${className}`}
       style={{ height: variant === 'full' ? Math.max(px, 36) : px }}
     >
-      {/* Slashed "A" Mark Container */}
+      {/* Exact Generated Slashed "A" Mark */}
       <div
-        className="relative shrink-0 flex items-center justify-center"
+        className={`relative shrink-0 flex items-center justify-center rounded-xl overflow-hidden shadow-xs transition-transform duration-300 ${
+          animated ? 'hover:scale-105' : ''
+        }`}
         style={{ width: px, height: px }}
       >
-        {/* Soft Ambient Glow when animated */}
-        {animated && (
-          <div
-            className="absolute -inset-2 rounded-full blur-md opacity-40 animate-pulse pointer-events-none"
-            style={{
-              background:
-                'radial-gradient(circle, rgba(239,68,68,0.3) 0%, rgba(59,130,246,0.15) 70%, transparent 100%)',
-            }}
+        {theme === 'light' ? (
+          <img
+            src="/brand/logo-light.png"
+            alt="A is Impossible"
+            className="w-full h-full object-cover rounded-xl border border-slate-200/90 shadow-xs"
+            loading="eager"
           />
-        )}
-
-        {useImage ? (
-          <picture className="w-full h-full flex items-center justify-center">
+        ) : theme === 'dark' ? (
+          <img
+            src="/brand/logo-dark.png"
+            alt="A is Impossible"
+            className="w-full h-full object-cover rounded-xl border border-white/10 shadow-xs"
+            loading="eager"
+          />
+        ) : (
+          <>
+            {/* Dark Mode Version (shown when .dark or .theme-dark is present) */}
             <img
-              src="/brand/logo.png"
+              src="/brand/logo-dark.png"
               alt="A is Impossible"
-              className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(239,68,68,0.25)]"
+              className="w-full h-full object-cover rounded-xl border border-white/10 shadow-xs hidden dark:block"
               loading="eager"
             />
-          </picture>
-        ) : (
-          <svg
-            viewBox="0 0 100 100"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={`w-full h-full transition-transform duration-300 ${
-              animated ? 'hover:scale-105' : ''
-            }`}
-          >
-            {/* Background Container: Responsive Squircle */}
-            <rect
-              x="4"
-              y="4"
-              width="92"
-              height="92"
-              rx="22"
-              className="fill-slate-100 dark:fill-[#090d16] stroke-slate-200/80 dark:stroke-white/10 transition-colors"
-              strokeWidth="1.5"
+            {/* Light Mode Version (shown in light mode) */}
+            <img
+              src="/brand/logo-light.png"
+              alt="A is Impossible"
+              className="w-full h-full object-cover rounded-xl border border-slate-200/90 shadow-xs block dark:hidden"
+              loading="eager"
             />
-
-            {/* Geometric Letter 'A' */}
-            <path
-              d="M 50 16 L 80 82 L 67 82 L 59 64 L 41 64 L 33 82 L 20 82 Z M 50 35 L 56.5 52 L 43.5 52 Z"
-              fillRule="evenodd"
-              className="fill-slate-900 dark:fill-white transition-colors"
-            />
-
-            {/* Negative Space Knockout Gap for Red Slash */}
-            <rect
-              x="10"
-              y="43.5"
-              width="80"
-              height="15"
-              rx="7.5"
-              transform="rotate(-42 50 50)"
-              className="fill-slate-100 dark:fill-[#090d16] stroke-slate-100 dark:stroke-[#090d16] transition-colors"
-              strokeWidth="2"
-            />
-
-            {/* Strong Red Diagonal Slash */}
-            <rect
-              x="12"
-              y="45.5"
-              width="76"
-              height="11"
-              rx="5.5"
-              transform="rotate(-42 50 50)"
-              fill="#ef4444"
-              className="filter drop-shadow-[0_2px_6px_rgba(239,68,68,0.45)]"
-            />
-          </svg>
+          </>
         )}
       </div>
 

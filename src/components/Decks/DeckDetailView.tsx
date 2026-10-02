@@ -144,7 +144,7 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveRename}
-                  className="p-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold transition shadow-sm active:scale-95"
+                  className="p-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold transition shadow-sm active:scale-95"
                   title="Save name"
                 >
                   <Check className="w-4 h-4" />
@@ -188,9 +188,9 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
                 <Tooltip content="Resume unfinished study session right where you left off">
                   <button
                     onClick={onResumeSession}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
                   >
-                    <Play className="w-4 h-4 fill-slate-950" />
+                    <Play className="w-4 h-4 fill-white text-white" />
                     <span>Resume Session</span>
                   </button>
                 </Tooltip>
@@ -226,9 +226,9 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
                 <button
                   onClick={() => onStartSession(deck.id)}
                   disabled={deckQuestions.length === 0}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-bold text-xs shadow-md transition active:scale-95"
                 >
-                  <Play className="w-4 h-4 fill-slate-950" />
+                  <Play className="w-4 h-4 fill-white text-white" />
                   <span>Start New Session</span>
                 </button>
               </Tooltip>
@@ -555,9 +555,9 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
                   setRestartConfirmOpen(false);
                   onRestartSession(deck.id);
                 }}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
               >
-                <RotateCcw className="w-3.5 h-3.5 fill-slate-950" />
+                <RotateCcw className="w-3.5 h-3.5 text-white" />
                 <span>Start Fresh</span>
               </button>
             </div>

@@ -740,7 +740,7 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
                 setActiveFilter('all');
                 setSearchQuery('');
               }}
-              className="mt-2 px-3 py-1.5 rounded-xl bg-cyan-600 text-slate-950 font-bold text-xs hover:bg-cyan-500 transition"
+              className="mt-2 px-3 py-1.5 rounded-xl bg-cyan-600 text-white font-bold text-xs hover:bg-cyan-500 shadow-sm transition active:scale-95"
             >
               Show All Questions
             </button>

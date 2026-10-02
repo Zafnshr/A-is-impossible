@@ -245,6 +245,13 @@ export default function App() {
   }, []);
 
   const handleUpdateSettings = async (newSettings: Partial<UserSettings>) => {
+    if (newSettings.theme) {
+      try {
+        localStorage.setItem('a_plus_theme', newSettings.theme);
+      } catch (e) {
+        /* ignore localStorage quota/disabled */
+      }
+    }
     const updated = {
       ...settings,
       ...newSettings,
@@ -1141,7 +1148,7 @@ export default function App() {
                     </p>
                     <button
                       onClick={() => setActiveTab('library')}
-                      className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs"
+                      className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
                     >
                       Open Library Explorer
                     </button>

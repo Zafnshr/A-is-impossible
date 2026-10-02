@@ -119,7 +119,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
         <Tooltip content="Create or import a lecture deck at this current academic location">
           <button
             onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span>New Lecture Deck</span>
@@ -206,7 +206,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                                     onClick={() => setSelectedSubject(subj)}
                                     className={`w-full px-2 py-1 rounded text-left text-[11px] truncate transition ${
                                       selectedSubject === subj && selectedModule === mod
-                                        ? 'bg-cyan-600 text-slate-950 font-bold'
+                                        ? 'bg-cyan-600 text-white font-bold'
                                         : 'text-secondary hover:text-primary hover:bg-subtle'
                                     }`}
                                   >
@@ -260,7 +260,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
               </p>
               <button
                 onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition active:scale-95"
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
               >
                 Create Lecture Deck Here
               </button>
@@ -319,9 +319,9 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                     <button
                       type="button"
                       onClick={() => onStartStudyDeck(deck.id)}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition active:scale-95"
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
                     >
-                      <Play className="w-3.5 h-3.5 fill-slate-950" />
+                      <Play className="w-3.5 h-3.5 fill-white text-white" />
                       <span>Study Deck</span>
                     </button>
                   </div>
@@ -376,7 +376,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                   if (trimmed) onRenameDeck(renamingDeck.id, trimmed);
                   setRenamingDeck(null);
                 }}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Save New Name</span>

@@ -134,7 +134,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
             )}
             <button
               onClick={handleNext}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md shadow-cyan-950/20 transition active:scale-95"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               <span>{currentStep === steps.length - 1 ? 'Start Studying' : 'Next'}</span>
               <ArrowRight className="w-4 h-4" />

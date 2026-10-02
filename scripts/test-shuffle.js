@@ -104,6 +104,43 @@ console.log('--- Running Shuffle Engine Tests ---');
   console.log('[PASS] Case study sub-question answer shuffling preserves correct answers 100%');
 }
 
+// 4b. Test shuffleQuestionAnswers (Matching Questions)
+{
+  const matchingQ = {
+    id: 'qm1',
+    deckId: 'd1',
+    type: 'matching',
+    question: 'Match the cellular structures with their functions:',
+    options: [],
+    correctAnswers: [],
+    matchingPairs: [
+      { id: 'p1', left: 'Mitochondria', right: 'ATP synthesis' },
+      { id: 'p2', left: 'Ribosome', right: 'Protein synthesis' },
+      { id: 'p3', left: 'Lysosome', right: 'Waste degradation' },
+      { id: 'p4', left: 'Golgi Apparatus', right: 'Protein packaging' },
+    ],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  let shuffledCount = 0;
+  for (let i = 0; i < 20; i++) {
+    const shuffled = shuffleQuestionAnswers(matchingQ);
+    const origOrder = matchingQ.matchingPairs.map((p) => p.id);
+    const newOrder = shuffled.matchingPairs.map((p) => p.id);
+    console.assert(newOrder.length === 4, 'Must retain all 4 pairs');
+    shuffled.matchingPairs.forEach((p) => {
+      const orig = matchingQ.matchingPairs.find((op) => op.id === p.id);
+      console.assert(orig && orig.right === p.right, 'Pairing must remain correct');
+    });
+    if (JSON.stringify(origOrder) !== JSON.stringify(newOrder)) {
+      shuffledCount++;
+    }
+  }
+  console.assert(shuffledCount > 0, 'Matching pairs order must shuffle across iterations');
+  console.log('[PASS] Matching pairs order shuffled while strictly preserving key pairs 100%');
+}
+
 // 5. Test generateStudyQuestions: Sequential vs Shuffled vs Custom
 {
   const decksMap = {

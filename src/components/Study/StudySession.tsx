@@ -36,8 +36,9 @@ import {
 } from '../../types';
 import { dbService } from '../../services/db';
 import { Tooltip } from '../Tooltip';
-import { OrderDebugModal } from './OrderDebugModal';
 import { QuestionMapPanel, evaluateQuestionCorrectness } from './QuestionMapPanel';
+import { guaranteedShuffle } from '../../services/sessionGenerator';
+import { OrderDebugModal } from './OrderDebugModal';
 
 interface StudySessionProps {
   session: StudySessionState;
@@ -117,6 +118,14 @@ export const StudySession: React.FC<StudySessionProps> = ({
   // Solved vs Remaining calculation
   const solvedCount = Object.keys(session.submittedQuestions).length;
   const remainingCount = questions.length - solvedCount;
+
+  // Memoized randomized target choices for matching questions (guaranteed non-1:1 order)
+  const matchingTargetChoices = React.useMemo(() => {
+    if (currentQuestion?.type !== 'matching' || !currentQuestion.matchingPairs) return [];
+    const targets = Array.from(new Set(currentQuestion.matchingPairs.map((p) => p.right)));
+    if (targets.length <= 1) return targets;
+    return guaranteedShuffle(targets);
+  }, [currentQuestion?.id, currentQuestion?.matchingPairs]);
 
   // Load question user status
   useEffect(() => {
@@ -346,7 +355,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
           <p className="text-secondary text-sm">No question loaded.</p>
           <button
             onClick={onDiscardSession}
-            className="px-4 py-2 rounded-xl bg-cyan-600 text-slate-950 font-bold text-xs"
+            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
           >
             Return to Library
           </button>
@@ -920,7 +929,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
           <div className="flex justify-end">
             <button
               onClick={handleSaveNote}
-              className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition"
+              className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
             >
               Save Note
             </button>
@@ -1112,9 +1121,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
                     className="p-2 bg-surface border border-subtle rounded-lg text-primary text-xs"
                   >
                     <option value="">Select matching target...</option>
-                    {currentQuestion.matchingPairs?.map((p) => (
-                      <option key={p.id} value={p.right}>
-                        {p.right}
+                    {matchingTargetChoices.map((target, tIdx) => (
+                      <option key={tIdx} value={target}>
+                        {target}
                       </option>
                     ))}
                   </select>
@@ -1151,7 +1160,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                             <span
                               className={`w-5 h-5 rounded font-mono font-bold flex items-center justify-center text-[10px] ${
                                 isPosCorrect
-                                  ? 'bg-emerald-500 text-slate-950'
+                                  ? 'bg-emerald-500 text-white font-bold'
                                   : 'bg-rose-500 text-white'
                               }`}
                             >
@@ -1219,7 +1228,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                         <span
                           className={`w-5 h-5 rounded font-mono font-bold flex items-center justify-center text-[10px] ${
                             isSelectedPos
-                              ? 'bg-cyan-500 text-slate-950'
+                              ? 'bg-cyan-500 text-white font-bold'
                               : 'bg-surface border border-subtle text-cyan-600 dark:text-cyan-400'
                           }`}
                         >
@@ -1371,7 +1380,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                   Correct Answer:
                 </div>
                 <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                  <span className="w-6 h-6 rounded-md bg-emerald-500 text-slate-950 font-mono flex items-center justify-center text-xs shrink-0 font-bold">
+                  <span className="w-6 h-6 rounded-md bg-emerald-500 text-white font-mono flex items-center justify-center text-xs shrink-0 font-bold">
                     {String.fromCharCode(65 + (currentQuestion.correctAnswers[0] ?? 0))}
                   </span>
                   <span>
@@ -1410,7 +1419,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                   Correct Answer:
                 </div>
                 <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                  <span className="w-6 h-6 rounded-md bg-emerald-500 text-slate-950 font-mono flex items-center justify-center text-xs shrink-0 font-bold">
+                  <span className="w-6 h-6 rounded-md bg-emerald-500 text-white font-mono flex items-center justify-center text-xs shrink-0 font-bold">
                     {currentQuestion.correctAnswers.includes(0) ? 'T' : 'F'}
                   </span>
                   <span>
@@ -1570,7 +1579,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 <button
                   type="button"
                   onClick={handleSubmitCurrent}
-                  className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
+                  className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Submit</span>
@@ -1589,7 +1598,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
+                  className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
                   <span>{currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}</span>
                   <ChevronRight className="w-4 h-4" />
@@ -1685,7 +1694,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                   setEndSessionModalOpen(false);
                   onEndEarlySaveAndExit();
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-left transition"
+                className="w-full py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-left transition shadow-sm active:scale-95"
               >
                 1. Save Progress & Resume Later
               </button>

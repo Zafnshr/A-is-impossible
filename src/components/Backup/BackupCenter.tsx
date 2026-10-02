@@ -176,7 +176,7 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                   type="button"
                   onClick={() => handleExportSingleFile('index.html')}
                   disabled={Boolean(isExportingHtml)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
                 >
                   {isExportingHtml === 'index.html' ? (
                     <>
@@ -320,7 +320,7 @@ export const BackupCenter: React.FC<BackupCenterProps> = ({
                     const target = decks.find((d) => d.id === selectedDeckForExport);
                     if (target) exportDeckBackup(target.id);
                   }}
-                  className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 rounded-xl text-xs font-bold transition shrink-0 active:scale-95 shadow-sm cursor-pointer"
+                  className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition shrink-0 active:scale-95 shadow-sm cursor-pointer"
                 >
                   Export Deck
                 </button>

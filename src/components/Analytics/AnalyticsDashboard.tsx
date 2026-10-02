@@ -595,9 +595,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <div className="flex items-center gap-1 bg-subtle p-1 rounded-xl border border-subtle text-xs overflow-x-auto">
             <button
               onClick={() => setChartTab('score')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 chartTab === 'score'
-                  ? 'bg-cyan-600 text-slate-950 shadow-sm'
+                  ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-secondary hover:text-primary'
               }`}
             >
@@ -605,9 +605,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             </button>
             <button
               onClick={() => setChartTab('accuracy')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 chartTab === 'accuracy'
-                  ? 'bg-emerald-600 text-slate-950 shadow-sm'
+                  ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-secondary hover:text-primary'
               }`}
             >
@@ -615,9 +615,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             </button>
             <button
               onClick={() => setChartTab('questions')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 chartTab === 'questions'
-                  ? 'bg-purple-600 text-slate-950 shadow-sm'
+                  ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-secondary hover:text-primary'
               }`}
             >
@@ -625,9 +625,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             </button>
             <button
               onClick={() => setChartTab('time')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg font-bold transition whitespace-nowrap shrink-0 ${
                 chartTab === 'time'
-                  ? 'bg-amber-600 text-slate-950 shadow-sm'
+                  ? 'bg-amber-600 text-white shadow-sm'
                   : 'text-secondary hover:text-primary'
               }`}
             >
@@ -967,7 +967,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 onClick={() => setBreakdownView(view)}
                 className={`px-3 py-1 rounded-lg font-bold capitalize transition ${
                   breakdownView === view
-                    ? 'bg-cyan-600 text-slate-950 font-bold shadow-sm'
+                    ? 'bg-cyan-600 text-white font-bold shadow-sm'
                     : 'text-secondary hover:text-primary'
                 }`}
               >
@@ -1156,7 +1156,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <div className="flex justify-end pt-2 border-t border-subtle">
               <button
                 onClick={() => setShowTelemetryModal(false)}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 text-xs font-bold transition"
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition shadow-sm active:scale-95"
               >
                 Close Inspector
               </button>

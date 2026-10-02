@@ -651,9 +651,9 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             <span
               className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-colors ${
                 currentStep === s.step
-                  ? 'bg-cyan-500 text-slate-950 ring-2 ring-cyan-400'
+                  ? 'bg-cyan-500 text-white font-bold ring-2 ring-cyan-400'
                   : currentStep > s.step
-                  ? 'bg-emerald-500 text-slate-950'
+                  ? 'bg-emerald-500 text-white font-bold'
                   : 'bg-subtle text-muted border border-subtle'
               }`}
             >
@@ -747,7 +747,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             </button>
             <button
               onClick={() => setCurrentStep(2)}
-              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               <span>Next: Import Source</span>
               <ArrowRight className="w-4 h-4" />
@@ -886,7 +886,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 (inputMode === 'upload' && !selectedFile) ||
                 (inputMode === 'paste' && !pastedText.trim())
               }
-              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               <span>{isParsing ? 'Analyzing questions...' : 'Next: Diagnostics'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -1028,7 +1028,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             </button>
             <button
               onClick={() => setCurrentStep(4)}
-              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               <span>Next: Question Review ({previewResult.detectedQuestionCount})</span>
               <ArrowRight className="w-4 h-4" />
@@ -1329,7 +1329,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                                           }
                                           className={`w-5 h-5 rounded text-[10px] font-bold font-mono shrink-0 transition ${
                                             isCorrect
-                                              ? 'bg-emerald-500 text-slate-950 font-black'
+                                              ? 'bg-emerald-500 text-white font-black'
                                               : 'bg-subtle text-muted hover:text-primary'
                                           }`}
                                         >
@@ -1602,7 +1602,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                                     onClick={() => handleToggleCorrectAnswer(item.id, optIdx)}
                                     className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold font-mono shrink-0 transition ${
                                       isCorrect
-                                        ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-500/30'
+                                        ? 'bg-emerald-500 text-white font-bold ring-2 ring-emerald-500/30'
                                         : 'bg-subtle text-muted hover:text-primary hover:bg-slate-300 dark:hover:bg-slate-700'
                                     }`}
                                   >
@@ -1673,7 +1673,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             <button
               onClick={handleProceedToImport}
               disabled={reviewQuestions.length === 0}
-              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Confirm & Import ({reviewQuestions.length} Questions)</span>
@@ -1725,7 +1725,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
           <div className="pt-3">
             <button
               onClick={onCancel}
-              className="px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
               Open in Library Explorer
             </button>

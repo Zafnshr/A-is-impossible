@@ -105,6 +105,22 @@ export function shuffleQuestionAnswers(question: Question): Question {
     };
   }
 
+  // 3. Matching Questions (Shuffle prompt pairs)
+  if (
+    question.type === 'matching' &&
+    Array.isArray(question.matchingPairs) &&
+    question.matchingPairs.length > 1
+  ) {
+    const shuffledPairs = guaranteedShuffle(
+      question.matchingPairs,
+      (a, b) => a.id === b.id
+    );
+    return {
+      ...question,
+      matchingPairs: shuffledPairs,
+    };
+  }
+
   return question;
 }
 

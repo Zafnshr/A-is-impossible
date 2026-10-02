@@ -151,9 +151,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Tooltip content="Resume active study session right where you left off">
                   <button
                     onClick={onResumeSession}
-                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
                   >
-                    <Play className="w-4 h-4 fill-slate-950" />
+                    <Play className="w-4 h-4 fill-white text-white" />
                     <span>Resume Session</span>
                   </button>
                 </Tooltip>
@@ -213,9 +213,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
               <button
                 onClick={() => onStartDeck(recentDecks[0].id)}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
               >
-                <Play className="w-3.5 h-3.5 fill-slate-950" />
+                <Play className="w-3.5 h-3.5 fill-white text-white" />
                 <span>Start Session</span>
               </button>
             </div>
@@ -231,7 +231,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </p>
             <button
               onClick={onCreateDeckPrompt}
-              className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition"
+              className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition active:scale-95"
             >
               Import or Create First Deck
             </button>
@@ -364,7 +364,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Total Decks */}
-          <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
+          <div className="col-span-2 sm:col-span-1 p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
             <div className="flex items-center justify-between text-xs text-secondary">
               <span>Total Decks</span>
               <FolderTree className="w-4 h-4 text-muted" />
@@ -435,7 +435,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Simple 30-day mini consistency dots */}
-          <div className="grid grid-cols-15 sm:grid-cols-30 gap-1.5 pt-1">
+          <div className="grid grid-cols-[repeat(15,minmax(0,1fr))] sm:grid-cols-[repeat(30,minmax(0,1fr))] gap-1.5 pt-1">
             {Array.from({ length: 30 }).map((_, idx) => {
               const dayDate = new Date(Date.now() - (29 - idx) * 86400000)
                 .toISOString()

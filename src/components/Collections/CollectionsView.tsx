@@ -361,9 +361,9 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                   filteredList.map((q) => q.id)
                 )
               }
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 shrink-0"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 shrink-0"
             >
-              <Play className="w-4 h-4 fill-slate-950" />
+              <Play className="w-4 h-4 fill-white text-white" />
               <span>
                 {hasActiveFilters
                   ? `Practice Filtered Questions (${filteredList.length})`
@@ -375,21 +375,21 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
       </div>
 
       {/* Segmented Collection Switcher */}
-      <div className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-subtle border border-subtle">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-subtle border border-subtle">
         <button
           onClick={() => {
             setActiveTab('favorites');
             handleClearFilters();
           }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-1.5 sm:px-3 rounded-xl text-xs font-bold transition min-w-0 ${
             activeTab === 'favorites'
               ? 'bg-surface text-primary shadow-sm ring-1 ring-cyan-500/20'
               : 'text-secondary hover:text-primary'
           }`}
         >
-          <Star className="w-4 h-4 text-amber-500 fill-amber-500/20" />
-          <span>Favorites</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-subtle text-primary border border-subtle">
+          <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+          <span className="truncate">Favorites</span>
+          <span className="text-[10px] font-mono px-1 sm:px-1.5 py-0.5 rounded bg-subtle text-primary border border-subtle shrink-0">
             {favoritesCount}
           </span>
         </button>
@@ -399,15 +399,15 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
             setActiveTab('flagged');
             handleClearFilters();
           }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-1.5 sm:px-3 rounded-xl text-xs font-bold transition min-w-0 ${
             activeTab === 'flagged'
               ? 'bg-surface text-primary shadow-sm ring-1 ring-cyan-500/20'
               : 'text-secondary hover:text-primary'
           }`}
         >
-          <Flag className="w-4 h-4 text-amber-500 fill-amber-500/20" />
-          <span>Flagged</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-subtle text-primary border border-subtle">
+          <Flag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+          <span className="truncate">Flagged</span>
+          <span className="text-[10px] font-mono px-1 sm:px-1.5 py-0.5 rounded bg-subtle text-primary border border-subtle shrink-0">
             {flaggedCount}
           </span>
         </button>
@@ -417,15 +417,15 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
             setActiveTab('incorrect');
             handleClearFilters();
           }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-1.5 sm:px-3 rounded-xl text-xs font-bold transition min-w-0 ${
             activeTab === 'incorrect'
               ? 'bg-surface text-primary shadow-sm ring-1 ring-cyan-500/20'
               : 'text-secondary hover:text-primary'
           }`}
         >
-          <XCircle className="w-4 h-4 text-rose-500" />
-          <span>Incorrect</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-subtle text-primary border border-subtle">
+          <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-500 shrink-0" />
+          <span className="truncate">Incorrect</span>
+          <span className="text-[10px] font-mono px-1 sm:px-1.5 py-0.5 rounded bg-subtle text-primary border border-subtle shrink-0">
             {incorrectCount}
           </span>
         </button>
@@ -711,7 +711,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
               </div>
               <button
                 onClick={handleClearFilters}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow transition active:scale-95"
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
               >
                 Clear Filters
               </button>
@@ -792,9 +792,9 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                     <Tooltip content="Launch a focused study session with ONLY this question">
                       <button
                         onClick={() => handlePracticeSingleQuestion(q.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow transition active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow transition active:scale-95"
                       >
-                        <Play className="w-3.5 h-3.5 fill-slate-950" />
+                        <Play className="w-3.5 h-3.5 fill-white text-white" />
                         <span>Practice Question</span>
                       </button>
                     </Tooltip>

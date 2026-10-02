@@ -193,7 +193,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onClick={() => onUpdateSettings({ fontSize: scale.id as any })}
                     className={`p-2.5 rounded-xl border text-center font-semibold transition ${
                       safeSettings.fontSize === scale.id
-                        ? 'bg-cyan-600 text-slate-950 font-bold border-cyan-500'
+                        ? 'bg-cyan-600 text-white font-bold border-cyan-500'
                         : 'bg-subtle border-subtle text-secondary hover:text-primary'
                     }`}
                   >
@@ -219,7 +219,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onClick={() => onUpdateSettings({ questionFontSize: qScale.id as any })}
                     className={`p-2.5 rounded-xl border text-center font-semibold transition ${
                       safeSettings.questionFontSize === qScale.id
-                        ? 'bg-cyan-600 text-slate-950 font-bold border-cyan-500'
+                        ? 'bg-cyan-600 text-white font-bold border-cyan-500'
                         : 'bg-subtle border-subtle text-secondary hover:text-primary'
                     }`}
                   >

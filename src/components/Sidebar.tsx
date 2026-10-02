@@ -266,7 +266,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       type="button"
                       onClick={() => onTabChange('study')}
-                      className={`w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs rounded-lg transition active:scale-95 shadow-sm flex items-center justify-center ${
+                      className={`w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-lg transition active:scale-95 shadow-sm flex items-center justify-center ${
                         isCollapsed ? 'px-1 text-[10px]' : 'px-2'
                       }`}
                     >

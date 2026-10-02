@@ -193,7 +193,7 @@ export const TrashCenter: React.FC<TrashCenterProps> = ({
           <button
             type="button"
             onClick={onOpenLibrary}
-            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition active:scale-95"
+            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
           >
             Explore Library Decks
           </button>
@@ -270,7 +270,7 @@ export const TrashCenter: React.FC<TrashCenterProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRestore(item)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-sm transition active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Restore</span>

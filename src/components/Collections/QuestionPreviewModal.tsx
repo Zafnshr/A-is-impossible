@@ -127,7 +127,7 @@ export const QuestionPreviewModal: React.FC<QuestionPreviewModalProps> = ({
                         <span
                           className={`w-6 h-6 rounded-lg font-mono text-[11px] font-bold flex items-center justify-center shrink-0 ${
                             isCorrect
-                              ? 'bg-emerald-500 text-slate-950'
+                              ? 'bg-emerald-500 text-white font-bold'
                               : 'bg-surface border border-subtle text-muted'
                           }`}
                         >
@@ -295,9 +295,9 @@ export const QuestionPreviewModal: React.FC<QuestionPreviewModalProps> = ({
                 onPracticeQuestion(question.id);
                 onClose();
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
             >
-              <Play className="w-3.5 h-3.5 fill-slate-950" />
+              <Play className="w-3.5 h-3.5 fill-white text-white" />
               <span>Practice Question</span>
             </button>
           </div>

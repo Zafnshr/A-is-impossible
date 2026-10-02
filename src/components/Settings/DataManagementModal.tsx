@@ -241,7 +241,7 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
                   type="button"
                   onClick={handleExportAndContinue}
                   disabled={isExporting}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition shadow-md active:scale-95 disabled:opacity-50"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-md active:scale-95 disabled:opacity-50"
                 >
                   {isExporting ? (
                     <>
