@@ -523,24 +523,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300 max-w-md shadow-2xl">
           <div
-            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs font-semibold backdrop-blur-md ${
+            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs font-semibold backdrop-blur-md shadow-dropdown ${
               toast.type === 'error'
-                ? 'bg-rose-950/90 border-rose-500/40 text-rose-200'
-                : 'bg-slate-900/90 border-emerald-500/40 text-emerald-300'
+                ? 'bg-rose-50 dark:bg-rose-950/90 border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-200'
+                : 'bg-emerald-50 dark:bg-slate-900/90 border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300'
             }`}
           >
             <div className="flex items-center gap-2.5">
               {toast.type === 'error' ? (
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
               ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               )}
               <span className="leading-snug">{toast.message}</span>
             </div>
             <button
               type="button"
               onClick={() => setToast(null)}
-              className="p-1 rounded-lg hover:bg-white/10 text-muted hover:text-white transition"
+              className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted hover:text-primary transition"
               aria-label="Dismiss toast"
             >
               <X className="w-3.5 h-3.5" />

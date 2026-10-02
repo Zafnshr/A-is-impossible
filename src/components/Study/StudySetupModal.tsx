@@ -29,6 +29,10 @@ interface StudySetupModalProps {
     countdownMinutes: number;
   }) => void;
   initialDeckId?: string;
+  defaultShuffleOptions?: {
+    shuffleQuestions: boolean;
+    shuffleAnswers: boolean;
+  };
 }
 
 export const StudySetupModal: React.FC<StudySetupModalProps> = ({
@@ -37,6 +41,7 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
   onClose,
   onStartSession,
   initialDeckId,
+  defaultShuffleOptions,
 }) => {
   if (!isOpen) return null;
 
@@ -54,10 +59,30 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
   const [selectedSubject, setSelectedSubject] = useState<string>(decks[0]?.subject || 'Physiology');
 
   // Order Modes
-  const [orderMode, setOrderMode] = useState<'sequential' | 'shuffled' | 'custom'>('sequential');
-  const [shuffleQuestions, setShuffleQuestions] = useState(false);
-  const [shuffleAnswers, setShuffleAnswers] = useState(false);
+  const [orderMode, setOrderMode] = useState<'sequential' | 'shuffled' | 'custom'>(() => {
+    if (defaultShuffleOptions?.shuffleQuestions) return 'shuffled';
+    return 'sequential';
+  });
+  const [shuffleQuestions, setShuffleQuestions] = useState(
+    defaultShuffleOptions?.shuffleQuestions ?? false
+  );
+  const [shuffleAnswers, setShuffleAnswers] = useState(
+    defaultShuffleOptions?.shuffleAnswers ?? false
+  );
   const [shuffleLectures, setShuffleLectures] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (defaultShuffleOptions?.shuffleQuestions) {
+        setOrderMode('shuffled');
+      } else {
+        setOrderMode('sequential');
+      }
+      setShuffleQuestions(defaultShuffleOptions?.shuffleQuestions ?? false);
+      setShuffleAnswers(defaultShuffleOptions?.shuffleAnswers ?? false);
+      setShuffleLectures(false);
+    }
+  }, [isOpen, defaultShuffleOptions]);
 
   // Filter distinct values
   const distinctYears = Array.from(new Set(decks.map((d) => d.year)));

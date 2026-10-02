@@ -100,6 +100,7 @@ export interface StudySessionState {
     shuffleLectures: boolean;
   };
   questionIds: string[];
+  sessionQuestions?: Question[];
   currentIndex: number;
   userAnswers: Record<string, any>; // questionId -> answer
   submittedQuestions: Record<string, boolean>; // questionId -> boolean

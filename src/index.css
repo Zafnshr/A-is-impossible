@@ -230,16 +230,7 @@
 
 .theme-light .bg-slate-950,
 .theme-light .bg-slate-950\/95,
-.theme-light .bg-slate-950\/90,
-.theme-light .bg-slate-950\/85,
-.theme-light .bg-slate-950\/80,
-.theme-light .bg-slate-950\/75,
-.theme-light .bg-slate-950\/70,
-.theme-light .bg-slate-950\/60,
-.theme-light .bg-slate-950\/50,
-.theme-light .bg-slate-950\/40,
-.theme-light .bg-slate-950\/30,
-.theme-light .bg-slate-950\/20 {
+.theme-light .bg-slate-950\/90 {
   background-color: #f8fafc !important;
 }
 
@@ -291,6 +282,26 @@
 /* Typography Hierarchy in Light Mode */
 .theme-light .text-white {
   color: #0f172a !important;
+}
+
+/* Ensure text on solid vibrant buttons remains crisp white */
+.theme-light .bg-rose-600,
+.theme-light .bg-rose-500,
+.theme-light .bg-red-600,
+.theme-light .bg-red-500,
+.theme-light .bg-blue-600,
+.theme-light .bg-blue-500,
+.theme-light .bg-indigo-600,
+.theme-light .bg-emerald-600,
+.theme-light .bg-rose-600.text-white,
+.theme-light .bg-rose-500.text-white,
+.theme-light .bg-red-600.text-white,
+.theme-light .bg-blue-600.text-white,
+.theme-light .bg-rose-600 .text-white,
+.theme-light .bg-rose-500 .text-white,
+.theme-light .bg-red-600 .text-white,
+.theme-light .bg-blue-600 .text-white {
+  color: #ffffff !important;
 }
 
 .theme-light .text-slate-100 {

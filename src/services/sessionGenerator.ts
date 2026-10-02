@@ -16,9 +16,9 @@ export interface SessionGeneratorResult {
 }
 
 /**
- * Fisher-Yates array shuffle algorithm (unbiased)
+ * Unbiased Fisher-Yates array shuffle algorithm
  */
-function fisherYatesShuffle<T>(array: T[]): T[] {
+export function fisherYatesShuffle<T>(array: T[]): T[] {
   const arr = [...array];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -30,25 +30,82 @@ function fisherYatesShuffle<T>(array: T[]): T[] {
 }
 
 /**
- * Shuffles MCQ answer options and updates correctAnswers indices accurately
+ * Guaranteed shuffle that strictly ensures the permutation changes order
+ * whenever the array has 2 or more elements.
  */
-function shuffleQuestionAnswers(question: Question): Question {
-  if (question.type !== 'single_mcq' && question.type !== 'multiple_mcq') {
-    return question;
+export function guaranteedShuffle<T>(
+  array: T[],
+  equalityCheck: (a: T, b: T) => boolean = (a, b) => a === b
+): T[] {
+  if (array.length <= 1) return [...array];
+  let shuffled = fisherYatesShuffle(array);
+
+  // Check if result happened to be identical to input
+  let isIdentical = true;
+  for (let i = 0; i < array.length; i++) {
+    if (!equalityCheck(array[i], shuffled[i])) {
+      isIdentical = false;
+      break;
+    }
   }
 
-  const indexedOpts = question.options.map((opt, i) => ({ opt, originalIndex: i }));
-  const shuffledOpts = fisherYatesShuffle(indexedOpts);
+  // If identical, perform a guaranteed cyclic shift
+  if (isIdentical && array.length > 1) {
+    shuffled = [...array.slice(1), array[0]];
+  }
 
-  const newCorrectAnswers = question.correctAnswers
-    .map((oldIdx) => shuffledOpts.findIndex((item) => item.originalIndex === oldIdx))
-    .filter((idx) => idx !== -1);
+  return shuffled;
+}
 
-  return {
-    ...question,
-    options: shuffledOpts.map((i) => i.opt),
-    correctAnswers: newCorrectAnswers,
-  };
+/**
+ * Shuffles MCQ answer options and updates correctAnswers indices accurately.
+ * Supports Single MCQ, Multiple MCQ, and Case Study sub-questions.
+ */
+export function shuffleQuestionAnswers(question: Question): Question {
+  // 1. Single and Multiple Response MCQs
+  if (
+    (question.type === 'single_mcq' || question.type === 'multiple_mcq') &&
+    Array.isArray(question.options) &&
+    question.options.length > 1
+  ) {
+    const indexedOpts = question.options.map((opt, i) => ({ opt, originalIndex: i }));
+    const shuffledOpts = guaranteedShuffle(indexedOpts, (a, b) => a.originalIndex === b.originalIndex);
+
+    const newCorrectAnswers = (question.correctAnswers || [])
+      .map((oldIdx) => shuffledOpts.findIndex((item) => item.originalIndex === oldIdx))
+      .filter((idx) => idx !== -1);
+
+    return {
+      ...question,
+      options: shuffledOpts.map((i) => i.opt),
+      correctAnswers: newCorrectAnswers,
+    };
+  }
+
+  // 2. Case Study Vignettes with Subquestions
+  if (question.type === 'case_study' && Array.isArray(question.subQuestions) && question.subQuestions.length > 0) {
+    const shuffledSubQs = question.subQuestions.map((subQ) => {
+      if (!Array.isArray(subQ.options) || subQ.options.length <= 1) return subQ;
+      const indexedOpts = subQ.options.map((opt, i) => ({ opt, originalIndex: i }));
+      const shuffledOpts = guaranteedShuffle(indexedOpts, (a, b) => a.originalIndex === b.originalIndex);
+
+      const oldIdx = subQ.correctAnswer;
+      const newCorrectAnswer = shuffledOpts.findIndex((item) => item.originalIndex === oldIdx);
+
+      return {
+        ...subQ,
+        options: shuffledOpts.map((i) => i.opt),
+        correctAnswer: newCorrectAnswer !== -1 ? newCorrectAnswer : 0,
+      };
+    });
+
+    return {
+      ...question,
+      subQuestions: shuffledSubQs,
+    };
+  }
+
+  return question;
 }
 
 /**
@@ -130,7 +187,7 @@ export function generateStudyQuestions(
       `Pooled ${allPool.length} questions across ${config.deckIds.length} lecture(s). Applying full Fisher-Yates shuffle.`
     );
 
-    generatedQuestions = fisherYatesShuffle(allPool);
+    generatedQuestions = guaranteedShuffle(allPool, (a, b) => a.id === b.id);
 
     // Shuffle answers if option enabled
     if (config.shuffleOptions.shuffleAnswers) {
@@ -149,7 +206,7 @@ export function generateStudyQuestions(
     );
 
     const activeDeckIds = shuffleLectures
-      ? fisherYatesShuffle(config.deckIds)
+      ? guaranteedShuffle(config.deckIds)
       : [...config.deckIds];
 
     if (shuffleLectures) {
@@ -168,7 +225,7 @@ export function generateStudyQuestions(
 
       let processedQuestions: Question[];
       if (shuffleQuestions) {
-        processedQuestions = fisherYatesShuffle(deckQuestions);
+        processedQuestions = guaranteedShuffle(deckQuestions, (a, b) => a.id === b.id);
         transformations.push(
           `Lecture "${dTitle}": Shuffled ${processedQuestions.length} questions internally.`
         );

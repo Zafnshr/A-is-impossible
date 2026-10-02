@@ -248,106 +248,57 @@ export const IconicLoadingScreen: React.FC<IconicLoadingScreenProps> = ({
             <span className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_12px_#38bdf8]" />
           </div>
 
-          {/* Luxury Impossible Monogram Mark */}
-          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center filter drop-shadow-[0_10px_25px_rgba(6,182,212,0.4)]">
+          {/* Luxury Slashed 'A' Mark */}
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center filter drop-shadow-[0_10px_25px_rgba(239,68,68,0.35)]">
             <svg
               viewBox="0 0 100 100"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
               className="w-full h-full transform transition-transform duration-700 hover:scale-105"
             >
-              <defs>
-                <linearGradient id="loadA1" x1="20" y1="85" x2="50" y2="15" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#0ea5e9" />
-                  <stop offset="50%" stopColor="#38bdf8" />
-                  <stop offset="100%" stopColor="#e0f2fe" />
-                </linearGradient>
-
-                <linearGradient id="loadA2" x1="50" y1="15" x2="80" y2="85" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#e0f2fe" />
-                  <stop offset="50%" stopColor="#0284c7" />
-                  <stop offset="100%" stopColor="#0369a1" />
-                </linearGradient>
-
-                <linearGradient id="loadCross" x1="25" y1="62" x2="75" y2="62" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#0369a1" />
-                  <stop offset="50%" stopColor="#06b6d4" />
-                  <stop offset="100%" stopColor="#22d3ee" />
-                </linearGradient>
-
-                <linearGradient id="loadCore" x1="50" y1="36" x2="50" y2="66" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.95" />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2" />
-                </linearGradient>
-
-                <filter id="loadGlow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="2.5" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-              </defs>
-
               {/* Squircle Pod Backplate */}
               <rect
-                x="3"
-                y="3"
-                width="94"
-                height="94"
-                rx="24"
+                x="4"
+                y="4"
+                width="92"
+                height="92"
+                rx="22"
                 fill={isDark ? '#090d16' : '#ffffff'}
-                fillOpacity={isDark ? '0.94' : '0.96'}
-                stroke={isDark ? 'rgba(6,182,212,0.35)' : 'rgba(6,182,212,0.45)'}
+                fillOpacity="0.96"
+                stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}
                 strokeWidth="1.5"
               />
 
-              {/* Specular Diagonal Light Flare */}
+              {/* Geometric Letter 'A' */}
               <path
-                d="M3 45 L45 3 L97 3 L3 97 Z"
-                fill="white"
-                fillOpacity={isDark ? '0.04' : '0.1'}
+                d="M 50 16 L 80 82 L 67 82 L 59 64 L 41 64 L 33 82 L 20 82 Z M 50 35 L 56.5 52 L 43.5 52 Z"
+                fillRule="evenodd"
+                fill={isDark ? '#ffffff' : '#090d16'}
               />
 
-              {/* IMPOSSIBLE PENROSE TRIANGLE "A" GEOMETRY */}
-              {/* Left Ascending Column */}
-              <path
-                d="M 50 15 L 50 25 L 34 68 L 22 68 L 44 15 Z"
-                fill="url(#loadA1)"
-              />
-              <path
-                d="M 44 15 L 22 68 L 15 82 L 31 82 L 38 68 L 50 25 L 50 15 Z"
-                fill="#0284c7"
-                fillOpacity="0.9"
-              />
-
-              {/* Right Descending Column */}
-              <path
-                d="M 50 15 L 56 15 L 85 82 L 69 82 L 50 36 L 50 25 Z"
-                fill="url(#loadA2)"
-              />
-              <path
-                d="M 50 25 L 50 36 L 63 68 L 73 68 L 85 82 L 78 82 Z"
-                fill="#075985"
+              {/* Negative Space Knockout Gap for Red Slash */}
+              <rect
+                x="10"
+                y="43.5"
+                width="80"
+                height="15"
+                rx="7.5"
+                transform="rotate(-42 50 50)"
+                fill={isDark ? '#090d16' : '#ffffff'}
+                stroke={isDark ? '#090d16' : '#ffffff'}
+                strokeWidth="2"
               />
 
-              {/* Interlocking Impossible Crossbar */}
-              <path
-                d="M 31 56 L 69 56 L 64 68 L 36 68 Z"
-                fill="url(#loadCross)"
-                filter="url(#loadGlow)"
+              {/* Strong Red Diagonal Slash */}
+              <rect
+                x="12"
+                y="45.5"
+                width="76"
+                height="11"
+                rx="5.5"
+                transform="rotate(-42 50 50)"
+                fill="#ef4444"
               />
-              <path
-                d="M 36 68 L 64 68 L 58 78 L 42 78 Z"
-                fill="#0c4a6e"
-              />
-
-              {/* Radiant Inner Triangle Core */}
-              <polygon
-                points="50,34 62,56 38,56"
-                fill="url(#loadCore)"
-              />
-
-              {/* Apex Precision Laser Focal Point */}
-              <circle cx="50" cy="18" r="2.5" fill="#a5f3fc" />
-              <circle cx="50" cy="18" r="6" fill="#38bdf8" fillOpacity="0.4" />
             </svg>
           </div>
         </div>
@@ -361,13 +312,7 @@ export const IconicLoadingScreen: React.FC<IconicLoadingScreenProps> = ({
           }`}
         >
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight flex items-center justify-center gap-2">
-            <span
-              className={`bg-gradient-to-r ${
-                isDark
-                  ? 'from-cyan-400 via-sky-300 to-teal-300 drop-shadow-[0_0_24px_rgba(34,211,238,0.4)]'
-                  : 'from-cyan-600 via-sky-600 to-teal-600'
-              } bg-clip-text text-transparent font-black`}
-            >
+            <span className="text-rose-500 font-black">
               A
             </span>
             <span

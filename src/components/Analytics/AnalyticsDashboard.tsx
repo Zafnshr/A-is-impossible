@@ -719,30 +719,30 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
                   const tooltipContent = (
                     <div className="text-left space-y-1 py-0.5">
-                      <div className="font-bold text-white text-xs truncate max-w-[220px]">
+                      <div className="font-bold text-primary text-xs truncate max-w-[220px]">
                         #{session.sessionIndex}: {session.title}
                       </div>
-                      <div className="text-[10px] text-slate-300 font-mono">
+                      <div className="text-[10px] text-secondary font-mono">
                         {session.fullTimestamp}
                       </div>
-                      <div className="border-t border-slate-700/60 pt-1 mt-1 space-y-0.5 text-[11px] font-mono">
+                      <div className="border-t border-subtle pt-1 mt-1 space-y-0.5 text-[11px] font-mono">
                         <div className="flex justify-between gap-4">
-                          <span className="text-slate-400">Score:</span>
-                          <span className="font-bold text-cyan-400">{session.score}%</span>
+                          <span className="text-muted">Score:</span>
+                          <span className="font-bold text-cyan-600 dark:text-cyan-400">{session.score}%</span>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-slate-400">Accuracy:</span>
-                          <span className="font-bold text-emerald-400">
+                          <span className="text-muted">Accuracy:</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
                             {session.accuracy}% ({session.correctAnswers}/{session.questionsAttempted})
                           </span>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-slate-400">Cumulative Accuracy:</span>
-                          <span className="font-bold text-teal-400">{session.cumulativeAccuracy}%</span>
+                          <span className="text-muted">Cumulative Accuracy:</span>
+                          <span className="font-bold text-teal-600 dark:text-teal-400">{session.cumulativeAccuracy}%</span>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-slate-400">Duration:</span>
-                          <span className="text-slate-200">{session.durationMins} min</span>
+                          <span className="text-muted">Duration:</span>
+                          <span className="text-primary font-semibold">{session.durationMins} min</span>
                         </div>
                       </div>
                     </div>

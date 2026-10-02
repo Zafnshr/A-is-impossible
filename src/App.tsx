@@ -37,7 +37,11 @@ import { GlobalSearchModal } from './components/Search/GlobalSearchModal';
 import { OnboardingWizardModal } from './components/FirstLaunch/OnboardingWizardModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { IconicLoadingScreen } from './components/Loading/IconicLoadingScreen';
-import { generateStudyQuestions } from './services/sessionGenerator';
+import {
+  generateStudyQuestions,
+  guaranteedShuffle,
+  shuffleQuestionAnswers,
+} from './services/sessionGenerator';
 
 const WORKSPACE_ID = 'workspace';
 
@@ -288,6 +292,7 @@ export default function App() {
       orderMode: config.orderMode,
       shuffleOptions: config.shuffleOptions,
       questionIds: targetQuestions.map((q) => q.id),
+      sessionQuestions: targetQuestions,
       currentIndex: 0,
       userAnswers: {},
       submittedQuestions: {},
@@ -832,16 +837,32 @@ export default function App() {
       return idxA - idxB;
     });
 
-    const deckIds = Array.from(new Set(orderedQuestions.map((q) => q.deckId)));
+    const shouldShuffleQuestions = !!settings.defaultShuffleOptions?.shuffleQuestions;
+    const shouldShuffleAnswers = !!settings.defaultShuffleOptions?.shuffleAnswers;
+
+    let finalQuestions = shouldShuffleQuestions
+      ? guaranteedShuffle(orderedQuestions, (a, b) => a.id === b.id)
+      : [...orderedQuestions];
+
+    if (shouldShuffleAnswers) {
+      finalQuestions = finalQuestions.map(shuffleQuestionAnswers);
+    }
+
+    const deckIds = Array.from(new Set(finalQuestions.map((q) => q.deckId)));
     const title =
-      orderedQuestions.length === 1
-        ? `Practice Question: ${decksMap[orderedQuestions[0].deckId]?.lectureName || 'Lecture'}`
-        : `Practice: ${type.charAt(0).toUpperCase() + type.slice(1)} (${orderedQuestions.length} Questions)`;
+      finalQuestions.length === 1
+        ? `Practice Question: ${decksMap[finalQuestions[0].deckId]?.lectureName || 'Lecture'}`
+        : `Practice: ${type.charAt(0).toUpperCase() + type.slice(1)} (${finalQuestions.length} Questions)`;
 
     const collectionDebugInfo: OrderDebugInfo = {
-      selectedMode: 'sequential',
+      selectedMode: shouldShuffleQuestions ? 'shuffled' : 'sequential',
       deckIds,
       deckTitles: deckIds.map((id) => decksMap[id]?.lectureName || id),
+      shuffleOptions: {
+        shuffleQuestions: shouldShuffleQuestions,
+        shuffleAnswers: shouldShuffleAnswers,
+        shuffleLectures: false,
+      },
       beforeGeneration: deckIds.map((id) => ({
         deckId: id,
         deckTitle: decksMap[id]?.lectureName || id,
@@ -851,8 +872,8 @@ export default function App() {
           .map((q) => ({ id: q.id, originalOrderIndex: q.originalOrderIndex, stem: q.question.slice(0, 60) })),
       })),
       afterGeneration: {
-        totalQuestions: orderedQuestions.length,
-        questions: orderedQuestions.map((q) => ({
+        totalQuestions: finalQuestions.length,
+        questions: finalQuestions.map((q) => ({
           id: q.id,
           originalOrderIndex: q.originalOrderIndex,
           deckId: q.deckId,
@@ -862,7 +883,10 @@ export default function App() {
       },
       transformations: [
         `Collection Practice: ${type.toUpperCase()}`,
-        `Preserved strict originalOrderIndex across ${deckIds.length} source lecture decks.`,
+        shouldShuffleQuestions
+          ? `Applied guaranteed question shuffle across ${deckIds.length} source lecture decks.`
+          : `Preserved strict originalOrderIndex across ${deckIds.length} source lecture decks.`,
+        shouldShuffleAnswers ? 'Randomized MCQ answer options.' : 'Preserved original answer options.',
       ],
       timestamp: Date.now(),
     };
@@ -873,8 +897,14 @@ export default function App() {
       deckIds,
       sessionTitle: title,
       mode: 'collection',
-      orderMode: 'sequential',
-      questionIds: orderedQuestions.map((q) => q.id),
+      orderMode: shouldShuffleQuestions ? 'shuffled' : 'sequential',
+      shuffleOptions: {
+        shuffleQuestions: shouldShuffleQuestions,
+        shuffleAnswers: shouldShuffleAnswers,
+        shuffleLectures: false,
+      },
+      questionIds: finalQuestions.map((q) => q.id),
+      sessionQuestions: finalQuestions,
       currentIndex: 0,
       userAnswers: {},
       submittedQuestions: {},
@@ -946,6 +976,9 @@ export default function App() {
   // Active session questions
   const sessionQuestions = useMemo(() => {
     if (!activeSession) return [];
+    if (activeSession.sessionQuestions && activeSession.sessionQuestions.length > 0) {
+      return activeSession.sessionQuestions;
+    }
     const qMap = new Map<string, Question>();
     questions.forEach((q) => qMap.set(q.id, q));
     return activeSession.questionIds.map((id) => qMap.get(id)).filter(Boolean) as Question[];
@@ -1249,6 +1282,7 @@ export default function App() {
         onClose={() => setStudySetupOpen(false)}
         onStartSession={handleStartSession}
         initialDeckId={initialStudyDeckId}
+        defaultShuffleOptions={settings.defaultShuffleOptions}
       />
 
       {/* Session Completion Page */}
