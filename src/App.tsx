@@ -197,6 +197,7 @@ export default function App() {
       // Ignore localStorage restrictions
     }
 
+    root.setAttribute('data-theme', settings.theme);
     if (settings.theme === 'light') {
       root.classList.add('theme-light');
       root.classList.remove('theme-dark', 'dark');

@@ -34,8 +34,11 @@
      DESIGN TOKENS SYSTEM: First-Class Dark and First-Class Light Modes
      ========================================================================== */
 
+  /* Dark Mode Tokens (Default or when .theme-dark / .dark is active) */
   :root,
-  .theme-dark {
+  :root:not(.theme-light),
+  .theme-dark,
+  .dark {
     /* Backgrounds & Canvas */
     --bg-canvas: #090d16;
     --bg-surface: #0f172a;
@@ -92,7 +95,11 @@
     color-scheme: dark;
   }
 
-  .theme-light {
+  /* Light Mode Tokens (Active when .theme-light is on root/html) */
+  :root.theme-light,
+  html.theme-light,
+  .theme-light,
+  [data-theme="light"] {
     /* Backgrounds & Canvas */
     --bg-canvas: #f8fafc;
     --bg-surface: #ffffff;
@@ -107,13 +114,13 @@
     --border-strong: #cbd5e1;
     --border-active: #0891b2;
 
-    /* Typography */
+    /* Typography: crisp dark slate */
     --text-primary: #0f172a;
-    --text-secondary: #475569;
+    --text-secondary: #334155;
     --text-muted: #64748b;
 
     /* Structural Shell */
-    --topbar-bg: rgba(255, 255, 255, 0.94);
+    --topbar-bg: rgba(255, 255, 255, 0.95);
     --topbar-border: #e2e8f0;
     --sidebar-bg: #ffffff;
     --sidebar-border: #e2e8f0;
@@ -141,9 +148,9 @@
     --badge-rose-text: #e11d48;
     --badge-rose-border: #fecdd3;
 
-    /* Shadows & Overlays */
-    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
-    --shadow-dropdown: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+    /* Shadows & Overlays: authentic depth and elevation */
+    --shadow-card: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08);
+    --shadow-dropdown: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
     --dialog-overlay: rgba(15, 23, 42, 0.45);
 
     color-scheme: light;
@@ -203,9 +210,9 @@
 }
 
 /* ==========================================================================
-   LIGHT THEME FIRST-CLASS REFINEMENT RULES
-   Ensures complete elimination of dark-mode artifacts, low contrast,
-   and muddy surfaces across ALL screens.
+   DIRECT LIGHT THEME RULES
+   Ensures 100% crisp contrast, zero invisible text, and flawless hierarchy
+   across ALL views, components, cards, tables, and modals.
    ========================================================================== */
 
 .theme-light body {
@@ -213,7 +220,74 @@
   color: #0f172a !important;
 }
 
-/* Card surfaces */
+/* Direct typography overrides in Light Mode */
+.theme-light .text-primary {
+  color: #0f172a !important;
+}
+
+.theme-light .text-secondary {
+  color: #334155 !important;
+}
+
+.theme-light .text-muted {
+  color: #64748b !important;
+}
+
+.theme-light .text-slate-100 {
+  color: #0f172a !important;
+}
+
+.theme-light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+.theme-light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.theme-light .text-slate-400 {
+  color: #475569 !important;
+}
+
+.theme-light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Direct surface and background overrides in Light Mode */
+.theme-light .bg-canvas {
+  background-color: #f8fafc !important;
+}
+
+.theme-light .bg-surface {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+}
+
+.theme-light .bg-surface-elevated {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08);
+}
+
+.theme-light .bg-subtle {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .border-subtle {
+  border-color: #e2e8f0 !important;
+}
+
+.theme-light .border-strong {
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light .shadow-card {
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Fallback Card surfaces mapped from slate dark classes */
 .theme-light .bg-slate-900,
 .theme-light .bg-slate-900\/95,
 .theme-light .bg-slate-900\/90,
@@ -227,7 +301,7 @@
 .theme-light .bg-slate-900\/20 {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
 }
 
 .theme-light .bg-slate-950,
@@ -247,9 +321,9 @@
 .theme-light .bg-slate-800\/30,
 .theme-light .bg-slate-800\/20 {
   background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
 }
 
-/* Borders */
 .theme-light .border-slate-800,
 .theme-light .border-slate-800\/90,
 .theme-light .border-slate-800\/80,
@@ -281,91 +355,75 @@
   border-color: #e2e8f0 !important;
 }
 
-/* Typography Hierarchy in Light Mode */
-/* Typography Hierarchy in Light Mode: regular card text-white becomes dark */
-.theme-light .text-white:not([class*="bg-cyan"]):not([class*="bg-emerald"]):not([class*="bg-purple"]):not([class*="bg-rose"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-red"]):not(button):not(a) {
-  color: #0f172a !important;
-}
+/* ==========================================================================
+   BUTTON & INTERACTIVE ELEMENT CONTRAST PROTECTION
+   ========================================================================== */
 
-/* Ensure text and icons on solid vibrant buttons remain crisp white */
-.theme-light .bg-cyan-600,
-.theme-light .bg-cyan-500,
-.theme-light .bg-emerald-600,
-.theme-light .bg-emerald-500,
-.theme-light .bg-purple-600,
-.theme-light .bg-amber-600,
-.theme-light .bg-rose-600,
-.theme-light .bg-rose-500,
-.theme-light .bg-red-600,
-.theme-light .bg-red-500,
-.theme-light .bg-blue-600,
-.theme-light .bg-blue-500,
-.theme-light .bg-indigo-600,
-.theme-light [class*="bg-cyan-600"],
-.theme-light [class*="bg-cyan-500"],
-.theme-light [class*="bg-emerald-600"],
-.theme-light [class*="bg-emerald-500"],
-.theme-light [class*="bg-purple-600"],
-.theme-light [class*="bg-amber-600"],
-.theme-light [class*="bg-rose-600"],
-.theme-light [class*="bg-rose-500"],
-.theme-light [class*="bg-blue-600"] {
+/* 1. Solid Vibrant CTA Buttons (MUST always have crisp white text) */
+button.bg-cyan-600,
+button.bg-cyan-500,
+button.bg-emerald-600,
+button.bg-emerald-500,
+button.bg-purple-600,
+button.bg-amber-600,
+button.bg-rose-600,
+button.bg-rose-500,
+button.bg-red-600,
+button.bg-red-500,
+button.bg-blue-600,
+button.bg-blue-500,
+button.bg-indigo-600,
+a.bg-cyan-600,
+a.bg-cyan-500,
+a.bg-emerald-600,
+a.bg-rose-600,
+a.bg-blue-600 {
   color: #ffffff !important;
 }
 
-.theme-light [class*="bg-cyan-600"] *,
-.theme-light [class*="bg-cyan-500"] *,
-.theme-light [class*="bg-emerald-600"] *,
-.theme-light [class*="bg-emerald-500"] *,
-.theme-light [class*="bg-purple-600"] *,
-.theme-light [class*="bg-amber-600"] *,
-.theme-light [class*="bg-rose-600"] *,
-.theme-light [class*="bg-rose-500"] *,
-.theme-light [class*="bg-blue-600"] * {
-  color: #ffffff !important;
-}
-
-.theme-light [class*="bg-cyan-600"] svg,
-.theme-light [class*="bg-cyan-500"] svg,
-.theme-light [class*="bg-emerald-600"] svg,
-.theme-light [class*="bg-emerald-500"] svg,
-.theme-light [class*="bg-purple-600"] svg,
-.theme-light [class*="bg-amber-600"] svg,
-.theme-light [class*="bg-rose-600"] svg,
-.theme-light [class*="bg-rose-500"] svg,
-.theme-light [class*="bg-blue-600"] svg {
+button.bg-cyan-600 svg,
+button.bg-cyan-500 svg,
+button.bg-emerald-600 svg,
+button.bg-emerald-500 svg,
+button.bg-purple-600 svg,
+button.bg-amber-600 svg,
+button.bg-rose-600 svg,
+button.bg-rose-500 svg,
+button.bg-blue-600 svg,
+button.bg-indigo-600 svg,
+a.bg-cyan-600 svg,
+a.bg-cyan-500 svg {
   color: #ffffff !important;
   stroke: currentColor;
 }
 
-.theme-light [class*="bg-cyan-600"] .fill-white,
-.theme-light [class*="bg-cyan-500"] .fill-white,
-.theme-light [class*="bg-emerald-600"] .fill-white,
-.theme-light [class*="bg-emerald-500"] .fill-white,
-.theme-light [class*="bg-purple-600"] .fill-white,
-.theme-light [class*="bg-rose-600"] .fill-white,
-.theme-light [class*="bg-blue-600"] .fill-white {
+button.bg-cyan-600 .fill-white,
+button.bg-cyan-500 .fill-white,
+button.bg-emerald-600 .fill-white,
+button.bg-rose-600 .fill-white,
+button.bg-purple-600 .fill-white {
   fill: #ffffff !important;
 }
 
-.theme-light .text-slate-100 {
+/* 2. Secondary & Ghost Buttons (Deck Details, Cancel, Filters, Secondary actions) */
+.theme-light button.bg-subtle,
+.theme-light button.bg-slate-800,
+.theme-light a.bg-subtle {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light button.bg-subtle:hover,
+.theme-light button.bg-slate-800:hover,
+.theme-light a.bg-subtle:hover {
+  background-color: #e2e8f0 !important;
   color: #0f172a !important;
 }
 
-.theme-light .text-slate-200 {
-  color: #1e293b !important;
-}
-
-.theme-light .text-slate-300 {
-  color: #334155 !important;
-}
-
-.theme-light .text-slate-400 {
-  color: #64748b !important;
-}
-
-.theme-light .text-slate-500 {
-  color: #64748b !important;
+/* 3. Text-white cleanup: only convert text-white on regular surface elements, NEVER on solid colored buttons */
+.theme-light .text-white:not(button):not(a):not([class*="bg-cyan-600"]):not([class*="bg-cyan-500"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-purple"]):not([class*="bg-amber"]):not([class*="bg-blue"]) {
+  color: #0f172a !important;
 }
 
 /* Hover States in Light Mode */
@@ -373,10 +431,6 @@
 .theme-light .hover\:bg-slate-850:hover,
 .theme-light .hover\:bg-slate-800:hover {
   background-color: #f1f5f9 !important;
-}
-
-.theme-light .hover\:text-white:hover {
-  color: #0f172a !important;
 }
 
 .theme-light .hover\:text-slate-200:hover,
@@ -393,6 +447,13 @@
   border-color: #cbd5e1 !important;
 }
 
+.theme-light input:focus,
+.theme-light textarea:focus,
+.theme-light select:focus {
+  border-color: #0891b2 !important;
+  outline: 2px solid rgba(8, 145, 178, 0.2) !important;
+}
+
 .theme-light input::placeholder,
 .theme-light textarea::placeholder {
   color: #94a3b8 !important;
@@ -405,13 +466,14 @@
 
 .theme-light kbd {
   background-color: #f1f5f9 !important;
-  color: #475569 !important;
+  color: #334155 !important;
   border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.08) !important;
 }
 
 /* Header & Sidebar in Light Mode */
 .theme-light header {
-  background-color: rgba(255, 255, 255, 0.94) !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
   border-color: #e2e8f0 !important;
 }
 
@@ -420,33 +482,43 @@
   border-color: #e2e8f0 !important;
 }
 
-/* Badges & Pills in Light Mode */
+/* Badges & Accents in Light Mode */
 .theme-light .bg-cyan-950,
 .theme-light .bg-cyan-950\/60,
 .theme-light .bg-cyan-950\/50,
 .theme-light .bg-cyan-950\/40,
 .theme-light .bg-cyan-950\/30,
-.theme-light .bg-cyan-950\/20 {
+.theme-light .bg-cyan-950\/20,
+.theme-light .bg-cyan-500\/10,
+.theme-light .bg-cyan-500\/15,
+.theme-light .bg-cyan-500\/20,
+.theme-light .bg-cyan-50 {
   background-color: #ecfeff !important;
   border-color: #a5f3fc !important;
   color: #0284c7 !important;
 }
 
 .theme-light .text-cyan-300,
-.theme-light .text-cyan-400 {
+.theme-light .text-cyan-400,
+.theme-light .text-cyan-500 {
   color: #0284c7 !important;
 }
 
 .theme-light .bg-emerald-950,
 .theme-light .bg-emerald-950\/60,
 .theme-light .bg-emerald-950\/40,
-.theme-light .bg-emerald-950\/20 {
+.theme-light .bg-emerald-950\/20,
+.theme-light .bg-emerald-500\/10,
+.theme-light .bg-emerald-500\/20,
+.theme-light .bg-emerald-50 {
   background-color: #ecfdf5 !important;
   border-color: #a7f3d0 !important;
   color: #059669 !important;
 }
 
-.theme-light .text-emerald-400 {
+.theme-light .text-emerald-300,
+.theme-light .text-emerald-400,
+.theme-light .text-emerald-500 {
   color: #059669 !important;
 }
 
@@ -454,14 +526,18 @@
 .theme-light .bg-amber-950\/60,
 .theme-light .bg-amber-950\/40,
 .theme-light .bg-amber-950\/30,
-.theme-light .bg-amber-950\/20 {
+.theme-light .bg-amber-950\/20,
+.theme-light .bg-amber-500\/10,
+.theme-light .bg-amber-500\/20,
+.theme-light .bg-amber-50 {
   background-color: #fffbeb !important;
   border-color: #fde68a !important;
   color: #d97706 !important;
 }
 
 .theme-light .text-amber-300,
-.theme-light .text-amber-400 {
+.theme-light .text-amber-400,
+.theme-light .text-amber-500 {
   color: #d97706 !important;
 }
 
@@ -469,18 +545,22 @@
 .theme-light .bg-rose-950\/60,
 .theme-light .bg-rose-950\/40,
 .theme-light .bg-rose-950\/30,
-.theme-light .bg-rose-950\/20 {
+.theme-light .bg-rose-950\/20,
+.theme-light .bg-rose-500\/10,
+.theme-light .bg-rose-500\/20,
+.theme-light .bg-rose-50 {
   background-color: #fff1f2 !important;
   border-color: #fecdd3 !important;
   color: #e11d48 !important;
 }
 
 .theme-light .text-rose-300,
-.theme-light .text-rose-400 {
+.theme-light .text-rose-400,
+.theme-light .text-rose-500 {
   color: #e11d48 !important;
 }
 
-/* Dialog & Modal Overlays */
+/* Dialog & Modal Overlays in Light Mode */
 .theme-light .bg-slate-950\/95,
 .theme-light .bg-slate-950\/90,
 .theme-light .bg-slate-950\/85,
@@ -495,22 +575,23 @@
 .theme-light .bg-black\/60,
 .theme-light .bg-black\/50 {
   background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(4px);
 }
 
-/* Tooltip popups in Light Mode */
+/* Tooltip popups in Light Mode: crisp dark slate bubble */
 .theme-light [role="tooltip"],
 .theme-light .ui-tooltip-bubble {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2) !important;
 }
 
 .theme-light [data-tooltip]:hover::after {
-  background: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12) !important;
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2) !important;
 }
 
 /* High Contrast Mode */
