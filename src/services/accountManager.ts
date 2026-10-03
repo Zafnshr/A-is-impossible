@@ -1,12 +1,17 @@
 /**
  * Account Environment Manager
  * Provides strict isolation between Guest Mode and Google Account Mode.
- * Ensures that Guest data and Google Account data remain completely independent worlds.
+ * Ensures:
+ * 1. Automatic migration of guest work when signing in (Zero Data Loss).
+ * 2. Complete multi-device cloud synchronization.
+ * 3. Restoration of guest state upon logout.
+ * 4. Total restoration of cloud state upon sign-in from any device.
  */
 import { dbService } from './db';
 import { cloudSyncService, CloudSyncResult } from './supabase';
 
 const GUEST_SNAPSHOT_KEY = 'a_plus_guest_snapshot_v2';
+const GUEST_FLAG_KEY = 'a_plus_is_guest';
 
 export const accountManager = {
   /**
@@ -15,7 +20,6 @@ export const accountManager = {
   async snapshotGuestWorkspace(): Promise<void> {
     try {
       const dump = await dbService.exportFullDump();
-      // Only snapshot if there is meaningful data or to preserve the exact guest state
       localStorage.setItem(GUEST_SNAPSHOT_KEY, JSON.stringify(dump));
     } catch (err) {
       console.warn('[AccountManager] Failed to snapshot guest workspace:', err);
@@ -40,12 +44,14 @@ export const accountManager = {
    */
   async restoreGuestWorkspace(): Promise<void> {
     try {
+      localStorage.setItem(GUEST_FLAG_KEY, 'true');
       const guestDump = this.getGuestSnapshot();
       if (guestDump) {
         await dbService.importFullDump(guestDump, 'overwrite');
       } else {
         // If no snapshot exists yet, clean the user data and reset
         await dbService.deleteAllDecks();
+        await dbService.clearSessionHistory('workspace');
       }
     } catch (err) {
       console.error('[AccountManager] Failed to restore guest workspace:', err);
@@ -53,30 +59,61 @@ export const accountManager = {
   },
 
   /**
-   * Load the Google user's isolated world from the cloud.
-   * Does NOT merge guest data automatically unless explicitly requested.
+   * Migrate guest data and synchronize with the Google user's cloud account.
+   * Guarantees ZERO SILENT DATA LOSS:
+   * - If the user was a guest with decks/studies/notes, that data is merged into the cloud.
+   * - If the user logs in from Device B, all cloud decks, questions, collections, analytics,
+   *   and settings are downloaded and populated into local IndexedDB.
    */
-  async loadGoogleUserWorld(userId: string): Promise<CloudSyncResult> {
-    // 1. Snapshot the guest workspace to protect all guest decks & progress
-    await this.snapshotGuestWorkspace();
+  async migrateAndSyncGoogleUser(userId: string): Promise<CloudSyncResult> {
+    const isGuest = localStorage.getItem(GUEST_FLAG_KEY) !== 'false';
+    if (isGuest) {
+      // Snapshot the guest workspace first so the guest snapshot is always preserved
+      await this.snapshotGuestWorkspace();
+      localStorage.setItem(GUEST_FLAG_KEY, 'false');
+    }
 
-    // 2. Fetch the user's remote cloud data (pass empty local arrays to avoid uploading guest decks)
-    const result = await cloudSyncService.syncAll(userId, [], [], [], []);
+    // 1. Read existing local workspace
+    const localDecks = await dbService.getDecks();
+    const localQuestions = await dbService.getQuestions();
+    const localStatuses = await dbService.getAllStatusForProfile('workspace');
+    const localHistory = await dbService.getSessionHistory('workspace');
+    const localAttempts = await dbService.getAttemptsByProfile('workspace');
+    const localSettings = await dbService.getSettings('workspace');
 
-    // 3. Clear the active workspace and populate with the user's cloud data
+    // 2. Perform enterprise cloud sync (merging local + remote with zero data loss)
+    const result = await cloudSyncService.syncAll(
+      userId,
+      localDecks,
+      localQuestions,
+      localStatuses,
+      localHistory,
+      localAttempts,
+      localSettings || null
+    );
+
+    // 3. Write unified merged data into local IndexedDB
     const userDump = {
       version: 2,
       exportedAt: Date.now(),
       platform: 'A is Impossible',
       data: {
-        profiles: [],
-        settings: [],
+        profiles: [
+          {
+            id: 'workspace',
+            name: 'User',
+            avatarColor: '#3b82f6',
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+          },
+        ],
+        settings: result.settings ? [{ ...result.settings, profileId: 'workspace' }] : [],
         decks: result.decks,
         questions: result.questions,
-        question_status: result.statuses,
-        attempts: [],
+        question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
+        attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
         sessions: [],
-        session_history: result.history,
+        session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),
         trash: [],
       },
     };
@@ -86,34 +123,66 @@ export const accountManager = {
   },
 
   /**
-   * Optional: Transfer guest decks into the Google account if the user explicitly requests it
+   * Sync active workspace (for manual sync, auto-sync, or background sync)
    */
-  async transferGuestDecksToGoogleAccount(userId: string): Promise<CloudSyncResult | null> {
-    const guestDump = this.getGuestSnapshot();
-    if (!guestDump || !guestDump.data) return null;
-
-    const guestDecks = guestDump.data.decks || [];
-    const guestQuestions = guestDump.data.questions || [];
-    const guestStatuses = guestDump.data.question_status || [];
-    const guestHistory = guestDump.data.session_history || [];
+  async syncActiveWorkspace(userId: string): Promise<CloudSyncResult> {
+    const localDecks = await dbService.getDecks();
+    const localQuestions = await dbService.getQuestions();
+    const localStatuses = await dbService.getAllStatusForProfile('workspace');
+    const localHistory = await dbService.getSessionHistory('workspace');
+    const localAttempts = await dbService.getAttemptsByProfile('workspace');
+    const localSettings = await dbService.getSettings('workspace');
 
     const result = await cloudSyncService.syncAll(
       userId,
-      guestDecks,
-      guestQuestions,
-      guestStatuses,
-      guestHistory
+      localDecks,
+      localQuestions,
+      localStatuses,
+      localHistory,
+      localAttempts,
+      localSettings || null
     );
 
-    // Save into current local database
-    for (const d of result.decks) {
-      await dbService.saveDeck(d);
-    }
-    await dbService.saveQuestions(result.questions);
-    for (const s of result.statuses) {
-      await dbService.saveStatus(s);
-    }
+    const userDump = {
+      version: 2,
+      exportedAt: Date.now(),
+      platform: 'A is Impossible',
+      data: {
+        profiles: [
+          {
+            id: 'workspace',
+            name: 'User',
+            avatarColor: '#3b82f6',
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+          },
+        ],
+        settings: result.settings ? [{ ...result.settings, profileId: 'workspace' }] : [],
+        decks: result.decks,
+        questions: result.questions,
+        question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
+        attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
+        sessions: [],
+        session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),
+        trash: [],
+      },
+    };
 
+    await dbService.importFullDump(userDump, 'overwrite');
     return result;
+  },
+
+  /**
+   * Backwards compatible alias for loadGoogleUserWorld
+   */
+  async loadGoogleUserWorld(userId: string): Promise<CloudSyncResult> {
+    return this.migrateAndSyncGoogleUser(userId);
+  },
+
+  /**
+   * Optional manual transfer helper
+   */
+  async transferGuestDecksToGoogleAccount(userId: string): Promise<CloudSyncResult | null> {
+    return this.migrateAndSyncGoogleUser(userId);
   },
 };

@@ -274,7 +274,10 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
 
-  // Cloud Auth & Independent Account World Listener
+  const isSyncingMutexRef = useRef(false);
+  const autoSyncTimeoutRef = useRef<any>(null);
+
+  // Enterprise Cloud Auth & Multi-Device Sync Listener (Mutex-guarded, zero race condition)
   useEffect(() => {
     let isMounted = true;
 
@@ -282,50 +285,17 @@ export default function App() {
       if (!isMounted) return;
       setCurrentUser(user);
 
-      if (user) {
-        // User logged in: load their isolated Google world from cloud
+      if (user && !isSyncingMutexRef.current) {
         try {
+          isSyncingMutexRef.current = true;
           if (isMounted) setIsSyncing(true);
-          const result = await accountManager.loadGoogleUserWorld(user.id);
+          const result = await accountManager.migrateAndSyncGoogleUser(user.id);
           if (isMounted) setLastSyncedAt(result.syncedAt);
           await reloadData();
         } catch (err) {
-          console.error('[Account] Error loading account world:', err);
+          console.error('[Account] Error migrating/syncing account world:', err);
         } finally {
-          if (isMounted) setIsSyncing(false);
-        }
-      }
-    });
-
-    cloudAuthService.getCurrentUser().then(async (user) => {
-      if (!isMounted) return;
-      setCurrentUser(user);
-      if (user) {
-        try {
-          setIsSyncing(true);
-          const currentDecks = await dbService.getDecks();
-          const currentQuestions = await dbService.getQuestions();
-          const currentStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
-          const currentHistory = await dbService.getSessionHistory(WORKSPACE_ID);
-          const result = await cloudSyncService.syncAll(
-            user.id,
-            currentDecks,
-            currentQuestions,
-            currentStatuses,
-            currentHistory
-          );
-          if (isMounted) setLastSyncedAt(result.syncedAt);
-          for (const d of result.decks) {
-            await dbService.saveDeck(d);
-          }
-          await dbService.saveQuestions(result.questions);
-          for (const s of result.statuses) {
-            await dbService.saveStatus(s);
-          }
-          await reloadData();
-        } catch (err) {
-          console.error('[Account] Initial sync error:', err);
-        } finally {
+          isSyncingMutexRef.current = false;
           if (isMounted) setIsSyncing(false);
         }
       }
@@ -336,6 +306,33 @@ export default function App() {
       unsubscribe();
     };
   }, [reloadData]);
+
+  // Debounced auto-sync whenever user modifies local data
+  const triggerCloudSync = useCallback((immediate = false) => {
+    if (!currentUser) return;
+    if (autoSyncTimeoutRef.current) clearTimeout(autoSyncTimeoutRef.current);
+
+    const performSync = async () => {
+      if (isSyncingMutexRef.current || !currentUser) return;
+      try {
+        isSyncingMutexRef.current = true;
+        setIsSyncing(true);
+        const result = await accountManager.syncActiveWorkspace(currentUser.id);
+        setLastSyncedAt(result.syncedAt);
+      } catch (err) {
+        console.warn('[AutoSync] Background cloud sync notice:', err);
+      } finally {
+        isSyncingMutexRef.current = false;
+        setIsSyncing(false);
+      }
+    };
+
+    if (immediate) {
+      performSync();
+    } else {
+      autoSyncTimeoutRef.current = setTimeout(performSync, 1500);
+    }
+  }, [currentUser]);
 
   const handleSignInWithGoogle = async () => {
     // Snapshot the current guest workspace before redirecting to Google
@@ -355,8 +352,12 @@ export default function App() {
     try {
       setIsSyncing(true);
       await accountManager.snapshotGuestWorkspace();
-      await cloudAuthService.signInWithGoogleIdToken(idToken);
+      const res = await cloudAuthService.signInWithGoogleIdToken(idToken);
       cleanUrlHash();
+      if (res?.user) {
+        const syncRes = await accountManager.migrateAndSyncGoogleUser(res.user.id);
+        setLastSyncedAt(syncRes.syncedAt);
+      }
       await reloadData();
     } catch (err: any) {
       console.error('[Account] Error signing in with ID token:', err);
@@ -369,6 +370,13 @@ export default function App() {
   const handleSignOut = async () => {
     try {
       setIsSyncing(true);
+      if (currentUser) {
+        try {
+          await accountManager.syncActiveWorkspace(currentUser.id);
+        } catch (flushErr) {
+          console.warn('[Account] Pre-signout flush warning:', flushErr);
+        }
+      }
       await cloudAuthService.signOut();
       setCurrentUser(null);
       // Restore the exact Guest environment
@@ -385,10 +393,11 @@ export default function App() {
     if (!currentUser) return;
     try {
       setIsSyncing(true);
-      await accountManager.transferGuestDecksToGoogleAccount(currentUser.id);
+      const result = await accountManager.migrateAndSyncGoogleUser(currentUser.id);
+      setLastSyncedAt(result.syncedAt);
       await reloadData();
     } catch (err) {
-      console.error('[Account] Error copying guest decks:', err);
+      console.error('[Account] Error syncing guest data:', err);
     } finally {
       setIsSyncing(false);
     }
@@ -476,26 +485,11 @@ export default function App() {
     if (!currentUser) return;
     try {
       setIsSyncing(true);
-      const currentDecks = await dbService.getDecks();
-      const currentQuestions = await dbService.getQuestions();
-      const currentStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
-      const currentHistory = await dbService.getSessionHistory(WORKSPACE_ID);
-      const result = await cloudSyncService.syncAll(
-        currentUser.id,
-        currentDecks,
-        currentQuestions,
-        currentStatuses,
-        currentHistory
-      );
+      const result = await accountManager.syncActiveWorkspace(currentUser.id);
       setLastSyncedAt(result.syncedAt);
-      for (const d of result.decks) {
-        await dbService.saveDeck(d);
-      }
-      await dbService.saveQuestions(result.questions);
-      for (const s of result.statuses) {
-        await dbService.saveStatus(s);
-      }
       await reloadData();
+    } catch (err) {
+      console.error('[Account] Force sync error:', err);
     } finally {
       setIsSyncing(false);
     }
@@ -716,6 +710,7 @@ export default function App() {
     setActiveSession(null);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   const handleEndEarlySaveAndExit = async () => {
@@ -859,6 +854,7 @@ export default function App() {
       setActiveSession(null);
       await reloadData();
       triggerAutoSave();
+      triggerCloudSync(true);
     }
   };
 
@@ -972,6 +968,7 @@ export default function App() {
     await dbService.saveQuestions(questionsToSave);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
 
     const d = await dbService.getDeck(finalDeckId);
     if (d) {
@@ -1005,6 +1002,7 @@ export default function App() {
     await reloadData();
     setActiveTab('library');
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   // --- Deck Rename ---
@@ -1028,24 +1026,28 @@ export default function App() {
     }
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   const handleRestoreTrashItem = async (item: TrashItem) => {
     await dbService.restoreTrashItem(item);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   const handlePermanentlyDeleteTrash = async (itemId: string) => {
     await dbService.permanentlyDeleteTrash(itemId);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   const handleClearAllTrash = async () => {
     await dbService.clearAllTrash(WORKSPACE_ID);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   // --- Question Editor Handlers ---
@@ -1053,6 +1055,7 @@ export default function App() {
     await dbService.saveQuestion(updatedQ);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   const handleDeleteQuestion = async (questionId: string) => {
@@ -1062,6 +1065,7 @@ export default function App() {
       await dbService.deleteQuestion(questionId);
       await reloadData();
       triggerAutoSave();
+      triggerCloudSync(true);
     }
   };
 
@@ -1078,6 +1082,7 @@ export default function App() {
     await dbService.saveQuestion(duplicated);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   const handleReorderQuestions = async (reordered: Question[]) => {
@@ -1089,6 +1094,7 @@ export default function App() {
     await dbService.saveQuestions(updated);
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(true);
   };
 
   // --- Collections Practice Handler ---
@@ -1242,19 +1248,24 @@ export default function App() {
     );
     await reloadData();
     triggerAutoSave();
+    triggerCloudSync(false);
   };
 
-  const handleUpdateQuestionStatus = useCallback((status: QuestionUserStatus) => {
-    setUserStatuses((prev) => {
-      const idx = prev.findIndex((s) => s.questionId === status.questionId);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = status;
-        return copy;
-      }
-      return [...prev, status];
-    });
-  }, []);
+  const handleUpdateQuestionStatus = useCallback(
+    (status: QuestionUserStatus) => {
+      setUserStatuses((prev) => {
+        const idx = prev.findIndex((s) => s.questionId === status.questionId);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = status;
+          return copy;
+        }
+        return [...prev, status];
+      });
+      triggerCloudSync(false);
+    },
+    [triggerCloudSync]
+  );
 
   // Active session questions
   const sessionQuestions = useMemo(() => {

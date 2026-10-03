@@ -416,6 +416,10 @@ class IndexedDBStorage {
     await this.transaction('question_status', 'readwrite', (store) => store.put(status));
   }
 
+  async saveStatus(status: QuestionUserStatus): Promise<void> {
+    return this.saveQuestionStatus(status);
+  }
+
   // --- Attempts / Analytics ---
   async saveAttempt(attempt: UserAttemptRecord): Promise<void> {
     await this.transaction('attempts', 'readwrite', (store) => store.put(attempt));
