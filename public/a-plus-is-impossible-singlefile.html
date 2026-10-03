@@ -27,6 +27,28 @@
     <!-- Google Identity Services (GSI) for native client-side sign in on a-is-impossible.vercel.app -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
+    <!-- Immediate URL Hash Cleaner: strips any # fragment to keep URL clean as https://a-is-impossible.vercel.app -->
+    <script>
+      (function() {
+        function cleanHash() {
+          try {
+            var href = window.location.href;
+            if (href.indexOf('#') !== -1) {
+              var hash = window.location.hash || '';
+              // Don't strip if active oauth tokens are present and pending Supabase consumption
+              if (!hash.includes('access_token=') && !hash.includes('refresh_token=')) {
+                window.history.replaceState(null, '', href.split('#')[0]);
+              }
+            }
+          } catch (e) {}
+        }
+        cleanHash();
+        window.addEventListener('DOMContentLoaded', cleanHash);
+        window.addEventListener('load', cleanHash);
+        window.addEventListener('hashchange', cleanHash);
+      })();
+    </script>
+
     <!-- Ultra-resilient In-line Environment Bootstrap, Theme Engine, and Anti-Black-Screen Diagnostics -->
     <script>
       (function() {
