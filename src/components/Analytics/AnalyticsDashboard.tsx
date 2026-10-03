@@ -133,20 +133,58 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       .sort((a, b) => a.completedAt - b.completedAt);
   }, [sessionHistory, dateRangeFilter, yearFilter, moduleFilter, subjectFilter, lectureFilter]);
 
-  // 3. Core metrics calculation
-  const totalAttemptsCount = filteredAttempts.length;
-  const correctAttemptsCount = filteredAttempts.filter((a) => a.isCorrect).length;
+  // 3. Core metrics calculation (Resilient unified calculation)
+  const totalAttemptsCount = useMemo(() => {
+    if (filteredAttempts.length > 0) return filteredAttempts.length;
+    if (filteredSessions.length > 0) {
+      return filteredSessions.reduce((sum, s) => sum + (s.questionsAttempted || s.totalQuestions || 0), 0);
+    }
+    const answeredStatuses = statuses.filter(
+      (s) => s.attemptsCount > 0 || s.lastAttemptAt !== undefined || s.isIncorrect
+    );
+    return answeredStatuses.reduce((sum, s) => sum + Math.max(1, s.attemptsCount || 0), 0);
+  }, [filteredAttempts, filteredSessions, statuses]);
+
+  const correctAttemptsCount = useMemo(() => {
+    if (filteredAttempts.length > 0) {
+      return filteredAttempts.filter((a) => a.isCorrect).length;
+    }
+    if (filteredSessions.length > 0) {
+      return filteredSessions.reduce((sum, s) => sum + (s.correctAnswers || 0), 0);
+    }
+    const answeredStatuses = statuses.filter(
+      (s) => s.attemptsCount > 0 || s.lastAttemptAt !== undefined || s.isIncorrect
+    );
+    return answeredStatuses.filter((s) => !s.isIncorrect && (s.lastAttemptCorrect ?? true)).length;
+  }, [filteredAttempts, filteredSessions, statuses]);
+
   const accuracyPercentage =
     totalAttemptsCount > 0 ? Math.round((correctAttemptsCount / totalAttemptsCount) * 100) : 0;
 
-  const uniqueQuestionsSolved = new Set(filteredAttempts.map((a) => a.questionId)).size;
+  const uniqueQuestionsSolved = useMemo(() => {
+    const qIds = new Set<string>();
+    filteredAttempts.forEach((a) => qIds.add(a.questionId));
+    filteredSessions.forEach((s) => s.questionResults?.forEach((qr) => qIds.add(qr.questionId)));
+    if (qIds.size === 0) {
+      statuses
+        .filter((s) => s.attemptsCount > 0 || s.lastAttemptAt !== undefined || s.isIncorrect)
+        .forEach((s) => qIds.add(s.questionId));
+    }
+    return qIds.size;
+  }, [filteredAttempts, filteredSessions, statuses]);
 
   // Real study time calculation
   const totalSeconds = useMemo(() => {
     const sessionsSec = filteredSessions.reduce((acc, s) => acc + (s.durationSeconds || 0), 0);
     const attemptsSec = filteredAttempts.reduce((acc, a) => acc + (a.timeSpentSeconds || 20), 0);
+    if (sessionsSec === 0 && attemptsSec === 0) {
+      const answeredCount = statuses.filter(
+        (s) => s.attemptsCount > 0 || s.lastAttemptAt !== undefined || s.isIncorrect
+      ).length;
+      return answeredCount * 30;
+    }
     return Math.max(sessionsSec, attemptsSec);
-  }, [filteredSessions, filteredAttempts]);
+  }, [filteredSessions, filteredAttempts, statuses]);
 
   const studyHours = (totalSeconds / 3600).toFixed(1);
   const studyMins = Math.round(totalSeconds / 60);
@@ -160,6 +198,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     });
     sessionHistory.forEach((s) => {
       if (s.date) dateSet.add(s.date);
+    });
+    statuses.forEach((s) => {
+      if (s.lastAttemptAt) {
+        const d = new Date(s.lastAttemptAt);
+        dateSet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      }
     });
 
     if (dateSet.size === 0) return { currentStreak: 0, longestStreak: 0 };

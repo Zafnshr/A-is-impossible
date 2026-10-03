@@ -378,9 +378,16 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">
                       <span>{deck.subject}</span>
-                      <span className="px-1.5 py-0.5 rounded bg-subtle border border-subtle text-primary">
-                        {deck.questionCount} Questions
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {deck.latestScore !== undefined && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
+                            {deck.latestScore}%
+                          </span>
+                        )}
+                        <span className="px-1.5 py-0.5 rounded bg-subtle border border-subtle text-primary">
+                          {deck.questionCount} Questions
+                        </span>
+                      </div>
                     </div>
 
                     <h3 className="text-base font-bold text-primary tracking-tight">

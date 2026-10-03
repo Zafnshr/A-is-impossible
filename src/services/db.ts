@@ -290,6 +290,24 @@ class IndexedDBStorage {
     await this.transaction('decks', 'readwrite', (store) => store.put(deck));
   }
 
+  async saveDecks(decks: Deck[]): Promise<void> {
+    if (decks.length === 0) return;
+    await this.getDB();
+    if (this.isMemoryMode) {
+      decks.forEach((d) => this.memoryStores.decks.set(d.id, d));
+      return;
+    }
+    const db = this.db!;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('decks', 'readwrite');
+      const store = tx.objectStore('decks');
+      decks.forEach((d) => store.put(d));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+
   async deleteDeck(id: string): Promise<void> {
     await this.transaction('decks', 'readwrite', (store) => store.delete(id));
     // Delete associated questions
@@ -423,6 +441,24 @@ class IndexedDBStorage {
   // --- Attempts / Analytics ---
   async saveAttempt(attempt: UserAttemptRecord): Promise<void> {
     await this.transaction('attempts', 'readwrite', (store) => store.put(attempt));
+  }
+
+  async saveAttempts(attempts: UserAttemptRecord[]): Promise<void> {
+    if (attempts.length === 0) return;
+    await this.getDB();
+    if (this.isMemoryMode) {
+      attempts.forEach((a) => this.memoryStores.attempts.set(a.id, a));
+      return;
+    }
+    const db = this.db!;
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('attempts', 'readwrite');
+      const store = tx.objectStore('attempts');
+      attempts.forEach((a) => store.put(a));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
   }
 
   async getAttemptsByProfile(profileId: string): Promise<UserAttemptRecord[]> {

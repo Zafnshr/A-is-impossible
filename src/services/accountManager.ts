@@ -9,6 +9,7 @@
  */
 import { dbService } from './db';
 import { cloudSyncService, CloudSyncResult } from './supabase';
+import { rebuildEngine } from './rebuildEngine';
 
 const GUEST_SNAPSHOT_KEY = 'a_plus_guest_snapshot_v2';
 const GUEST_FLAG_KEY = 'a_plus_is_guest';
@@ -119,6 +120,8 @@ export const accountManager = {
     };
 
     await dbService.importFullDump(userDump, 'overwrite');
+    // Reconstruct all derived state (attempts, session history, deck statistics, streak)
+    await rebuildEngine.rebuildAll();
     return result;
   },
 
@@ -169,6 +172,8 @@ export const accountManager = {
     };
 
     await dbService.importFullDump(userDump, 'overwrite');
+    // Reconstruct all derived state (attempts, session history, deck statistics, streak)
+    await rebuildEngine.rebuildAll();
     return result;
   },
 

@@ -16,6 +16,7 @@ import {
   StudySessionRecord,
 } from './types';
 import { dbService } from './services/db';
+import { rebuildEngine } from './services/rebuildEngine';
 import { createDefaultSettings } from './services/defaultSettings';
 import { Navbar } from './components/Navbar';
 import { Sidebar, ActiveTab } from './components/Sidebar';
@@ -144,20 +145,14 @@ export default function App() {
       const userSettings = await dbService.getSettings(WORKSPACE_ID);
       setSettings(userSettings);
 
-      const loadedDecks = await dbService.getDecks();
-      const loadedQuestions = await dbService.getQuestions();
-      setDecks(loadedDecks);
-      setQuestions(loadedQuestions);
+      // Complete State Rebuild Engine: guarantees derived state (attempts, sessions, deck scores) is reconstituted
+      const rebuilt = await rebuildEngine.rebuildAll();
 
-      const loadedStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
-      const loadedAttempts = await dbService.getAttemptsByProfile(WORKSPACE_ID);
-      let loadedSessionHistory = await dbService.getSessionHistory(WORKSPACE_ID);
-      if (loadedSessionHistory.length === 0 && loadedAttempts.length > 0) {
-        loadedSessionHistory = await dbService.reconstructSessionHistoryFromAttemptsIfEmpty(WORKSPACE_ID);
-      }
-      setUserStatuses(loadedStatuses);
-      setAttempts(loadedAttempts);
-      setSessionHistory(loadedSessionHistory);
+      setDecks(rebuilt.decks);
+      setQuestions(rebuilt.questions);
+      setUserStatuses(rebuilt.statuses);
+      setAttempts(rebuilt.attempts);
+      setSessionHistory(rebuilt.sessionHistory);
 
       const loadedTrash = await dbService.getTrashItems(WORKSPACE_ID);
       setTrashItems(loadedTrash);
@@ -1335,6 +1330,7 @@ export default function App() {
                 activeSession={activeSession}
                 attempts={attempts}
                 statuses={userStatuses}
+                sessionHistory={sessionHistory}
                 onStartDeck={handleStartStudyDeck}
                 onResumeSession={() => setActiveTab('study')}
                 onDiscardSession={handleDiscardSessionForDeck}

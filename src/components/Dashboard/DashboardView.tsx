@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Play,
   RotateCcw,
@@ -22,8 +22,10 @@ import {
   UserAttemptRecord,
   QuestionUserStatus,
   Question,
+  StudySessionRecord,
 } from '../../types';
 import { Tooltip } from '../Tooltip';
+import { rebuildEngine } from '../../services/rebuildEngine';
 
 interface DashboardViewProps {
   decks: Deck[];
@@ -31,6 +33,7 @@ interface DashboardViewProps {
   activeSession: StudySessionState | null;
   attempts: UserAttemptRecord[];
   statuses: QuestionUserStatus[];
+  sessionHistory?: StudySessionRecord[];
   onStartDeck: (deckId: string) => void;
   onResumeSession: () => void;
   onDiscardSession?: () => void;
@@ -45,6 +48,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   activeSession,
   attempts,
   statuses,
+  sessionHistory = [],
   onStartDeck,
   onResumeSession,
   onDiscardSession,
@@ -54,48 +58,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
 
-  // Statistics calculations
-  const totalAttempts = attempts.length;
-  const correctAttempts = attempts.filter((a) => a.isCorrect).length;
-  const accuracyPercentage =
-    totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
-  const uniqueQuestionsSolved = new Set(attempts.map((a) => a.questionId)).size;
+  // Unified Resilient Statistics calculation across attempts, sessions, and statuses
+  const derivedStats = useMemo(() => {
+    return rebuildEngine.computeStatistics(attempts, sessionHistory, statuses);
+  }, [attempts, sessionHistory, statuses]);
 
-  const totalStudySeconds = attempts.reduce((acc, a) => acc + (a.timeSpentSeconds || 15), 0);
-  const studyMins = Math.round(totalStudySeconds / 60);
-
-  // Streaks calculation
-  const calculateStreak = () => {
-    if (attempts.length === 0) return { current: 0, longest: 0 };
-    const dateStrings = Array.from(
-      new Set(attempts.map((a) => new Date(a.timestamp).toISOString().slice(0, 10)))
-    ).sort();
-
-    let current = 0;
-    let longest = 0;
-    let temp = 0;
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-
-    for (let i = 0; i < dateStrings.length; i++) {
-      if (i === 0) temp = 1;
-      else {
-        const prev = new Date(dateStrings[i - 1]).getTime();
-        const curr = new Date(dateStrings[i]).getTime();
-        const diff = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
-        if (diff === 1) temp++;
-        else temp = 1;
-      }
-      if (temp > longest) longest = temp;
-    }
-
-    if (dateStrings.includes(today) || dateStrings.includes(yesterday)) {
-      current = temp;
-    }
-    return { current: Math.max(1, current), longest: Math.max(1, longest) };
-  };
-
-  const streak = calculateStreak();
+  const {
+    totalAttempts,
+    correctAttempts,
+    accuracyPercentage,
+    uniqueQuestionsSolved,
+    totalStudySeconds,
+    studyMins,
+    streak,
+  } = derivedStats;
 
   const favoriteCount = statuses.filter((s) => s.isFavorite).length;
   const flaggedCount = statuses.filter((s) => s.isFlagged).length;
@@ -265,6 +241,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {recentDecks.map((deck) => {
               const isDeckActive = activeSession ? activeSession.deckIds.includes(deck.id) : false;
               const deckAttempts = attempts.filter((a) => a.deckId === deck.id);
+              const deckSessions = sessionHistory.filter((s) => s.deckIds?.includes(deck.id));
+              const deckQuestions = questions.filter((q) => q.deckId === deck.id);
+              const deckStatuses = statuses.filter((s) =>
+                deckQuestions.some((q) => q.id === s.questionId)
+              );
+              const answeredStatuses = deckStatuses.filter(
+                (s) => s.attemptsCount > 0 || s.lastAttemptAt !== undefined || s.isIncorrect
+              );
 
               let statusLabel = 'Not started';
               let statusClass = 'text-muted';
@@ -275,9 +259,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               } else if (deck.latestScore !== undefined) {
                 statusLabel = `${deck.latestScore}%`;
                 statusClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+              } else if (deckSessions.length > 0) {
+                const latestS = deckSessions[deckSessions.length - 1];
+                statusLabel = `${latestS.score}%`;
+                statusClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
               } else if (deckAttempts.length > 0) {
                 const correct = deckAttempts.filter((a) => a.isCorrect).length;
                 const score = Math.round((correct / deckAttempts.length) * 100);
+                statusLabel = `${score}%`;
+                statusClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+              } else if (answeredStatuses.length > 0) {
+                const correct = answeredStatuses.filter(
+                  (s) => !s.isIncorrect && (s.lastAttemptCorrect ?? true)
+                ).length;
+                const score = Math.round((correct / answeredStatuses.length) * 100);
                 statusLabel = `${score}%`;
                 statusClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
               }
@@ -443,10 +438,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               const dayAttempts = attempts.filter(
                 (a) => new Date(a.timestamp).toISOString().slice(0, 10) === dayDate
               );
-              const hasActivity = dayAttempts.length > 0;
+              const daySessions = sessionHistory.filter((s) => {
+                if (s.date === dayDate) return true;
+                if (s.completedAt && new Date(s.completedAt).toISOString().slice(0, 10) === dayDate) return true;
+                return false;
+              });
+              const dayStatuses = statuses.filter(
+                (s) => s.lastAttemptAt && new Date(s.lastAttemptAt).toISOString().slice(0, 10) === dayDate
+              );
+              const count = dayAttempts.length + daySessions.length + dayStatuses.length;
+              const hasActivity = count > 0;
 
               return (
-                <Tooltip key={idx} content={`${dayDate}: ${dayAttempts.length} questions attempted`}>
+                <Tooltip key={idx} content={`${dayDate}: ${count} study records logged`}>
                   <div
                     className={`aspect-square rounded-sm border ${
                       hasActivity

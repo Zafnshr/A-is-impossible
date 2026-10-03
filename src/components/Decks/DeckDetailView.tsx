@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ArrowLeft,
   Play,
@@ -102,6 +102,49 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
   const deckAttempts = attempts
     .filter((a) => a.deckId === deck.id)
     .sort((a, b) => b.timestamp - a.timestamp);
+
+  // Answered statuses for this deck (for fallback resilient state derivation)
+  const answeredDeckStatuses = statuses.filter((s) => {
+    return (
+      deckQuestions.some((q) => q.id === s.questionId) &&
+      (s.attemptsCount > 0 || s.lastAttemptAt !== undefined || s.isIncorrect)
+    );
+  });
+
+  const derivedBestScore = useMemo(() => {
+    if (deck.bestScore !== undefined) return deck.bestScore;
+    if (deckAttempts.length > 0) {
+      const correct = deckAttempts.filter((a) => a.isCorrect).length;
+      return Math.round((correct / deckAttempts.length) * 100);
+    }
+    if (answeredDeckStatuses.length > 0) {
+      const correct = answeredDeckStatuses.filter(
+        (s) => !s.isIncorrect && (s.lastAttemptCorrect ?? true)
+      ).length;
+      return Math.round((correct / answeredDeckStatuses.length) * 100);
+    }
+    return undefined;
+  }, [deck.bestScore, deckAttempts, answeredDeckStatuses]);
+
+  const derivedAverageScore = useMemo(() => {
+    if (deck.averageScore !== undefined) return deck.averageScore;
+    return derivedBestScore;
+  }, [deck.averageScore, derivedBestScore]);
+
+  const derivedLatestScore = useMemo(() => {
+    if (deck.latestScore !== undefined) return deck.latestScore;
+    return derivedBestScore;
+  }, [deck.latestScore, derivedBestScore]);
+
+  const derivedLastOpened = useMemo(() => {
+    if (deck.lastOpenedAt) return deck.lastOpenedAt;
+    if (deckAttempts.length > 0) return deckAttempts[0].timestamp;
+    if (answeredDeckStatuses.length > 0) {
+      const times = answeredDeckStatuses.map((s) => s.lastAttemptAt || 0).filter(Boolean);
+      if (times.length > 0) return Math.max(...times);
+    }
+    return undefined;
+  }, [deck.lastOpenedAt, deckAttempts, answeredDeckStatuses]);
 
   const formatLastOpened = (timestamp?: number) => {
     if (!timestamp) return 'Never opened';
@@ -266,36 +309,28 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
           <div className="p-3 rounded-xl bg-subtle border border-subtle">
             <span className="text-secondary text-[10px] uppercase font-semibold">Best Score</span>
             <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
-              {deck.bestScore !== undefined ? `${deck.bestScore}%` : '—'}
+              {derivedBestScore !== undefined ? `${derivedBestScore}%` : '—'}
             </div>
           </div>
 
           <div className="p-3 rounded-xl bg-subtle border border-subtle">
             <span className="text-secondary text-[10px] uppercase font-semibold">Average Score</span>
             <div className="text-lg font-black text-cyan-600 dark:text-cyan-400 mt-0.5">
-              {deck.averageScore !== undefined
-                ? `${deck.averageScore}%`
-                : deckAttempts.length > 0
-                ? `${Math.round((deckAttempts.filter((a) => a.isCorrect).length / deckAttempts.length) * 100)}%`
-                : '—'}
+              {derivedAverageScore !== undefined ? `${derivedAverageScore}%` : '—'}
             </div>
           </div>
 
           <div className="p-3 rounded-xl bg-subtle border border-subtle">
             <span className="text-secondary text-[10px] uppercase font-semibold">Latest Score</span>
             <div className="text-lg font-black text-primary mt-0.5">
-              {deck.latestScore !== undefined
-                ? `${deck.latestScore}%`
-                : deckAttempts.length > 0
-                ? `${Math.round((deckAttempts.filter((a) => a.isCorrect).length / deckAttempts.length) * 100)}%`
-                : '—'}
+              {derivedLatestScore !== undefined ? `${derivedLatestScore}%` : '—'}
             </div>
           </div>
 
           <div className="p-3 rounded-xl bg-subtle border border-subtle col-span-2 sm:col-span-1">
             <span className="text-secondary text-[10px] uppercase font-semibold">Last Opened</span>
             <div className="text-xs font-mono text-primary mt-1 truncate">
-              {formatLastOpened(deck.lastOpenedAt)}
+              {formatLastOpened(derivedLastOpened)}
             </div>
           </div>
         </div>
