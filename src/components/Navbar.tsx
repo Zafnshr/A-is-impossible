@@ -140,35 +140,45 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </Tooltip>
 
-        {/* Cloud Sync & Guest Account Pill */}
+        {/* Account & Cloud Sync Control */}
         {onOpenAuthModal && (
-          <Tooltip content={currentUser ? `Cloud Sync Active (${currentUser.email})` : 'Guest Mode (Local only) • Click to Sign In'}>
+          currentUser ? (
             <button
               type="button"
               onClick={onOpenAuthModal}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition ${
-                currentUser
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-                  : 'bg-subtle border-subtle text-secondary hover:text-primary'
-              }`}
+              className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.08] hover:bg-emerald-500/[0.15] text-primary transition shadow-xs cursor-pointer"
+              title={`Account: ${currentUser.email} • Cloud Sync Active`}
             >
-              {currentUser ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
-                  <span className="hidden sm:inline truncate max-w-[90px]">
-                    {currentUser.user_metadata?.full_name?.split(' ')[0] || currentUser.email?.split('@')[0]}
-                  </span>
-                  <span className="sm:hidden text-[10px] font-mono">Sync</span>
-                </>
+              {currentUser.user_metadata?.avatar_url || currentUser.user_metadata?.picture ? (
+                <img
+                  src={currentUser.user_metadata?.avatar_url || currentUser.user_metadata?.picture}
+                  alt="Avatar"
+                  className="w-5 h-5 rounded-full object-cover ring-1 ring-emerald-500/40"
+                />
               ) : (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                  <span className="hidden sm:inline">Guest</span>
-                  <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">Sign In</span>
-                </>
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-cyan-600 to-indigo-600 text-white font-bold flex items-center justify-center text-[10px]">
+                  {(currentUser.user_metadata?.full_name || currentUser.email || 'U').charAt(0).toUpperCase()}
+                </div>
               )}
+              <span className="text-xs font-semibold max-w-[100px] truncate text-primary hidden sm:inline">
+                {currentUser.user_metadata?.full_name?.split(' ')[0] || currentUser.email?.split('@')[0]}
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
             </button>
-          </Tooltip>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className="flex items-center gap-2 pl-2.5 pr-2.5 py-1 rounded-full border border-subtle bg-surface hover:bg-subtle text-primary transition shadow-xs cursor-pointer group"
+              title="Guest Mode (Local Device) • Click to Sign In"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/20" />
+              <span className="text-xs font-semibold text-secondary group-hover:text-primary hidden sm:inline">Guest Mode</span>
+              <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full group-hover:bg-cyan-500/20 transition">
+                Sign In
+              </span>
+            </button>
+          )
         )}
       </div>
     </header>

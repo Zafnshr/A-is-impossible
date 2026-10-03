@@ -35,12 +35,21 @@ import { HelpCenter } from './components/Help/HelpCenter';
 import { SettingsView } from './components/Settings/SettingsView';
 import { GlobalSearchModal } from './components/Search/GlobalSearchModal';
 import { OnboardingWizardModal } from './components/FirstLaunch/OnboardingWizardModal';
+import { FirstLaunchWelcomeModal } from './components/FirstLaunch/FirstLaunchWelcomeModal';
+import { InteractiveTourGuide } from './components/InteractiveTour/InteractiveTourGuide';
+import { TourInvitationModal } from './components/InteractiveTour/TourInvitationModal';
+import { WorkflowGuideModal } from './components/Guide/WorkflowGuideModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { IconicLoadingScreen } from './components/Loading/IconicLoadingScreen';
 import { User } from '@supabase/supabase-js';
 import { AuthModal } from './components/Auth/AuthModal';
 import { openOfficialQuestionGenerator } from './services/gemLink';
-import { cloudAuthService, cloudSyncService } from './services/supabase';
+import { cloudAuthService, cloudSyncService, GOOGLE_CLIENT_ID } from './services/supabase';
+import { accountManager } from './services/accountManager';
+import {
+  tourSampleService,
+  SAMPLE_RAW_COLLEGE_EXAM_TEXT,
+} from './services/tourSampleService';
 import {
   generateStudyQuestions,
   guaranteedShuffle,
@@ -94,10 +103,21 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
 
+  // First Launch & Active Learning Tour state
+  const [firstLaunchOpen, setFirstLaunchOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return !localStorage.getItem('a_plus_has_visited');
+  });
+  const [interactiveTourOpen, setInteractiveTourOpen] = useState<boolean>(false);
+  const [tourStepIndex, setTourStepIndex] = useState<number>(0);
+  const [tourInvitationOpen, setTourInvitationOpen] = useState<boolean>(false);
+  const [isWorkflowGuideOpen, setIsWorkflowGuideOpen] = useState<boolean>(false);
+  const [libraryLocation, setLibraryLocation] = useState<{ year: string; module: string; subject: string } | null>(null);
+
 
   // Import wizard prefill metadata
   const [importPrefill, setImportPrefill] = useState<
-    { year: string; module: string; subject: string } | undefined
+    { year: string; module: string; subject: string; initialRawText?: string; lectureName?: string } | undefined
   >(undefined);
 
   // Question editor focused deck
@@ -253,38 +273,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
 
-  // Cloud Auth & Background Sync listener
+  // Cloud Auth & Independent Account World Listener
   useEffect(() => {
     let isMounted = true;
 
     const unsubscribe = cloudAuthService.onAuthStateChange(async (user) => {
       if (!isMounted) return;
       setCurrentUser(user);
+
       if (user) {
+        // User logged in: load their isolated Google world from cloud
         try {
-          setIsSyncing(true);
-          const currentDecks = await dbService.getDecks();
-          const currentQuestions = await dbService.getQuestions();
-          const currentStatuses = await dbService.getAllStatusForProfile(WORKSPACE_ID);
-          const currentHistory = await dbService.getSessionHistory(WORKSPACE_ID);
-          const result = await cloudSyncService.syncAll(
-            user.id,
-            currentDecks,
-            currentQuestions,
-            currentStatuses,
-            currentHistory
-          );
+          if (isMounted) setIsSyncing(true);
+          const result = await accountManager.loadGoogleUserWorld(user.id);
           if (isMounted) setLastSyncedAt(result.syncedAt);
-          for (const d of result.decks) {
-            await dbService.saveDeck(d);
-          }
-          await dbService.saveQuestions(result.questions);
-          for (const s of result.statuses) {
-            await dbService.saveStatus(s);
-          }
           await reloadData();
         } catch (err) {
-          console.error('[CloudSync] Auto-sync failed on auth change:', err);
+          console.error('[Account] Error loading account world:', err);
         } finally {
           if (isMounted) setIsSyncing(false);
         }
@@ -318,7 +323,7 @@ export default function App() {
           }
           await reloadData();
         } catch (err) {
-          console.error('[CloudSync] Initial sync error:', err);
+          console.error('[Account] Initial sync error:', err);
         } finally {
           if (isMounted) setIsSyncing(false);
         }
@@ -332,12 +337,123 @@ export default function App() {
   }, [reloadData]);
 
   const handleSignInWithGoogle = async () => {
+    // Snapshot the current guest workspace before redirecting to Google
+    await accountManager.snapshotGuestWorkspace();
+    if (GOOGLE_CLIENT_ID) {
+      try {
+        await cloudAuthService.signInWithGoogleIdentityServices(GOOGLE_CLIENT_ID);
+        return;
+      } catch (err) {
+        console.warn('[Auth] Google Identity Services popup skipped, falling back to standard OAuth:', err);
+      }
+    }
     await cloudAuthService.signInWithGoogle();
   };
 
   const handleSignOut = async () => {
-    await cloudAuthService.signOut();
-    setCurrentUser(null);
+    try {
+      setIsSyncing(true);
+      await cloudAuthService.signOut();
+      setCurrentUser(null);
+      // Restore the exact Guest environment
+      await accountManager.restoreGuestWorkspace();
+      await reloadData();
+    } catch (err) {
+      console.error('[Account] Error signing out:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleTransferGuestData = async () => {
+    if (!currentUser) return;
+    try {
+      setIsSyncing(true);
+      await accountManager.transferGuestDecksToGoogleAccount(currentUser.id);
+      await reloadData();
+    } catch (err) {
+      console.error('[Account] Error copying guest decks:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleContinueAsGuest = () => {
+    localStorage.setItem('a_plus_has_visited', 'true');
+    setFirstLaunchOpen(false);
+    if (!localStorage.getItem('a_plus_tour_completed')) {
+      setTourInvitationOpen(true);
+    }
+  };
+
+  const handleStartTourFromInvitation = () => {
+    setTourInvitationOpen(false);
+    setTourStepIndex(0);
+    setInteractiveTourOpen(true);
+  };
+
+  const handleSkipTourFromInvitation = () => {
+    setTourInvitationOpen(false);
+    localStorage.setItem('a_plus_tour_completed', 'true');
+  };
+
+  const handleFirstLaunchGoogle = async () => {
+    localStorage.setItem('a_plus_has_visited', 'true');
+    setFirstLaunchOpen(false);
+    await handleSignInWithGoogle();
+  };
+
+  const handleRestartTour = () => {
+    setTourStepIndex(0);
+    setTourInvitationOpen(true);
+  };
+
+  const handleCompleteTour = () => {
+    localStorage.setItem('a_plus_tour_completed', 'true');
+    setInteractiveTourOpen(false);
+  };
+
+  // Sample Interactive Tour Handlers
+  const handleTourLoadSampleDeck = async () => {
+    const deck = await tourSampleService.ensureSampleDeckExists();
+    await reloadData();
+    setLibraryLocation({ year: deck.year, module: deck.module, subject: deck.subject });
+    setActiveTab('library');
+  };
+
+  const handleTourLoadSampleImport = () => {
+    setImportPrefill({
+      year: 'Year 2',
+      module: 'Blood',
+      subject: 'Physiology',
+      lectureName: 'Blood Physiology: Sample College Exam',
+      initialRawText: SAMPLE_RAW_COLLEGE_EXAM_TEXT,
+    });
+    setActiveTab('import');
+  };
+
+  const handleTourInspectSampleDeck = async () => {
+    const deck = await tourSampleService.ensureSampleDeckExists();
+    await reloadData();
+    setSelectedDeckForDetail(deck);
+    setActiveTab('deck_detail');
+  };
+
+  const handleTourStartSampleStudySession = async () => {
+    const deck = await tourSampleService.ensureSampleDeckExists();
+    await reloadData();
+    await handleStartSession({
+      deckIds: [deck.id],
+      mode: 'single_lecture',
+      orderMode: 'sequential',
+      shuffleOptions: {
+        shuffleQuestions: false,
+        shuffleAnswers: false,
+        shuffleLectures: false,
+      },
+      timerType: 'stopwatch',
+      countdownMinutes: 10,
+    });
   };
 
   const handleForceSync = async () => {
@@ -843,6 +959,7 @@ export default function App() {
 
     const d = await dbService.getDeck(finalDeckId);
     if (d) {
+      setLibraryLocation({ year: d.year, module: d.module, subject: d.subject });
       setSelectedDeckForDetail(d);
       setActiveTab('deck_detail');
     }
@@ -1160,7 +1277,7 @@ export default function App() {
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
         onOpenHelp={() => setActiveTab('help')}
-        onStartTour={() => setOnboardingWizardOpen(true)}
+        onStartTour={handleRestartTour}
         onUpdateSettings={handleUpdateSettings}
       />
 
@@ -1212,6 +1329,9 @@ export default function App() {
                 onCreateDeckPrompt={handleCreateDeckPrompt}
                 onRenameDeck={handleRenameDeck}
                 onDeleteDeck={handleDeleteDeck}
+                initialLocation={libraryLocation}
+                onLoadSampleDeck={handleTourLoadSampleDeck}
+                onOpenWorkflowGuide={() => setIsWorkflowGuideOpen(true)}
               />
             </ErrorBoundary>
           )}
@@ -1339,6 +1459,7 @@ export default function App() {
                 onCompleteImport={handleCompleteImport}
                 onCancel={() => setActiveTab('library')}
                 onOpenGem={handleOpenGem}
+                onOpenWorkflowGuide={() => setIsWorkflowGuideOpen(true)}
               />
             </ErrorBoundary>
           )}
@@ -1394,7 +1515,7 @@ export default function App() {
           {/* TAB: HELP CENTER */}
           {activeTab === 'help' && (
             <ErrorBoundary fallbackTitle="Help Center Error" onReset={reloadData}>
-              <HelpCenter onStartTour={() => setOnboardingWizardOpen(true)} />
+              <HelpCenter onStartTour={handleRestartTour} />
             </ErrorBoundary>
           )}
 
@@ -1478,6 +1599,66 @@ export default function App() {
         onOpenLibrary={() => setActiveTab('library')}
       />
 
+      {/* First Launch Welcome Experience Modal */}
+      <FirstLaunchWelcomeModal
+        isOpen={firstLaunchOpen && hasCompletedIntroAnimation}
+        onContinueWithGoogle={handleFirstLaunchGoogle}
+        onContinueAsGuest={handleContinueAsGuest}
+      />
+
+      {/* Tour Welcoming Invitation Screen */}
+      <TourInvitationModal
+        isOpen={tourInvitationOpen && hasCompletedIntroAnimation}
+        onStartTour={handleStartTourFromInvitation}
+        onSkipTour={handleSkipTourFromInvitation}
+        onOpenGuide={() => {
+          setTourInvitationOpen(false);
+          setIsWorkflowGuideOpen(true);
+        }}
+      />
+
+      {/* Interactive Active Learning Walkthrough Guide */}
+      <InteractiveTourGuide
+        isOpen={interactiveTourOpen && hasCompletedIntroAnimation}
+        onClose={() => setInteractiveTourOpen(false)}
+        currentStepIndex={tourStepIndex}
+        onSetStepIndex={setTourStepIndex}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+        }}
+        onCompleteTour={handleCompleteTour}
+        onLoadSampleDeck={handleTourLoadSampleDeck}
+        onLoadSampleImport={handleTourLoadSampleImport}
+        onInspectSampleDeck={handleTourInspectSampleDeck}
+        onStartSampleStudySession={handleTourStartSampleStudySession}
+        onToggleQuestionMap={() => {
+          if (activeSession) {
+            setActiveTab('study');
+          } else {
+            handleTourStartSampleStudySession();
+          }
+        }}
+        onOpenWorkflowGuide={() => setIsWorkflowGuideOpen(true)}
+        activeTab={activeTab}
+      />
+
+      {/* Step-by-Step Workflow & Sample Questions Modal */}
+      <WorkflowGuideModal
+        isOpen={isWorkflowGuideOpen}
+        onClose={() => setIsWorkflowGuideOpen(false)}
+        onNavigateTab={(tab) => {
+          setIsWorkflowGuideOpen(false);
+          setActiveTab(tab);
+        }}
+        onLoadSampleExam={() => {
+          setIsWorkflowGuideOpen(false);
+          handleTourLoadSampleImport();
+        }}
+        onLoadSampleDeck={handleTourLoadSampleDeck}
+        onInspectSampleDeck={handleTourInspectSampleDeck}
+        onStartStudySample={handleTourStartSampleStudySession}
+      />
+
       {/* Cloud Authentication & Sync Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
@@ -1490,6 +1671,8 @@ export default function App() {
         onForceSync={handleForceSync}
         localDecksCount={decks.length}
         localQuestionsCount={questions.length}
+        hasGuestDataToTransfer={!!accountManager.getGuestSnapshot()?.data?.decks?.length}
+        onTransferGuestData={handleTransferGuestData}
       />
 
         </div>

@@ -27,6 +27,7 @@ import {
   Shuffle,
   BookOpen,
   ExternalLink,
+  X,
 } from 'lucide-react';
 import {
   parseFileContent,
@@ -44,12 +45,19 @@ import {
   getDefaultModule,
   getDefaultSubject,
 } from '../../services/academicStructure';
+import { SAMPLE_RAW_COLLEGE_EXAM_TEXT, SAMPLE_QUESTION_TEMPLATES } from '../../services/tourSampleService';
 import { Deck, Question, QuestionType, MatchingPair, CaseSubQuestion } from '../../types';
 import { Tooltip } from '../Tooltip';
 
 interface ImportWizardProps {
   existingDecks: Deck[];
-  initialPrefill?: { year: string; module: string; subject: string };
+  initialPrefill?: {
+    year: string;
+    module: string;
+    subject: string;
+    initialRawText?: string;
+    lectureName?: string;
+  };
   onCompleteImport: (
     deckMeta: Omit<Deck, 'id' | 'createdAt' | 'updatedAt' | 'questionCount'>,
     questions: Omit<Question, 'id' | 'deckId' | 'createdAt' | 'updatedAt'>[],
@@ -58,6 +66,7 @@ interface ImportWizardProps {
   ) => void;
   onCancel: () => void;
   onOpenGem?: () => void;
+  onOpenWorkflowGuide?: () => void;
 }
 
 interface EditableQuestionItem {
@@ -82,6 +91,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   onCompleteImport,
   onCancel,
   onOpenGem,
+  onOpenWorkflowGuide,
 }) => {
   // Predefined academic structure (centralized)
   const defaultYr = initialPrefill?.year || getDefaultYear();
@@ -94,7 +104,9 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   // Step 3: Parse & Diagnostics
   // Step 4: Mandatory Pre-Import Question Review (Quality-Control Layer)
   // Step 5: Confirm & Import
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    return initialPrefill?.initialRawText ? 2 : 1;
+  });
 
   // Predefined academic selections
   const [selectedYear, setSelectedYear] = useState<string>(defaultYr);
@@ -102,13 +114,19 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [selectedSubject, setSelectedSubject] = useState<string>(defaultSubj);
 
   // Lecture Name & Content
-  const [lectureName, setLectureName] = useState<string>('');
+  const [lectureName, setLectureName] = useState<string>(() => {
+    return initialPrefill?.lectureName || '';
+  });
   const [description, setDescription] = useState<string>('');
 
   // Input source: Upload File or Paste Text
-  const [inputMode, setInputMode] = useState<'upload' | 'paste'>('upload');
+  const [inputMode, setInputMode] = useState<'upload' | 'paste'>(() => {
+    return initialPrefill?.initialRawText ? 'paste' : 'upload';
+  });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [pastedText, setPastedText] = useState<string>('');
+  const [pastedText, setPastedText] = useState<string>(() => {
+    return initialPrefill?.initialRawText || '';
+  });
   const [isParsing, setIsParsing] = useState<boolean>(false);
 
   // Diagnostics & Review State
@@ -116,6 +134,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [reviewQuestions, setReviewQuestions] = useState<EditableQuestionItem[]>([]);
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [showDebugView, setShowDebugView] = useState<boolean>(false);
+  const [showFormatModal, setShowFormatModal] = useState<boolean>(false);
 
   // Collision handling state
   const [collidingDeck, setCollidingDeck] = useState<Deck | null>(null);
@@ -641,40 +660,57 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto px-3.5 sm:px-6 py-4 space-y-6">
-      {/* Wizard Step Progression Bar */}
-      <div className="flex items-center justify-between border-b border-subtle pb-4">
-        {[
-          { step: 1, label: 'Curriculum' },
-          { step: 2, label: 'Content' },
-          { step: 3, label: 'Diagnostics' },
-          { step: 4, label: 'Question Review' },
-          { step: 5, label: 'Complete' },
-        ].map((s) => (
-          <div key={s.step} className="flex items-center gap-2">
-            <span
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-colors ${
-                currentStep === s.step
-                  ? 'bg-cyan-500 text-white font-bold ring-2 ring-cyan-400'
-                  : currentStep > s.step
-                  ? 'bg-emerald-500 text-white font-bold'
-                  : 'bg-subtle text-muted border border-subtle'
-              }`}
-            >
-              {currentStep > s.step ? <Check className="w-3.5 h-3.5" /> : s.step}
-            </span>
-            <span
-              className={`text-xs font-semibold hidden sm:inline ${
-                currentStep === s.step
-                  ? 'text-primary'
-                  : currentStep > s.step
-                  ? 'text-emerald-500'
-                  : 'text-muted'
-              }`}
-            >
-              {s.label}
-            </span>
-          </div>
-        ))}
+      {/* Wizard Step Progression Bar & Guide Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-subtle pb-4">
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto">
+          {[
+            { step: 1, label: 'Curriculum' },
+            { step: 2, label: 'Content' },
+            { step: 3, label: 'Diagnostics' },
+            { step: 4, label: 'Question Review' },
+            { step: 5, label: 'Complete' },
+          ].map((s) => (
+            <div key={s.step} className="flex items-center gap-1.5 shrink-0">
+              <span
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-colors ${
+                  currentStep === s.step
+                    ? 'bg-cyan-500 text-white font-bold ring-2 ring-cyan-400'
+                    : currentStep > s.step
+                    ? 'bg-emerald-500 text-white font-bold'
+                    : 'bg-subtle text-muted border border-subtle'
+                }`}
+              >
+                {currentStep > s.step ? <Check className="w-3.5 h-3.5" /> : s.step}
+              </span>
+              <span
+                className={`text-xs font-semibold hidden sm:inline ${
+                  currentStep === s.step
+                    ? 'text-primary'
+                    : currentStep > s.step
+                    ? 'text-emerald-500'
+                    : 'text-muted'
+                }`}
+              >
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (onOpenWorkflowGuide) {
+              onOpenWorkflowGuide();
+            } else {
+              setShowFormatModal(true);
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary text-xs font-bold transition border border-subtle shrink-0 self-start sm:self-auto cursor-pointer"
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-cyan-500" />
+          <span>Workflow Guide &amp; Sample Questions</span>
+        </button>
       </div>
 
       {/* =========================================================================
@@ -689,6 +725,29 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             <p className="text-xs text-secondary mt-1">
               Organize your medical question deck into the standardized academic curriculum.
             </p>
+          </div>
+
+          {/* Quick Sample Demonstration Bar */}
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-500/10 via-indigo-500/5 to-transparent border border-cyan-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-cyan-500 shrink-0" />
+              <div>
+                <span className="text-xs text-primary font-bold">Curriculum Demo: </span>
+                <span className="text-xs text-secondary">Want to test with standard Egyptian medical structure?</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedYear('Year 2');
+                setSelectedModule('Blood');
+                setSelectedSubject('Physiology');
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-cyan-600/15 hover:bg-cyan-600/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs transition active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
+              <span>Use Sample: Year 2 Blood Physiology</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -850,11 +909,21 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               <label className="text-primary font-bold">
                 Lecture Name <span className="text-muted font-normal">(User-Defined)</span>
               </label>
-              <span className="text-[11px] text-muted">
-                {inputMode === 'upload'
-                  ? 'Default value: Uploaded document filename'
-                  : 'Leave empty or enter lecture name'}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLectureName('Blood Physiology: Erythropoiesis & Iron Metabolism')}
+                  className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Use Sample Title</span>
+                </button>
+                <span className="text-[11px] text-muted hidden sm:inline">
+                  {inputMode === 'upload'
+                    ? 'Default value: Uploaded document filename'
+                    : 'Leave empty or enter lecture name'}
+                </span>
+              </div>
             </div>
             <input
               type="text"
@@ -901,11 +970,59 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             </div>
           ) : (
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between text-secondary font-semibold">
-                <span>Paste Question Content:</span>
-                <span className="text-[11px] text-muted font-mono">
-                  Supports MCQ, Matching, Ordering, and Case Questions
-                </span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-secondary font-semibold">
+                <span className="text-primary font-bold">Paste Question Content or Test Samples:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowFormatModal(true)}
+                  className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-bold text-[11px] cursor-pointer"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span>View All 6 Question Formats &amp; Samples</span>
+                </button>
+              </div>
+
+              {/* Multi-Format Sample Buttons Bar */}
+              <div className="flex items-center gap-1.5 flex-wrap p-2 rounded-xl bg-subtle/60 border border-subtle">
+                <span className="text-[11px] text-muted font-bold mr-1">Insert Sample:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPastedText(SAMPLE_RAW_COLLEGE_EXAM_TEXT);
+                    if (!lectureName.trim()) setLectureName('Blood Physiology: Erythropoiesis & Iron Regulation');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3 text-cyan-500" />
+                  <span>College Exam (5 Clinical MCQs)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const caseSample = SAMPLE_QUESTION_TEMPLATES.find((t) => t.id === 'case_study')?.sampleSnippet || '';
+                    setPastedText(caseSample);
+                    if (!lectureName.trim()) setLectureName('Clinical Case Vignette: Severe Anemia');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <FileText className="w-3 h-3 text-indigo-500" />
+                  <span>Clinical Case Study</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const multiSample = SAMPLE_QUESTION_TEMPLATES.find((t) => t.id === 'multiple_answers')?.sampleSnippet || '';
+                    const tfSample = SAMPLE_QUESTION_TEMPLATES.find((t) => t.id === 'true_false')?.sampleSnippet || '';
+                    setPastedText(`${multiSample}\n\n${tfSample}`);
+                    if (!lectureName.trim()) setLectureName('RBC Physiology & Microcytic Anemia');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Layers className="w-3 h-3 text-purple-500" />
+                  <span>Multi-Select &amp; True/False</span>
+                </button>
               </div>
               <textarea
                 value={pastedText}
@@ -958,6 +1075,17 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             <span className="text-xs font-mono font-bold text-cyan-600 dark:text-cyan-400 bg-subtle px-3 py-1 rounded-full border border-subtle">
               {previewResult.detectedQuestionCount} Questions Detected
             </span>
+          </div>
+
+          {/* Step 3 Explanatory Guide Box */}
+          <div className="p-3.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800 text-xs space-y-1">
+            <div className="flex items-center gap-2 text-cyan-950 dark:text-cyan-200 font-bold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <span>Step 3: Engine Diagnostics &amp; Validation</span>
+            </div>
+            <p className="text-cyan-900/80 dark:text-cyan-300/80 text-[11px] leading-relaxed">
+              The engine automatically segmented question boundaries, stripped irrelevant headers, extracted answer choices A-E, and linked answer keys. Review the breakdown below, then click <strong>&ldquo;Next: Question Review&rdquo;</strong> to inspect each question.
+            </p>
           </div>
 
           {/* Diagnostic Metrics Grid: All 6 types */}
@@ -1101,7 +1229,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                   Quality Control Review
                 </span>
                 <h2 className="text-base font-bold text-primary tracking-wide">
-                  Review & Refine Questions Before Import
+                  Review &amp; Refine Questions Before Import
                 </h2>
               </div>
               <p className="text-xs text-secondary mt-1">
@@ -1139,7 +1267,16 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             </div>
           </div>
 
-          {/* Document Block Inspector (when showDebugView is enabled) */}
+          {/* Step 4 Guidance Banner */}
+          <div className="p-3.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800 text-xs space-y-1">
+            <div className="flex items-center gap-2 text-cyan-950 dark:text-cyan-200 font-bold">
+              <Sparkles className="w-4 h-4 text-cyan-500" />
+              <span>Step 4: Quality Review &amp; Pre-Import Customization</span>
+            </div>
+            <p className="text-cyan-900/80 dark:text-cyan-300/80 text-[11px] leading-relaxed">
+              • Click on question stems or answer choices to edit wording • Click choice letters (A, B, C...) to toggle correct answers (green badge) • When satisfied, click <strong>&ldquo;Next: Save Deck&rdquo;</strong> at the bottom.
+            </p>
+          </div>
           {showDebugView && previewResult?.documentBlocks && (
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between text-xs font-bold text-amber-800 dark:text-amber-300">
@@ -1763,9 +1900,18 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               </span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-muted">Storage Engine:</span>
-              <span className="font-bold text-primary">IndexedDB Local</span>
+              <span className="text-muted">Storage Location:</span>
+              <span className="font-bold text-primary">Active Medical Library</span>
             </div>
+          </div>
+
+          <div className="p-4 bg-cyan-50 dark:bg-cyan-950/20 rounded-xl border border-cyan-200 dark:border-cyan-800 max-w-md mx-auto text-xs space-y-2 text-left">
+            <h4 className="font-bold text-cyan-950 dark:text-cyan-200">How to Access &amp; Practice Your Deck:</h4>
+            <ol className="list-decimal list-inside space-y-1.5 text-cyan-900/80 dark:text-cyan-300/80 text-[11px] leading-relaxed">
+              <li><strong>Library Explorer:</strong> Your deck is organized under <strong>{selectedYear} → {selectedModule} → {selectedSubject}</strong>.</li>
+              <li><strong>Active Practice:</strong> Click &ldquo;Start Session&rdquo; on the deck card to practice with timers and instant clinical feedback.</li>
+              <li><strong>Revision:</strong> Any question answered incorrectly automatically flows into your &ldquo;Incorrect&rdquo; collection for high-yield pre-exam cramming!</li>
+            </ol>
           </div>
 
           <div className="pt-3">
@@ -1835,6 +1981,107 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 className="text-xs text-muted hover:text-primary"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Question Formats & Sample Templates Modal */}
+      {showFormatModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setShowFormatModal(false)}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[85vh] bg-surface border border-subtle rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl flex flex-col text-primary"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-subtle">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-primary">
+                    Medical Question Format Templates &amp; Samples
+                  </h3>
+                  <p className="text-xs text-secondary">
+                    Choose any sample format to auto-populate into your import editor
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFormatModal(false)}
+                className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-subtle transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {SAMPLE_QUESTION_TEMPLATES.map((tmpl) => (
+                <div
+                  key={tmpl.id}
+                  className="p-4 rounded-2xl bg-subtle/40 border border-subtle hover:border-cyan-500/40 transition space-y-2.5"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 text-[10px] font-bold font-mono">
+                        {tmpl.badge}
+                      </span>
+                      <h4 className="text-xs sm:text-sm font-bold text-primary">{tmpl.name}</h4>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(tmpl.sampleSnippet);
+                          alert('Copied sample to clipboard!');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-surface border border-subtle text-secondary hover:text-primary text-xs font-semibold transition"
+                      >
+                        Copy Sample
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPastedText(tmpl.sampleSnippet);
+                          setInputMode('paste');
+                          if (!lectureName.trim()) {
+                            setLectureName(
+                              tmpl.id === 'case_study'
+                                ? 'Hematology: Clinical Case Vignette'
+                                : `Sample Lecture: ${tmpl.name}`
+                            );
+                          }
+                          setShowFormatModal(false);
+                        }}
+                        className="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95"
+                      >
+                        Insert into Parser
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-secondary">{tmpl.description}</p>
+
+                  <pre className="p-3 rounded-xl bg-slate-950 text-slate-100 text-[11px] font-mono overflow-x-auto leading-relaxed border border-slate-800">
+                    {tmpl.sampleSnippet}
+                  </pre>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-subtle flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowFormatModal(false)}
+                className="px-5 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-bold text-xs transition"
+              >
+                Close
               </button>
             </div>
           </div>

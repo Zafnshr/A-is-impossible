@@ -5,6 +5,10 @@ export const SUPABASE_URL = 'https://lztniyfmrkkjnwybiyyr.supabase.co';
 export const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6dG5peWZtcmtram53eWJpeXlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5MzQ4NzksImV4cCI6MjEwNjUxMDg3OX0.eN3YEH8J8txcn3eYu-kl7c1am9T523ThQo0CguYOyN4';
 
+export const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '472153682500-qr73vhlnnkkeo9po67ba3iu0e0h4ighb.apps.googleusercontent.com';
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
@@ -20,6 +24,16 @@ export interface CloudSyncResult {
   history: StudySessionRecord[];
   syncedAt: number;
 }
+
+export const getCanonicalRedirectUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const { hostname, origin } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return origin;
+    }
+  }
+  return 'https://a-is-impossible.vercel.app';
+};
 
 export const cloudAuthService = {
   async getCurrentUser(): Promise<User | null> {
@@ -41,7 +55,7 @@ export const cloudAuthService = {
   },
 
   async signInWithGoogle() {
-    const redirectUrl = window.location.origin;
+    const redirectUrl = getCanonicalRedirectUrl();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -54,6 +68,56 @@ export const cloudAuthService = {
     });
     if (error) throw error;
     return data;
+  },
+
+  async signInWithGoogleIdToken(idToken: string) {
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: idToken,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async signInWithGoogleIdentityServices(clientId: string): Promise<User | null> {
+    return new Promise((resolve, reject) => {
+      const g = typeof window !== 'undefined' ? (window as any).google : null;
+      if (!g || !g.accounts || !g.accounts.id) {
+        // Fallback to standard redirect if script is not ready
+        this.signInWithGoogle()
+          .then(() => resolve(null))
+          .catch(reject);
+        return;
+      }
+
+      g.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (response: any) => {
+          try {
+            if (!response.credential) {
+              reject(new Error('No credential returned from Google.'));
+              return;
+            }
+            const res = await supabase.auth.signInWithIdToken({
+              provider: 'google',
+              token: response.credential,
+            });
+            if (res.error) throw res.error;
+            resolve(res.data.user);
+          } catch (err) {
+            reject(err);
+          }
+        },
+      });
+
+      g.accounts.id.prompt((notification: any) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          this.signInWithGoogle()
+            .then(() => resolve(null))
+            .catch(reject);
+        }
+      });
+    });
   },
 
   async signOut() {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FolderTree,
   ChevronRight,
@@ -16,6 +16,7 @@ import {
   X,
   Sparkles,
   ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
 import { Deck, Question } from '../../types';
 import { openOfficialQuestionGenerator } from '../../services/gemLink';
@@ -37,6 +38,9 @@ interface LibraryExplorerProps {
   onCreateDeckPrompt: (year?: string, module?: string, subject?: string) => void;
   onRenameDeck?: (deckId: string, newLectureName: string) => void;
   onDeleteDeck?: (deckId: string) => void;
+  initialLocation?: { year?: string; module?: string; subject?: string } | null;
+  onLoadSampleDeck?: () => Promise<void>;
+  onOpenWorkflowGuide?: () => void;
 }
 
 export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
@@ -47,16 +51,29 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
   onCreateDeckPrompt,
   onRenameDeck,
   onDeleteDeck,
+  initialLocation,
+  onLoadSampleDeck,
+  onOpenWorkflowGuide,
 }) => {
-  const initialYear = getDefaultYear();
-  const initialModule = getDefaultModule(initialYear);
-  const initialSubject = getDefaultSubject(initialYear, initialModule);
+  const initialYear = initialLocation?.year || getDefaultYear();
+  const initialModule = initialLocation?.module || getDefaultModule(initialYear);
+  const initialSubject = initialLocation?.subject || getDefaultSubject(initialYear, initialModule);
 
   // Explorer selection path
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [selectedModule, setSelectedModule] = useState<string>(initialModule);
   const [selectedSubject, setSelectedSubject] = useState<string>(initialSubject);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (initialLocation?.year && initialLocation?.module && initialLocation?.subject) {
+      setSelectedYear(initialLocation.year);
+      setSelectedModule(initialLocation.module);
+      setSelectedSubject(initialLocation.subject);
+      setExpandedYears((prev) => ({ ...prev, [initialLocation.year!]: true }));
+      setExpandedModules((prev) => ({ ...prev, [initialLocation.module!]: true }));
+    }
+  }, [initialLocation]);
 
   // Rename modal state
   const [renamingDeck, setRenamingDeck] = useState<Deck | null>(null);
@@ -269,28 +286,86 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
 
           {/* Decks Grid */}
           {filteredDecks.length === 0 ? (
-            <div className="p-12 text-center rounded-2xl bg-surface border border-dashed border-subtle space-y-3">
-              <BookOpen className="w-10 h-10 text-muted mx-auto" />
-              <h3 className="text-sm font-bold text-primary">No Lecture Decks in this Subject</h3>
-              <p className="text-xs text-secondary max-w-sm mx-auto">
-                No decks exist under {selectedModule} → {selectedSubject} yet.
-              </p>
-              <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={openOfficialQuestionGenerator}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Generate Questions Using Official AI Generator</span>
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </button>
-                <button
-                  onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
-                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
-                >
-                  Create Lecture Deck Here
-                </button>
+            <div className="space-y-4">
+              {decks.length > 0 && (
+                <div className="p-4 rounded-2xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/80 space-y-3">
+                  <div className="flex items-center gap-2 text-cyan-950 dark:text-cyan-200 font-bold text-xs">
+                    <Sparkles className="w-4 h-4 text-cyan-500" />
+                    <span>You have {decks.length} deck(s) available in other curriculum subjects:</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {decks.slice(0, 4).map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedYear(d.year);
+                          setSelectedModule(d.module);
+                          setSelectedSubject(d.subject);
+                          setExpandedYears((prev) => ({ ...prev, [d.year]: true }));
+                          setExpandedModules((prev) => ({ ...prev, [d.module]: true }));
+                        }}
+                        className="p-3 rounded-xl bg-surface border border-cyan-500/30 hover:border-cyan-500 text-left transition flex items-center justify-between gap-2 shadow-sm cursor-pointer group"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">
+                            {d.year} • {d.module} • {d.subject}
+                          </div>
+                          <div className="text-xs font-bold text-primary truncate group-hover:text-cyan-600 transition">
+                            {d.lectureName}
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
+                          Jump →
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="p-10 text-center rounded-2xl bg-surface border border-dashed border-subtle space-y-3">
+                <BookOpen className="w-10 h-10 text-muted mx-auto" />
+                <h3 className="text-sm font-bold text-primary">No Decks in {selectedModule} → {selectedSubject}</h3>
+                <p className="text-xs text-secondary max-w-sm mx-auto">
+                  Create a new lecture deck here, load the Egyptian medical sample deck, or explore the step-by-step workflow guide.
+                </p>
+                <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                  {onLoadSampleDeck && (
+                    <button
+                      type="button"
+                      onClick={onLoadSampleDeck}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
+                      <span>Load Sample Year 2 Blood Deck</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
+                    className="px-4 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-primary border border-subtle font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                  >
+                    Create Deck Here
+                  </button>
+                  {onOpenWorkflowGuide && (
+                    <button
+                      type="button"
+                      onClick={onOpenWorkflowGuide}
+                      className="px-4 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary font-bold text-xs transition cursor-pointer"
+                    >
+                      View Step-by-Step Guide
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={openOfficialQuestionGenerator}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 hover:from-indigo-500/20 hover:to-cyan-500/20 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Official AI Generator</span>
+                    <ExternalLink className="w-3 h-3 opacity-70" />
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
