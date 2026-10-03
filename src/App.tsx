@@ -44,7 +44,7 @@ import { IconicLoadingScreen } from './components/Loading/IconicLoadingScreen';
 import { User } from '@supabase/supabase-js';
 import { AuthModal } from './components/Auth/AuthModal';
 import { openOfficialQuestionGenerator } from './services/gemLink';
-import { cloudAuthService, cloudSyncService, GOOGLE_CLIENT_ID } from './services/supabase';
+import { cloudAuthService, cloudSyncService, GOOGLE_CLIENT_ID, cleanUrlHash } from './services/supabase';
 import { accountManager } from './services/accountManager';
 import {
   tourSampleService,
@@ -196,6 +196,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    cleanUrlHash();
     reloadData();
   }, [reloadData]);
 
@@ -348,6 +349,21 @@ export default function App() {
       }
     }
     await cloudAuthService.signInWithGoogle();
+  };
+
+  const handleSignInWithIdToken = async (idToken: string) => {
+    try {
+      setIsSyncing(true);
+      await accountManager.snapshotGuestWorkspace();
+      await cloudAuthService.signInWithGoogleIdToken(idToken);
+      cleanUrlHash();
+      await reloadData();
+    } catch (err: any) {
+      console.error('[Account] Error signing in with ID token:', err);
+      throw err;
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -1667,6 +1683,7 @@ export default function App() {
         isSyncing={isSyncing}
         lastSyncedAt={lastSyncedAt}
         onSignInWithGoogle={handleSignInWithGoogle}
+        onSignInWithIdToken={handleSignInWithIdToken}
         onSignOut={handleSignOut}
         onForceSync={handleForceSync}
         localDecksCount={decks.length}

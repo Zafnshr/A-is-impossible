@@ -17,6 +17,19 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+export const cleanUrlHash = () => {
+  if (typeof window !== 'undefined') {
+    if (window.location.hash || window.location.href.includes('#')) {
+      const cleanUrl = window.location.origin + window.location.pathname + window.location.search;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  }
+};
+
+if (typeof window !== 'undefined') {
+  setTimeout(cleanUrlHash, 150);
+}
+
 export interface CloudSyncResult {
   decks: Deck[];
   questions: Question[];
@@ -128,6 +141,9 @@ export const cloudAuthService = {
   onAuthStateChange(callback: (user: User | null) => void) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       callback(session?.user || null);
+      if (_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION' || _event === 'TOKEN_REFRESHED') {
+        setTimeout(cleanUrlHash, 50);
+      }
     });
     return () => subscription.unsubscribe();
   },
