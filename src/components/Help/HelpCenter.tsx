@@ -30,12 +30,13 @@ import { BrandLogo } from '../Brand/BrandLogo';
 
 interface HelpCenterProps {
   onStartTour: () => void;
+  onPlayCinematic?: () => void;
   onClose?: () => void;
 }
 
 type HelpCategory = 'getting-started' | 'shortcuts' | 'types' | 'import' | 'offline' | 'backup';
 
-export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) => {
+export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onPlayCinematic, onClose }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<HelpCategory>('getting-started');
 
@@ -62,16 +63,31 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onClose }) 
           </p>
         </div>
 
-        <Tooltip content="Launch interactive step-by-step walkthrough">
-          <button
-            type="button"
-            onClick={onStartTour}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer shrink-0"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Restart Welcome Tour</span>
-          </button>
-        </Tooltip>
+        <div className="flex items-center gap-2 shrink-0">
+          {onPlayCinematic && (
+            <Tooltip content="Watch cinematic platform reveal sequence">
+              <button
+                type="button"
+                onClick={onPlayCinematic}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-subtle hover:bg-surface border border-subtle text-primary font-bold text-xs transition active:scale-95 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+                <span>Cinematic Intro</span>
+              </button>
+            </Tooltip>
+          )}
+
+          <Tooltip content="Launch interactive step-by-step onboarding">
+            <button
+              type="button"
+              onClick={onStartTour}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Interactive Onboarding</span>
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       {/* Categorized Navigation Tabs (No "All Guides" section) */}

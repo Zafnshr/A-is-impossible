@@ -41,7 +41,15 @@ import { InteractiveTourGuide } from './components/InteractiveTour/InteractiveTo
 import { TourInvitationModal } from './components/InteractiveTour/TourInvitationModal';
 import { WorkflowGuideModal } from './components/Guide/WorkflowGuideModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { IconicLoadingScreen } from './components/Loading/IconicLoadingScreen';
+import {
+  experienceFlags,
+  resolveInitialStage,
+  ExperienceStage,
+} from './components/Experience/experienceFlow';
+import { CinematicIntro } from './components/Experience/CinematicIntro';
+import { QuickIntro } from './components/Experience/QuickIntro';
+import { OnboardingContainer } from './components/Experience/Onboarding/OnboardingContainer';
+import { WelcomeAuthModal } from './components/Experience/WelcomeAuthModal';
 import { User } from '@supabase/supabase-js';
 import { AuthModal } from './components/Auth/AuthModal';
 import { openOfficialQuestionGenerator } from './services/gemLink';
@@ -62,7 +70,7 @@ const WORKSPACE_ID = 'workspace';
 export default function App() {
   // Initialization state
   const [isReady, setIsReady] = useState(false);
-  const [hasCompletedIntroAnimation, setHasCompletedIntroAnimation] = useState(false);
+  const [experienceStage, setExperienceStage] = useState<ExperienceStage>(resolveInitialStage);
 
   // Settings initialized synchronously with saved theme to prevent initial dark/light flash
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -163,12 +171,12 @@ export default function App() {
         const sessionDecksExist =
           savedSession.deckIds &&
           savedSession.deckIds.length > 0 &&
-          savedSession.deckIds.some((dId) => loadedDecks.some((d) => d.id === dId));
+          savedSession.deckIds.some((dId) => rebuilt.decks.some((d: Deck) => d.id === dId));
 
         const sessionQuestionsExist =
           savedSession.questionIds &&
           savedSession.questionIds.length > 0 &&
-          savedSession.questionIds.some((qId) => loadedQuestions.some((q) => q.id === qId));
+          savedSession.questionIds.some((qId) => rebuilt.questions.some((q: Question) => q.id === qId));
 
         if (!sessionDecksExist || !sessionQuestionsExist) {
           console.warn('[db] Cleared orphaned active session for deleted deck/questions');
@@ -399,11 +407,9 @@ export default function App() {
   };
 
   const handleContinueAsGuest = () => {
-    localStorage.setItem('a_plus_has_visited', 'true');
+    experienceFlags.markVisited();
+    setExperienceStage('done');
     setFirstLaunchOpen(false);
-    if (!localStorage.getItem('a_plus_tour_completed')) {
-      setTourInvitationOpen(true);
-    }
   };
 
   const handleStartTourFromInvitation = () => {
@@ -418,17 +424,22 @@ export default function App() {
   };
 
   const handleFirstLaunchGoogle = async () => {
-    localStorage.setItem('a_plus_has_visited', 'true');
+    experienceFlags.markVisited();
+    setExperienceStage('done');
     setFirstLaunchOpen(false);
     await handleSignInWithGoogle();
   };
 
   const handleRestartTour = () => {
-    setTourStepIndex(0);
-    setTourInvitationOpen(true);
+    setExperienceStage('onboarding');
+  };
+
+  const handlePlayCinematic = () => {
+    setExperienceStage('cinematic');
   };
 
   const handleCompleteTour = () => {
+    experienceFlags.markOnboardingDone();
     localStorage.setItem('a_plus_tour_completed', 'true');
     setInteractiveTourOpen(false);
   };
@@ -1538,7 +1549,7 @@ export default function App() {
           {/* TAB: HELP CENTER */}
           {activeTab === 'help' && (
             <ErrorBoundary fallbackTitle="Help Center Error" onReset={reloadData}>
-              <HelpCenter onStartTour={handleRestartTour} />
+              <HelpCenter onStartTour={handleRestartTour} onPlayCinematic={handlePlayCinematic} />
             </ErrorBoundary>
           )}
 
@@ -1622,16 +1633,10 @@ export default function App() {
         onOpenLibrary={() => setActiveTab('library')}
       />
 
-      {/* First Launch Welcome Experience Modal */}
-      <FirstLaunchWelcomeModal
-        isOpen={firstLaunchOpen && hasCompletedIntroAnimation}
-        onContinueWithGoogle={handleFirstLaunchGoogle}
-        onContinueAsGuest={handleContinueAsGuest}
-      />
 
       {/* Tour Welcoming Invitation Screen */}
       <TourInvitationModal
-        isOpen={tourInvitationOpen && hasCompletedIntroAnimation}
+        isOpen={tourInvitationOpen && experienceStage === 'done'}
         onStartTour={handleStartTourFromInvitation}
         onSkipTour={handleSkipTourFromInvitation}
         onOpenGuide={() => {
@@ -1642,7 +1647,7 @@ export default function App() {
 
       {/* Interactive Active Learning Walkthrough Guide */}
       <InteractiveTourGuide
-        isOpen={interactiveTourOpen && hasCompletedIntroAnimation}
+        isOpen={interactiveTourOpen && experienceStage === 'done'}
         onClose={() => setInteractiveTourOpen(false)}
         currentStepIndex={tourStepIndex}
         onSetStepIndex={setTourStepIndex}
@@ -1702,14 +1707,71 @@ export default function App() {
         </div>
       )}
 
-      {/* Iconic Loading & Ready Entry Screen Overlay */}
-      {!hasCompletedIntroAnimation && (
-        <IconicLoadingScreen
-          theme={settings.theme || 'dark'}
-          isAppReady={isReady}
-          onComplete={() => setHasCompletedIntroAnimation(true)}
+      {/* --- Redesigned First-Use & Loading Experience Overlays --- */}
+
+      {/* 1. Cinematic First-Visit Intro */}
+      {experienceStage === 'cinematic' && (
+        <CinematicIntro
+          onComplete={() => {
+            experienceFlags.markIntroSeen();
+            if (!experienceFlags.onboardingDone()) {
+              setExperienceStage('onboarding');
+            } else if (!experienceFlags.hasVisited()) {
+              setExperienceStage('welcome');
+            } else {
+              setExperienceStage('done');
+            }
+          }}
         />
       )}
+
+      {/* 2. Returning User Fast Branding Intro (~1.2s, auto-continues when ready) */}
+      {experienceStage === 'quick' && (
+        <QuickIntro
+          theme={settings.theme || 'dark'}
+          isAppReady={isReady}
+          onComplete={() => {
+            if (!experienceFlags.hasVisited()) {
+              if (!experienceFlags.onboardingDone()) {
+                setExperienceStage('onboarding');
+              } else {
+                setExperienceStage('welcome');
+              }
+            } else {
+              setExperienceStage('done');
+            }
+          }}
+        />
+      )}
+
+      {/* 3. Interactive Sandbox Onboarding Tutorial */}
+      {experienceStage === 'onboarding' && (
+        <OnboardingContainer
+          onComplete={() => {
+            experienceFlags.markOnboardingDone();
+            if (!experienceFlags.hasVisited()) {
+              setExperienceStage('welcome');
+            } else {
+              setExperienceStage('done');
+            }
+          }}
+          onSkip={() => {
+            experienceFlags.markOnboardingDone();
+            if (!experienceFlags.hasVisited()) {
+              setExperienceStage('welcome');
+            } else {
+              setExperienceStage('done');
+            }
+          }}
+        />
+      )}
+
+      {/* 4. Post-Onboarding Welcome & Auth Choice (Google vs Guest) */}
+      <WelcomeAuthModal
+        isOpen={experienceStage === 'welcome'}
+        onContinueWithGoogle={handleFirstLaunchGoogle}
+        onContinueAsGuest={handleContinueAsGuest}
+      />
     </>
   );
 }

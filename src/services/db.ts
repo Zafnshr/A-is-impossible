@@ -740,9 +740,6 @@ class IndexedDBStorage {
     return this.getQuestionStatus(profileId, questionId);
   }
 
-  async saveStatus(status: QuestionUserStatus): Promise<void> {
-    await this.saveQuestionStatus(status);
-  }
 
   // --- Export Full Database Dump ---
   async exportFullDump(): Promise<any> {
