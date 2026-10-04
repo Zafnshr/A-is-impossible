@@ -9,6 +9,7 @@ import {
   FileCode,
   Layers,
   Sparkles,
+  WandSparkles,
   ClipboardPaste,
   HelpCircle,
   ChevronDown,
@@ -806,7 +807,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 onClick={onOpenGem}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-indigo-600/15 to-cyan-600/15 hover:from-indigo-600/25 hover:to-cyan-600/25 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:border-cyan-500 transition shadow-sm"
               >
-                <Sparkles className="w-3.5 h-3.5 text-cyan-500 animate-pulse" />
+                <WandSparkles className="w-3.5 h-3.5 text-cyan-500" />
                 <span>Open Gem</span>
               </button>
             )}
@@ -817,7 +818,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-indigo-500/10 to-transparent border border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
               <div className="flex items-start gap-3">
                 <div className="p-2 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5">
-                  <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" />
+                  <Sparkles className="w-4 h-4 text-cyan-500" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -953,6 +954,15 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Parsing progress shimmer — visible work instead of a frozen button */}
+          {isParsing && (
+            <div className="space-y-2 pt-1" aria-hidden="true">
+              <div className="skeleton-surface skeleton-line" style={{ width: '42%' }} />
+              <div className="skeleton-surface skeleton-line" style={{ width: '78%' }} />
+              <div className="skeleton-surface skeleton-line" style={{ width: '64%' }} />
+            </div>
+          )}
         </div>
       )}
 

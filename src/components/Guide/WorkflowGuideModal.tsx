@@ -171,7 +171,7 @@ export const WorkflowGuideModal: React.FC<WorkflowGuideModalProps> = ({
                 <button
                   type="button"
                   onClick={openOfficialQuestionGenerator}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>Open Official Generator</span>
                   <ExternalLink className="w-3.5 h-3.5" />

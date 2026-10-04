@@ -915,7 +915,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
       {/* Personal Note Drawer */}
       {noteOpen && (
-        <div className="p-4 bg-surface border border-cyan-500/30 rounded-xl space-y-3 text-xs shadow-card">
+        <div className="animate-expand p-4 bg-surface border border-cyan-500/30 rounded-xl space-y-3 text-xs shadow-card">
           <div className="flex items-center justify-between">
             <span className="font-bold text-cyan-600 dark:text-cyan-400">Personal Note (Auto-saved)</span>
             <button onClick={() => setNoteOpen(false)} className="text-secondary hover:text-primary">Close</button>
@@ -937,8 +937,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
         </div>
       )}
 
-      {/* Main Question Card */}
-      <div className="p-5 sm:p-7 rounded-2xl bg-surface border border-subtle shadow-card space-y-6">
+      {/* Main Question Card — keyed by question so navigation glides instead of flashing */}
+      <div key={currentQuestion?.id ?? currentQIndex} className="animate-q-enter p-5 sm:p-7 rounded-2xl bg-surface border border-subtle shadow-card space-y-6">
         {/* Case Vignette */}
         {currentQuestion.caseVignette && (
           <div className="p-4 rounded-xl bg-subtle border border-subtle text-xs sm:text-sm text-primary leading-relaxed font-serif">
@@ -966,7 +966,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
         {/* Option choices (Supports variable option count: 2, 3, 4, 5, 6, 7+ options) */}
         {(currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') && (
-          <div className="space-y-2.5">
+          <div key={`opts-${currentQuestion?.id ?? currentQIndex}`} className="stagger space-y-2.5">
             {currentQuestion.options.map((opt, idx) => {
               const isSelected = currentAnswer === idx;
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
@@ -1013,7 +1013,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
         {/* Multiple MCQ */}
         {currentQuestion.type === 'multiple_mcq' && (
-          <div className="space-y-2.5">
+          <div key={`opts-m-${currentQuestion?.id ?? currentQIndex}`} className="stagger space-y-2.5">
             {currentQuestion.options.map((opt, idx) => {
               const list: number[] = Array.isArray(currentAnswer) ? currentAnswer : [];
               const isSelected = list.includes(idx);

@@ -59,7 +59,7 @@ export const TourInvitationModal: React.FC<TourInvitationModalProps> = ({
           </h2>
 
           <p className="text-xs sm:text-sm text-secondary leading-relaxed">
-            Welcome to <strong className="text-primary">A is Impossible</strong> — your active recall platform built specifically for medical students. Would you like a 2-minute walkthrough to see how everything works?
+            Welcome to <strong className="text-primary">A is Impossible</strong>, your active recall platform built specifically for medical students. Would you like a 2-minute walkthrough to see how everything works?
           </p>
         </div>
 
@@ -103,9 +103,9 @@ export const TourInvitationModal: React.FC<TourInvitationModalProps> = ({
           <button
             type="button"
             onClick={onStartTour}
-            className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-cyan-600 via-indigo-600 to-cyan-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-cyan-500/20 transition active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 px-5 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm shadow-lg transition active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-cyan-200 animate-pulse" />
+            <Sparkles className="w-4 h-4 text-cyan-200" />
             <span>Let&apos;s Begin the Tour (2 min)</span>
             <ArrowRight className="w-4 h-4" />
           </button>

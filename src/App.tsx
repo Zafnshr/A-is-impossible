@@ -1332,6 +1332,9 @@ export default function App() {
 
         {/* Dynamic Workspace Content with Independent Scrolling */}
         <main className={`flex-1 h-full overflow-y-auto ${activeTab === 'study' ? 'pb-2 md:pb-0' : 'pb-20 md:pb-0'}`}>
+          {/* Keyed wrapper: re-mounts + softly transitions on every tab switch.
+              Purely presentational — no navigation / workflow / logic change. */}
+          <div key={activeTab} className="animate-view-enter">
           {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <ErrorBoundary fallbackTitle="Dashboard Error" onReset={reloadData}>
@@ -1467,6 +1470,7 @@ export default function App() {
                   if (d) handleOpenDeckDetail(d);
                 }}
                 onOpenOriginalLocation={handleOpenQuestionInDeck}
+                onBrowseLibrary={() => setActiveTab('library')}
               />
             </ErrorBoundary>
           )}
@@ -1480,6 +1484,7 @@ export default function App() {
                 questions={questions}
                 statuses={userStatuses}
                 sessionHistory={sessionHistory}
+                onOpenLibrary={() => setActiveTab('library')}
               />
             </ErrorBoundary>
           )}
@@ -1563,6 +1568,7 @@ export default function App() {
               />
             </ErrorBoundary>
           )}
+          </div>
         </main>
       </div>
 

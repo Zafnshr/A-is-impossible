@@ -49,6 +49,7 @@ interface CollectionsViewProps {
   ) => void;
   onOpenDeckView: (deckId: string) => void;
   onOpenOriginalLocation?: (deckId: string, questionId: string) => void;
+  onBrowseLibrary?: () => void;
 }
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
@@ -123,6 +124,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   onRemoveFromCollection,
   onOpenDeckView,
   onOpenOriginalLocation,
+  onBrowseLibrary,
 }) => {
   // Active collection tab
   const [activeTab, setActiveTab] = useState<'favorites' | 'flagged' | 'incorrect'>('favorites');
@@ -653,7 +655,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
       </div>
 
       {/* Questions List */}
-      <div className="space-y-3">
+      <div className="stagger space-y-3">
         {filteredList.length === 0 ? (
           // Empty State
           collectionQuestions.length === 0 ? (
@@ -694,6 +696,18 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                     lands here so you can practice until full mastery.
                   </p>
                 </>
+              )}
+              {onBrowseLibrary && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={onBrowseLibrary}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
+                  >
+                    <FolderTree className="w-3.5 h-3.5" />
+                    <span>Browse Library Decks</span>
+                  </button>
+                </div>
               )}
             </div>
           ) : (

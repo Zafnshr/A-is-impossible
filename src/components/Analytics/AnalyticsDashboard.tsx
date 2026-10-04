@@ -32,6 +32,8 @@ import {
   StudySessionRecord,
 } from '../../types';
 import { Tooltip } from '../Tooltip';
+import { CountUp } from '../CountUp';
+import { rebuildEngine } from '../../services/rebuildEngine';
 
 interface AnalyticsDashboardProps {
   attempts: UserAttemptRecord[];
@@ -39,6 +41,7 @@ interface AnalyticsDashboardProps {
   questions: Question[];
   statuses: QuestionUserStatus[];
   sessionHistory?: StudySessionRecord[];
+  onOpenLibrary?: () => void;
 }
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
@@ -47,6 +50,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   questions,
   statuses,
   sessionHistory = [],
+  onOpenLibrary,
 }) => {
   // Filter States: All Time, Year, Module, Subject, Lecture, Date Range
   const [dateRangeFilter, setDateRangeFilter] = useState<'7d' | '30d' | '90d' | 'all'>('all');
@@ -186,7 +190,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     return Math.max(sessionsSec, attemptsSec);
   }, [filteredSessions, filteredAttempts, statuses]);
 
-  const studyHours = (totalSeconds / 3600).toFixed(1);
   const studyMins = Math.round(totalSeconds / 60);
 
   // 4. Calendar-based Streak calculation
@@ -442,6 +445,24 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     subjectFilter !== 'all' ||
     lectureFilter !== 'all';
 
+  // Single source of truth: with no filters active, headlines delegate to the
+  // shared engine so Analytics matches Dashboard exactly. Filtered views keep
+  // their local slice math (they are legitimately different numbers).
+  const engineStats = useMemo(
+    () => rebuildEngine.computeStatistics(attempts, sessionHistory, statuses),
+    [attempts, sessionHistory, statuses]
+  );
+
+  const showAccuracy = !hasActiveFilters ? engineStats.accuracyPercentage : accuracyPercentage;
+  const showTotal = !hasActiveFilters ? engineStats.totalAttempts : totalAttemptsCount;
+  const showCorrect = !hasActiveFilters ? engineStats.correctAttempts : correctAttemptsCount;
+  const showUnique = !hasActiveFilters ? engineStats.uniqueQuestionsSolved : uniqueQuestionsSolved;
+  const showSeconds = !hasActiveFilters ? engineStats.totalStudySeconds : totalSeconds;
+  const showMins = !hasActiveFilters ? engineStats.studyMins : studyMins;
+  const showHours = (showSeconds / 3600).toFixed(1);
+  const showCurrentStreak = !hasActiveFilters ? engineStats.streak.current : streakInfo.currentStreak;
+  const showLongestStreak = !hasActiveFilters ? engineStats.streak.longest : streakInfo.longestStreak;
+
   const resetAllFilters = () => {
     setDateRangeFilter('all');
     setYearFilter('all');
@@ -580,9 +601,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <span className="font-semibold">Questions Solved</span>
             <CheckCircle2 className="w-4 h-4 text-cyan-500" />
           </div>
-          <div className="text-2xl font-black text-primary">{uniqueQuestionsSolved}</div>
+          <div className="text-2xl font-black text-primary"><CountUp value={showUnique} /></div>
           <div className="text-[11px] text-muted font-mono">
-            {totalAttemptsCount} total attempts across {filteredSessions.length} sessions
+            {showTotal} total attempts across {filteredSessions.length} sessions
           </div>
         </div>
 
@@ -592,10 +613,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <TrendingUp className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-            {accuracyPercentage}%
+            <CountUp value={showAccuracy} format={(n) => `${Math.round(n)}%`} />
           </div>
           <div className="text-[11px] text-muted font-mono">
-            {correctAttemptsCount} of {totalAttemptsCount} correct
+            {showCorrect} of {showTotal} correct
           </div>
         </div>
 
@@ -604,8 +625,8 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <span className="font-semibold">Study Time</span>
             <Clock className="w-4 h-4 text-cyan-500" />
           </div>
-          <div className="text-2xl font-black text-primary">{studyMins}m</div>
-          <div className="text-[11px] text-muted font-mono">~{studyHours} hours logged</div>
+          <div className="text-2xl font-black text-primary"><CountUp value={showMins} format={(n) => `${Math.round(n)}m`} /></div>
+          <div className="text-[11px] text-muted font-mono">~{showHours} hours logged</div>
         </div>
 
         <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
@@ -614,10 +635,10 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
           </div>
           <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-            {streakInfo.currentStreak} {streakInfo.currentStreak === 1 ? 'Day' : 'Days'}
+            <CountUp value={showCurrentStreak} format={(n) => `${Math.round(n)} ${Math.round(n) === 1 ? 'Day' : 'Days'}`} />
           </div>
           <div className="text-[11px] text-muted font-mono">
-            Longest streak: {streakInfo.longestStreak}d
+            Longest streak: {showLongestStreak}d
           </div>
         </div>
       </div>
@@ -701,6 +722,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 Reset All Filters
               </button>
             )}
+            {!hasActiveFilters && onOpenLibrary && (
+              <button
+                onClick={onOpenLibrary}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
+              >
+                <FolderTree className="w-3.5 h-3.5" />
+                Open Library Explorer
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4 pt-2">
@@ -717,10 +747,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               </span>
             </div>
 
-            {/* Scrollable Bar Chart Canvas */}
+            {/* Scrollable Bar Chart Canvas — keyed by tab so bars regrow on switch */}
             <div className="overflow-x-auto pb-2">
               <div
-                className="h-52 flex items-end gap-2.5 pt-6 pb-2 px-2 border-b border-subtle min-w-full"
+                key={chartTab}
+                className="chart-bars h-52 flex items-end gap-2.5 pt-6 pb-2 px-2 border-b border-subtle min-w-full"
                 style={{ minWidth: `${Math.max(480, chartSessions.length * 52)}px` }}
               >
                 {chartSessions.map((session) => {
@@ -806,7 +837,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                       <Tooltip content={tooltipContent}>
                         <div className="w-full flex justify-center cursor-pointer">
                           <div
-                            className={`w-full max-w-[40px] rounded-t-lg transition-all transform group-hover:scale-y-105 origin-bottom shadow-sm ${barColorClass}`}
+                            className={`chart-bar-grow w-full max-w-[40px] rounded-t-lg transition-all transform group-hover:scale-y-105 origin-bottom shadow-sm ${barColorClass}`}
                             style={{ height: `${barHeightPercent}%` }}
                           />
                         </div>
@@ -835,25 +866,25 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Average Score</span>
                       <div className="text-base font-bold text-cyan-600 dark:text-cyan-400">
-                        {chartStats.avgScore}%
+                        <CountUp value={chartStats.avgScore} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Best Session</span>
                       <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">
-                        {chartStats.bestScore}%
+                        <CountUp value={chartStats.bestScore} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Lowest Session</span>
                       <div className="text-base font-bold text-amber-600 dark:text-amber-400">
-                        {chartStats.lowestScore}%
+                        <CountUp value={chartStats.lowestScore} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Latest Score</span>
                       <div className="text-base font-bold text-primary">
-                        {chartStats.latestScore}%
+                        <CountUp value={chartStats.latestScore} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                   </>
@@ -864,25 +895,25 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Overall Accuracy</span>
                       <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">
-                        {accuracyPercentage}%
+                        <CountUp value={showAccuracy} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Mean Session Acc</span>
                       <div className="text-base font-bold text-teal-600 dark:text-teal-400">
-                        {chartStats.avgAccuracy}%
+                        <CountUp value={chartStats.avgAccuracy} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Peak Session Acc</span>
                       <div className="text-base font-bold text-emerald-500">
-                        {chartStats.bestAccuracy}%
+                        <CountUp value={chartStats.bestAccuracy} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Latest Session</span>
                       <div className="text-base font-bold text-primary">
-                        {chartStats.latestAccuracy}%
+                        <CountUp value={chartStats.latestAccuracy} format={(n) => `${Math.round(n)}%`} />
                       </div>
                     </div>
                   </>
@@ -893,25 +924,25 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Total Solved</span>
                       <div className="text-base font-bold text-purple-600 dark:text-purple-400">
-                        {chartStats.totalQuestions}
+                        <CountUp value={chartStats.totalQuestions} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Avg / Session</span>
                       <div className="text-base font-bold text-primary">
-                        {chartStats.avgQuestions}
+                        <CountUp value={chartStats.avgQuestions} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Max in 1 Session</span>
                       <div className="text-base font-bold text-purple-500">
-                        {chartStats.maxQuestions}
+                        <CountUp value={chartStats.maxQuestions} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Sessions Solved</span>
                       <div className="text-base font-bold text-primary">
-                        {chartSessions.length}
+                        <CountUp value={chartSessions.length} />
                       </div>
                     </div>
                   </>
@@ -922,25 +953,25 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Total Duration</span>
                       <div className="text-base font-bold text-amber-600 dark:text-amber-400">
-                        {chartStats.totalDurationMins}m
+                        <CountUp value={chartStats.totalDurationMins} format={(n) => `${Math.round(n)}m`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Avg Duration</span>
                       <div className="text-base font-bold text-primary">
-                        {chartStats.avgDurationMins}m
+                        <CountUp value={chartStats.avgDurationMins} format={(n) => `${Math.round(n)}m`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Longest Session</span>
                       <div className="text-base font-bold text-amber-500">
-                        {chartStats.maxDurationMins}m
+                        <CountUp value={chartStats.maxDurationMins} format={(n) => `${Math.round(n)}m`} />
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-subtle">
                       <span className="text-secondary text-[11px]">Sessions Logged</span>
                       <div className="text-base font-bold text-primary">
-                        {chartSessions.length}
+                        <CountUp value={chartSessions.length} />
                       </div>
                     </div>
                   </>
@@ -1076,23 +1107,35 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                       <div className="flex items-center gap-2">
                         <div className="w-16 h-2 rounded-full bg-subtle border border-subtle overflow-hidden">
                           <div
-                            className="h-full bg-cyan-500 rounded-full"
+                            className="h-full bg-cyan-500 rounded-full transition-all duration-500"
                             style={{ width: `${item.accuracy}%` }}
                           />
                         </div>
                         <span className="font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
-                          {item.accuracy}%
+                          <CountUp value={item.accuracy} format={(n) => `${Math.round(n)}%`} />
                         </span>
                       </div>
                     </td>
                     <td className="py-3 px-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                      {item.bestScore !== null ? `${item.bestScore}%` : '—'}
+                      {item.bestScore !== null ? (
+                        <CountUp value={item.bestScore} format={(n) => `${Math.round(n)}%`} />
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="py-3 px-3 font-mono text-secondary">
-                      {item.avgScore !== null ? `${item.avgScore}%` : '—'}
+                      {item.avgScore !== null ? (
+                        <CountUp value={item.avgScore} format={(n) => `${Math.round(n)}%`} />
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="py-3 px-3 font-mono text-secondary">
-                      {item.latestScore !== null ? `${item.latestScore}%` : '—'}
+                      {item.latestScore !== null ? (
+                        <CountUp value={item.latestScore} format={(n) => `${Math.round(n)}%`} />
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="py-3 px-3">{statusBadge}</td>
                   </tr>

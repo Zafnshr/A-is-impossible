@@ -5,6 +5,7 @@ import {
   Moon,
   Type,
   Sparkles,
+  WandSparkles,
   Keyboard,
   Shuffle,
   Eye,
@@ -338,7 +339,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" /> Medical Question Gem Link
+                <WandSparkles className="w-4 h-4 text-cyan-500" /> Medical Question Gem Link
               </h2>
               <p className="text-xs text-secondary mt-0.5">
                 Target URL for your custom Gemini Gem. Clicking &apos;Open Gem&apos; anywhere in the app will redirect to this link.

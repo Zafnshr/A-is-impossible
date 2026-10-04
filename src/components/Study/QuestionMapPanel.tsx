@@ -494,7 +494,7 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
               <div className="text-xs font-black text-primary flex items-center gap-1.5">
                 <span>{telemetry.completionPct}% Completed</span>
                 {telemetry.completionPct === 100 && (
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-bounce" />
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 )}
               </div>
               <p className="text-[11px] text-muted font-medium">

@@ -18,6 +18,7 @@ import {
   Check,
   X,
   Sparkles,
+  WandSparkles,
   ExternalLink,
 } from 'lucide-react';
 import { Deck, Question, UserAttemptRecord, QuestionUserStatus } from '../../types';
@@ -430,7 +431,7 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
       )}
 
       {/* Questions Preview List */}
-      <div className="space-y-3">
+      <div className="stagger space-y-3">
         <div className="flex items-center justify-between text-xs font-bold text-secondary uppercase tracking-wider">
           <span>Questions in this Deck ({deckQuestions.length})</span>
           <button
@@ -454,7 +455,7 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
                 onClick={openOfficialQuestionGenerator}
                 className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <WandSparkles className="w-3.5 h-3.5" />
                 <span>Generate Questions Using Official AI Generator</span>
                 <ExternalLink className="w-3 h-3 opacity-70" />
               </button>

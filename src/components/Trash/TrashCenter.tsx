@@ -89,9 +89,21 @@ export const TrashCenter: React.FC<TrashCenterProps> = ({
     <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-18 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface border border-cyan-500 shadow-xl text-xs font-semibold text-primary animate-in fade-in slide-in-from-top-3">
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-18 right-6 z-50 flex items-center gap-2.5 pl-4 pr-2 py-2 rounded-xl bg-surface border border-cyan-500 shadow-xl text-xs font-semibold text-primary animate-in fade-in slide-in-from-top-3"
+        >
           <CheckCircle2 className="w-4 h-4 text-cyan-500 shrink-0" />
-          <span>{toastMessage}</span>
+          <span className="py-0.5">{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-subtle transition"
+            aria-label="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -203,7 +215,7 @@ export const TrashCenter: React.FC<TrashCenterProps> = ({
           No deleted items matched your search filter &ldquo;{searchQuery}&rdquo;.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="stagger space-y-3">
           {filteredItems.map((item) => {
             const isDeck = item.itemType === 'deck';
             const deckQuestions = isDeck && item.data?.questions ? item.data.questions : [];

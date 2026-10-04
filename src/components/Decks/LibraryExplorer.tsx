@@ -15,6 +15,7 @@ import {
   Check,
   X,
   Sparkles,
+  WandSparkles,
   ExternalLink,
   HelpCircle,
 } from 'lucide-react';
@@ -143,7 +144,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
               onClick={openOfficialQuestionGenerator}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 hover:from-indigo-500/20 hover:to-cyan-500/20 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs shadow-sm transition active:scale-95"
             >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-500 animate-pulse" />
+              <WandSparkles className="w-3.5 h-3.5 text-cyan-500" />
               <span>Official Question Generator</span>
               <ExternalLink className="w-3 h-3 opacity-70" />
             </button>
@@ -335,9 +336,9 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                     <button
                       type="button"
                       onClick={onLoadSampleDeck}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
+                      <Sparkles className="w-3.5 h-3.5 text-white" />
                       <span>Load Sample Year 2 Blood Deck</span>
                     </button>
                   )}
@@ -351,7 +352,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                     <button
                       type="button"
                       onClick={onOpenWorkflowGuide}
-                      className="px-4 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary font-bold text-xs transition cursor-pointer"
+                      className="px-3 py-2 rounded-xl text-secondary hover:text-primary font-semibold text-xs transition underline-offset-4 hover:underline cursor-pointer"
                     >
                       View Step-by-Step Guide
                     </button>
@@ -369,7 +370,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="stagger grid grid-cols-1 sm:grid-cols-2 gap-3">
               {filteredDecks.map((deck) => (
                 <div
                   key={deck.id}

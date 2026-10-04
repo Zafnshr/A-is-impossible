@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Trophy, Star, RotateCcw, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Trophy, Star, RotateCcw, CheckCircle2, ArrowRight, Check } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ChapterProps, Objective, Beacon, EASE, CinematicHeader } from './ui';
 import { playSuccessChime } from '../cinematicSound';
@@ -91,7 +91,10 @@ export const Step8AfterStudy: React.FC<ChapterProps> = ({
                 : 'bg-white text-slate-950 hover:bg-slate-200'
             }`}
           >
-            <span>{completed ? 'Tour Completed ✓' : 'Complete Tour'}</span>
+            <span className="flex items-center gap-1.5">
+              {completed && <Check className="w-3.5 h-3.5" />}
+              <span>{completed ? 'Tour Completed' : 'Complete Tour'}</span>
+            </span>
           </button>
         </div>
       </div>

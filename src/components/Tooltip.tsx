@@ -21,6 +21,13 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const triggerRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const autoHideTimerRef = useRef<number | null>(null);
+  const showDelayTimerRef = useRef<number | null>(null);
+  // Hover intent: tooltip appears only after holding the cursor
+  // on the trigger for 2s — no instant flashes while sweeping past.
+  const SHOW_DELAY_MS = 1500;
+  // Clicks focus the wrapped control (focus bubbles to this trigger),
+  // which must NOT summon a tooltip — only keyboard focus may.
+  const focusFromMouseRef = useRef(false);
 
   const [coords, setCoords] = useState<{
     top: number;
@@ -93,6 +100,13 @@ export const Tooltip: React.FC<TooltipProps> = ({
     }
   };
 
+  const clearShowDelayTimer = () => {
+    if (showDelayTimerRef.current !== null) {
+      window.clearTimeout(showDelayTimerRef.current);
+      showDelayTimerRef.current = null;
+    }
+  };
+
   const showTooltip = (isPointerEvent = true) => {
     // Completely suppress hover/focus tooltips for action buttons on touch-capable devices
     if (!iconOnly && isTouchCapable() && !isPointerEvent) {
@@ -110,8 +124,42 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
   const hideTooltip = () => {
     clearAutoHideTimer();
+    clearShowDelayTimer();
     setVisible(false);
   };
+
+  // Mouse hover waits out the intent delay; keyboard focus shows instantly
+  // so keyboard users never wait for context they explicitly requested.
+  const scheduleShow = (isPointerEvent = true) => {
+    clearShowDelayTimer();
+    showDelayTimerRef.current = window.setTimeout(() => {
+      showDelayTimerRef.current = null;
+      showTooltip(isPointerEvent);
+    }, SHOW_DELAY_MS);
+  };
+
+  // A focus that follows a mousedown (i.e. a click) must not summon a
+  // tooltip — only keyboard focus may.
+  const handleFocusShow = () => {
+    if (!isTouchCapable() && !focusFromMouseRef.current) showTooltip(false);
+  };
+  const noteMouseDown = () => {
+    focusFromMouseRef.current = true;
+    // Reset after the synchronous focus event so later keyboard focus works.
+    window.setTimeout(() => {
+      focusFromMouseRef.current = false;
+    }, 0);
+  };
+
+  // Never fire a pending tooltip after unmount.
+  useEffect(() => {
+    return () => {
+      if (showDelayTimerRef.current !== null) {
+        window.clearTimeout(showDelayTimerRef.current);
+        showDelayTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const toggleTooltipOnTouch = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -200,12 +248,11 @@ export const Tooltip: React.FC<TooltipProps> = ({
           }}
           className={`inline-flex items-center align-middle cursor-help focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded select-none ${className}`}
           onMouseEnter={(e) => {
-            if (!isTouchCapable()) showTooltip(true);
+            if (!isTouchCapable()) scheduleShow(true);
           }}
           onMouseLeave={hideTooltip}
-          onFocus={() => {
-            if (!isTouchCapable()) showTooltip(false);
-          }}
+          onMouseDown={noteMouseDown}
+          onFocus={handleFocusShow}
           onBlur={hideTooltip}
           onTouchEnd={toggleTooltipOnTouch}
           onClick={(e) => {
@@ -235,16 +282,12 @@ export const Tooltip: React.FC<TooltipProps> = ({
         onMouseEnter={(e) => {
           // Only show on actual mouse hover (not simulated touch hover)
           if (!isTouchCapable()) {
-            showTooltip(true);
+            scheduleShow(true);
           }
         }}
         onMouseLeave={hideTooltip}
-        onFocus={() => {
-          // Suppress on touch devices to avoid sticky focus rings / bubbles
-          if (!isTouchCapable()) {
-            showTooltip(false);
-          }
-        }}
+        onMouseDown={noteMouseDown}
+        onFocus={handleFocusShow}
         onBlur={hideTooltip}
         onClickCapture={hideTooltip}
         onTouchStart={hideTooltip}

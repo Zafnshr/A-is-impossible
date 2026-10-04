@@ -17,6 +17,7 @@ import {
   BookOpen,
   HelpCircle,
   Sparkles,
+  WandSparkles,
   Pencil,
   Check,
   X,
@@ -796,7 +797,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   onClick={onOpenGem}
                   className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-sm"
                 >
-                  <Sparkles className="w-4 h-4 text-cyan-500 animate-pulse" />
+                  <WandSparkles className="w-4 h-4 text-cyan-500" />
                   <span>Generate Questions Using Official AI Generator</span>
                   <ExternalLink className="w-3.5 h-3.5 opacity-70" />
                 </button>

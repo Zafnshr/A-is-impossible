@@ -649,3 +649,355 @@ button.bg-purple-600 .fill-white {
 .animate-slide-up {
   animation: slideUpBottomSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ==========================================================================
+   PREMIUM MOTION SYSTEM — unified, subtle, fast, native-feeling
+   All animations are transform/opacity-only (GPU-friendly, no layout thrash).
+   Durations 140–280ms, Linear/Notion/Raycast-style easing.
+   No workflow / logic changes — purely presentational.
+   ========================================================================== */
+
+:root {
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --motion-duration-instant: 140ms;
+  --motion-duration-fast: 180ms;
+  --motion-duration-base: 220ms;
+  --motion-duration-slow: 280ms;
+  --motion-view-shift: 8px;
+  --motion-modal-shift: 10px;
+  --motion-modal-scale: 0.96;
+}
+
+/* --- Core keyframes (transform + opacity only) --- */
+@keyframes premium-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes premium-view-enter {
+  from { opacity: 0; transform: translateY(var(--motion-view-shift)) scale(0.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes premium-modal-panel-in {
+  from { opacity: 0; transform: translateY(var(--motion-modal-shift)) scale(var(--motion-modal-scale)); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes premium-toast-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes premium-toast-bottom-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes premium-expand-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes premium-q-enter {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes premium-pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes premium-slide-up-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes premium-slide-down-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes premium-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@keyframes premium-success-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35); }
+  100% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+}
+@keyframes premium-error-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* --- Compatibility layer: existing `animate-in fade-in zoom-in-95 ...`
+   classes are currently no-ops (no tailwindcss-animate plugin).
+   Defining them here instantly animates 40+ modals/toasts with zero
+   logic changes. --- */
+.animate-in {
+  animation-duration: var(--motion-duration-base);
+  animation-timing-function: var(--motion-ease-out);
+  animation-fill-mode: both;
+}
+.animate-in.fade-in {
+  animation-name: premium-fade-in;
+  animation-duration: var(--motion-duration-fast);
+}
+.animate-in.zoom-in-95 {
+  animation-name: premium-modal-panel-in;
+  animation-duration: var(--motion-duration-base);
+}
+.animate-in.fade-in.zoom-in-95 {
+  animation-name: premium-modal-panel-in;
+}
+.animate-in.slide-in-from-top-3 {
+  animation-name: premium-toast-in;
+}
+.animate-in.slide-in-from-bottom-4 {
+  animation-name: premium-toast-bottom-in;
+}
+.animate-in.slide-in-from-bottom-2,
+.animate-in.slide-in-from-top-2 {
+  animation-name: premium-slide-up-in;
+  animation-duration: var(--motion-duration-fast);
+}
+.animate-fadeIn {
+  animation: premium-fade-in var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+
+/* --- Screen / view transitions (applied via keyed wrapper in App) --- */
+.animate-view-enter {
+  animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) both;
+  will-change: opacity, transform;
+}
+/* Stagger children of a newly entered view for an intentional, alive feel */
+.animate-view-enter > *:nth-child(1) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) both; }
+.animate-view-enter > *:nth-child(2) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 30ms both; }
+.animate-view-enter > *:nth-child(3) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 60ms both; }
+.animate-view-enter > *:nth-child(4) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 90ms both; }
+.animate-view-enter > *:nth-child(n+5) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 120ms both; }
+
+/* --- Modal system: overlay fades, panel pops (auto-applied) --- */
+div[class*="fixed inset-0"][class*="backdrop-blur"] {
+  animation: premium-fade-in var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+div[class*="fixed inset-0"][class*="backdrop-blur"] > div[class*="rounded"],
+div[class*="fixed inset-0"][class*="backdrop-blur"] > div[class*="bg-surface"] {
+  animation: premium-modal-panel-in var(--motion-duration-base) var(--motion-ease-out) both;
+  will-change: opacity, transform;
+}
+
+/* --- Expandable / conditional blocks mount softly --- */
+.animate-expand {
+  animation: premium-expand-in var(--motion-duration-fast) var(--motion-ease-out) both;
+  transform-origin: top center;
+}
+
+/* --- Study question transitions (keyed by question index) --- */
+.animate-q-enter {
+  animation: premium-q-enter var(--motion-duration-base) var(--motion-ease-out) both;
+  will-change: opacity, transform;
+}
+
+/* --- Micro-interactions: buttons, cards, options (global, low-risk) --- */
+/* NOTE: no global press-scale — scaling an anchor under the cursor makes
+   tooltips and popups jitter on every click. Primary CTAs keep their own
+   active:scale-95 where already defined. */
+button {
+  transition-property: background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: var(--motion-ease-out);
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Card hover: restraint over jitter — border + shadow deepen, no lift.
+   (Hover-lift on everything is a classic generated-UI tell.) */
+div[class*="hover:border-cyan-500"],
+div[class*="hover:border-slate-400"] {
+  transition: box-shadow 200ms var(--motion-ease-out), border-color 200ms var(--motion-ease-out), background-color 200ms var(--motion-ease-out);
+}
+div[class*="hover:border-cyan-500"]:hover,
+div[class*="hover:border-slate-400"]:hover {
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(6, 182, 212, 0.12);
+}
+.theme-light div[class*="hover:border-cyan-500"]:hover,
+.theme-light div[class*="hover:border-slate-400"]:hover {
+  box-shadow: 0 12px 28px -12px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(8, 145, 178, 0.14);
+}
+
+/* --- Analytics bars grow on mount with a left-to-right cascade --- */
+@keyframes premium-bar-grow {
+  from { opacity: 0; transform: scaleY(0.15); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+.chart-bar-grow {
+  transform-origin: bottom;
+  animation: premium-bar-grow 450ms var(--motion-ease-out) both;
+  will-change: opacity, transform;
+}
+.chart-bars > *:nth-child(2) .chart-bar-grow { animation-delay: 40ms; }
+.chart-bars > *:nth-child(3) .chart-bar-grow { animation-delay: 80ms; }
+.chart-bars > *:nth-child(4) .chart-bar-grow { animation-delay: 120ms; }
+.chart-bars > *:nth-child(5) .chart-bar-grow { animation-delay: 160ms; }
+.chart-bars > *:nth-child(6) .chart-bar-grow { animation-delay: 200ms; }
+.chart-bars > *:nth-child(7) .chart-bar-grow { animation-delay: 240ms; }
+.chart-bars > *:nth-child(n+8) .chart-bar-grow { animation-delay: 280ms; }
+
+/* --- Staggered cascade entrances for grids/lists (visible, intentional) --- */
+.stagger > * {
+  animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) both;
+  will-change: opacity, transform;
+}
+.stagger > *:nth-child(2) { animation-delay: 45ms; }
+.stagger > *:nth-child(3) { animation-delay: 90ms; }
+.stagger > *:nth-child(4) { animation-delay: 135ms; }
+.stagger > *:nth-child(5) { animation-delay: 180ms; }
+.stagger > *:nth-child(n+6) { animation-delay: 225ms; }
+
+/* --- Sidebar sliding active pill (single physical indicator) --- */
+.sidebar-nav {
+  position: relative;
+}
+.sidebar-active-pill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  /* Tactile spring: slight overshoot so the pill feels physical, not linear */
+  transition: transform 300ms cubic-bezier(0.34, 1.25, 0.64, 1), height 300ms cubic-bezier(0.34, 1.25, 0.64, 1), opacity 200ms var(--motion-ease-out);
+  will-change: transform, height;
+  pointer-events: none;
+}
+
+/* --- Mobile dock sliding marker (horizontal twin of the sidebar pill) --- */
+.dock-indicator {
+  position: absolute;
+  top: 0;
+  height: 3px;
+  border-radius: 9999px;
+  background: #06b6d4;
+  opacity: 0.9;
+  transition: left 300ms cubic-bezier(0.34, 1.25, 0.64, 1), width 300ms cubic-bezier(0.34, 1.25, 0.64, 1), opacity 200ms var(--motion-ease-out);
+  will-change: left, width;
+  pointer-events: none;
+}
+
+/* Study answer options: smoother selection + validation feedback.
+   No hover displacement — moving anchors jitter tooltips and feel cheap. */
+button[class*="rounded-xl"][class*="border"][class*="transition"] {
+  transition: border-color 160ms var(--motion-ease-out), background-color 160ms var(--motion-ease-out), box-shadow 160ms var(--motion-ease-out), opacity 160ms var(--motion-ease-out);
+}
+
+/* Sidebar / dock navigation: fluid active + hover states (no press-scale:
+   nav buttons anchor tooltips, and scaling the anchor jitters the popup) */
+aside button,
+nav button {
+  transition: background-color 160ms var(--motion-ease-out), color 160ms var(--motion-ease-out), border-color 160ms var(--motion-ease-out), box-shadow 160ms var(--motion-ease-out);
+}
+
+/* Inputs: calm focus ring instead of abrupt outline jump */
+input, textarea, select {
+  transition: border-color 160ms var(--motion-ease-out), box-shadow 160ms var(--motion-ease-out), background-color 160ms var(--motion-ease-out);
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
+  border-color: rgba(6, 182, 212, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+}
+button:focus-visible, a:focus-visible {
+  outline: 2px solid rgba(6, 182, 212, 0.7);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Progress bars and meters glide instead of jumping */
+div[class*="transition-all"][class*="duration-300"],
+div[class*="transition-all"][class*="duration-500"] {
+  transition-timing-function: var(--motion-ease-out) !important;
+}
+
+/* Success / error inline banners: intentional entry */
+div[class*="bg-emerald-500/10"].animate-in,
+div[class*="bg-rose-500/10"].animate-in {
+  animation-duration: var(--motion-duration-fast);
+}
+
+/* Loading skeleton + shimmer (utility for future use, zero-cost until used) */
+.skeleton-surface {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-subtle);
+  border-radius: 12px;
+  min-height: 14px;
+}
+.skeleton-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.18), transparent);
+  animation: premium-shimmer 1.4s var(--motion-ease-out) infinite;
+}
+.skeleton-line {
+  height: 12px;
+  border-radius: 9999px;
+}
+
+/* Refined scrollbar: quieter, fades in on hover */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.42);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* Visual hierarchy: consistent modal depth + overlay tone (blur kept light;
+   heavy frosted-glass overlays are a generic-AI tell) */
+div[class*="fixed inset-0"][class*="z-50"] {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Performance + accessibility guards */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-view-enter > * {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   PRODUCT MATURITY LAYER — feedback language + completion moments
+   ========================================================================== */
+
+@keyframes premium-success-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-success-pop {
+  animation: premium-success-pop 380ms var(--motion-ease-spring, cubic-bezier(0.34, 1.4, 0.64, 1)) both;
+  will-change: opacity, transform;
+}

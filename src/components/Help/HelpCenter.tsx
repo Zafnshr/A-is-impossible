@@ -77,14 +77,14 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onPlayCinem
             </Tooltip>
           )}
 
-          <Tooltip content="Launch interactive step-by-step onboarding">
+          <Tooltip content="Replay the guided product tour">
             <button
               type="button"
               onClick={onStartTour}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>Interactive Onboarding</span>
+              <span>Replay Guided Tour</span>
             </button>
           </Tooltip>
         </div>

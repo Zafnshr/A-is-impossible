@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   FolderTree,
@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export type ActiveTab =
   | 'dashboard'
@@ -56,6 +57,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGem,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const navRef = useRef<HTMLElement | null>(null);
+  const [pill, setPill] = useState({ top: 0, height: 0, visible: false });
+  const dockRef = useRef<HTMLElement | null>(null);
+  const [dockPill, setDockPill] = useState({ left: 0, width: 0, visible: false });
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('a_plus_sidebar_collapsed') === 'true';
@@ -63,6 +69,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return false;
     }
   });
+
+  // Sliding active indicator: a single physical pill glides to the active
+  // item instead of each button flashing its own background.
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const active = nav.querySelector('[aria-current="page"]') as HTMLElement | null;
+    if (!active) {
+      setPill((p) => (p.visible ? { ...p, visible: false } : p));
+      return;
+    }
+    setPill({ top: active.offsetTop, height: active.offsetHeight, visible: true });
+  }, [activeTab, isCollapsed]);
+
+  // Mobile dock marker: horizontal twin of the desktop pill. Recomputes on
+  // tab/session change and on resize (rotation-safe).
+  useLayoutEffect(() => {
+    const updateDockPill = () => {
+      const nav = dockRef.current;
+      if (!nav) return;
+      const active = nav.querySelector('[data-dock-active="true"]') as HTMLElement | null;
+      if (!active) {
+        setDockPill((p) => (p.visible ? { ...p, visible: false } : p));
+        return;
+      }
+      const w = Math.max(16, active.offsetWidth * 0.32);
+      setDockPill({
+        left: active.offsetLeft + (active.offsetWidth - w) / 2,
+        width: w,
+        visible: true,
+      });
+    };
+    updateDockPill();
+    window.addEventListener('resize', updateDockPill);
+    return () => window.removeEventListener('resize', updateDockPill);
+  }, [activeTab, hasActiveSession]);
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => {
@@ -173,8 +215,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </Tooltip>
             </div>
 
-            {/* Navigation Items List */}
-            <nav className="space-y-1" aria-label="Main Navigation">
+            {/* Navigation Items List with sliding active pill */}
+            <nav ref={navRef} className="sidebar-nav space-y-1" aria-label="Main Navigation">
+              {pill.visible && (
+                <span
+                  aria-hidden="true"
+                  className="sidebar-active-pill"
+                  style={{ height: pill.height, transform: `translateY(${pill.top}px)` }}
+                />
+              )}
               {sidebarItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -188,10 +237,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       type="button"
                       onClick={() => onTabChange(item.id)}
-                      className={`w-full flex items-center h-10 px-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      className={`relative w-full flex items-center h-10 px-2.5 rounded-xl text-xs font-semibold transition-all border border-transparent ${
                         isActive
-                          ? 'bg-subtle text-primary border border-subtle shadow-sm font-bold'
-                          : 'text-secondary hover:text-primary hover:bg-subtle/70 border border-transparent'
+                          ? 'text-primary font-bold'
+                          : 'text-secondary hover:text-primary hover:bg-subtle/70'
                       }`}
                       aria-label={item.label}
                       aria-current={isActive ? 'page' : undefined}
@@ -252,9 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm('Discard active study session and remove resume prompt?')) {
-                              onDiscardActiveSession();
-                            }
+                            setDiscardConfirmOpen(true);
                           }}
                           className="p-1 rounded text-muted hover:text-rose-400 hover:bg-rose-950/20 transition cursor-pointer"
                           aria-label="Discard session"
@@ -287,9 +334,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm('Discard active study session and remove resume prompt?')) {
-                            onDiscardActiveSession();
-                          }
+                          setDiscardConfirmOpen(true);
                         }}
                         className="p-1.5 rounded-lg bg-subtle hover:bg-rose-950/30 text-muted hover:text-rose-400 border border-subtle transition cursor-pointer"
                         aria-label="Discard session"
@@ -302,7 +347,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
 
-            <Tooltip content="Import questions from Word or text" side={isCollapsed ? 'right' : 'top'}>
+            <Tooltip content="Import questions from Word or text" side={isCollapsed ? 'right' : 'top'} className="w-full">
               <button
                 type="button"
                 onClick={onOpenImportPrompt}
@@ -322,7 +367,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </Tooltip>
 
             {onOpenGem && (
-              <Tooltip content="Open Medical Question Gem" side={isCollapsed ? 'right' : 'top'}>
+              <Tooltip content="Open Medical Question Gem" side={isCollapsed ? 'right' : 'top'} className="w-full">
                 <button
                   type="button"
                   onClick={onOpenGem}
@@ -330,7 +375,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     isCollapsed ? 'justify-center px-0' : 'justify-center px-3 gap-2'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4 text-cyan-500 shrink-0 animate-pulse" />
+                  <Sparkles className="w-4 h-4 text-cyan-500 shrink-0" />
                   <div
                     className={`overflow-hidden transition-all duration-200 ${
                       isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[150px] opacity-100'
@@ -350,12 +395,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Mobile Native App Dock (Visible on phones, with safe-area and 48px tap targets) */}
       <nav
+        ref={dockRef}
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-subtle px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around shadow-2xl select-none"
         aria-label="Mobile Dock Navigation"
       >
+        {dockPill.visible && (
+          <span
+            aria-hidden="true"
+            className="dock-indicator"
+            style={{ left: dockPill.left, width: dockPill.width }}
+          />
+        )}
         {/* Home */}
         <button
           type="button"
+          data-dock-active={activeTab === 'dashboard' ? 'true' : 'false'}
           onClick={() => onTabChange('dashboard')}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
             activeTab === 'dashboard'
@@ -370,6 +424,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Library */}
         <button
           type="button"
+          data-dock-active={activeTab === 'library' || activeTab === 'deck_detail' ? 'true' : 'false'}
           onClick={() => onTabChange('library')}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
             activeTab === 'library' || activeTab === 'deck_detail'
@@ -385,6 +440,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {hasActiveSession && (
           <button
             type="button"
+            data-dock-active={activeTab === 'study' ? 'true' : 'false'}
             onClick={() => onTabChange('study')}
             className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition min-tap-target relative ${
               activeTab === 'study'
@@ -403,6 +459,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Collections */}
         <button
           type="button"
+          data-dock-active={activeTab === 'collections' ? 'true' : 'false'}
           onClick={() => onTabChange('collections')}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target relative ${
             activeTab === 'collections'
@@ -425,6 +482,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {!hasActiveSession && (
           <button
             type="button"
+            data-dock-active={activeTab === 'analytics' ? 'true' : 'false'}
             onClick={() => onTabChange('analytics')}
             className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
               activeTab === 'analytics'
@@ -440,6 +498,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* More Options Drawer Trigger */}
         <button
           type="button"
+          data-dock-active={['backup', 'trash', 'settings', 'help', 'editor', 'import'].includes(activeTab) ? 'true' : 'false'}
           onClick={() => setIsMobileMenuOpen(true)}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
             ['backup', 'trash', 'settings', 'help', 'editor', 'import'].includes(activeTab)
@@ -601,7 +660,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="p-3 rounded-2xl bg-gradient-to-r from-indigo-500/15 to-cyan-500/15 hover:from-indigo-500/25 hover:to-cyan-500/25 border border-cyan-500/30 flex items-center gap-3 text-left transition active:scale-95 text-cyan-600 dark:text-cyan-400 col-span-2"
                 >
                   <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400">
-                    <Sparkles className="w-4 h-4 animate-pulse" />
+                    <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="font-bold text-primary flex items-center gap-1.5">
@@ -616,6 +675,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       )}
+
+      {/* Discard active session confirmation (in-app, replaces native confirm) */}
+      <ConfirmDialog
+        open={discardConfirmOpen}
+        title="Discard Study Session?"
+        message="Your current progress in this session will be removed and the resume prompt will disappear. Completed attempts already saved are kept."
+        confirmLabel="Yes, Discard"
+        onCancel={() => setDiscardConfirmOpen(false)}
+        onConfirm={() => {
+          setDiscardConfirmOpen(false);
+          onDiscardActiveSession?.();
+        }}
+      />
     </>
   );
 };

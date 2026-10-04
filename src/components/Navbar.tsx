@@ -163,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-xs font-semibold max-w-[100px] truncate text-primary hidden sm:inline">
                 {currentUser.user_metadata?.full_name?.split(' ')[0] || currentUser.email?.split('@')[0]}
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             </button>
           ) : (
             <button

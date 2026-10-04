@@ -1,17 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Award,
-  CheckCircle2,
   XCircle,
-  Clock,
   RotateCcw,
-  ArrowRight,
   Home,
   BookOpen,
-  Sparkles,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { SessionCompletionSummary } from '../../types';
-import { Tooltip } from '../Tooltip';
 
 interface SessionCompletionModalProps {
   summary: SessionCompletionSummary | null;
@@ -30,6 +26,26 @@ export const SessionCompletionModal: React.FC<SessionCompletionModalProps> = ({
   onReturnToDeck,
   onReturnToDashboard,
 }) => {
+  // Single celebratory burst for strong scores — mirrors the in-session
+  // correct-answer confetti, skipped entirely under reduced-motion.
+  const scorePercentage = summary?.scorePercentage ?? 0;
+  useEffect(() => {
+    if (!summary || scorePercentage < 80) return;
+    try {
+      const prefersReduced =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReduced) return;
+      confetti({
+        particleCount: 70,
+        spread: 65,
+        origin: { y: 0.35 },
+        colors: ['#06b6d4', '#10b981', '#38bdf8'],
+      });
+    } catch {}
+  }, [summary, scorePercentage]);
+
   if (!summary) return null;
 
   const mins = Math.floor(summary.timeSpentSeconds / 60);
@@ -40,7 +56,7 @@ export const SessionCompletionModal: React.FC<SessionCompletionModalProps> = ({
       <div className="w-full max-w-lg bg-surface border border-subtle rounded-3xl p-6 sm:p-8 space-y-6 shadow-dropdown text-center">
         {/* Celebration Header */}
         <div className="space-y-2">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-500 mx-auto">
+          <div className="animate-success-pop w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-500 mx-auto">
             <Award className="w-8 h-8" />
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-primary tracking-tight">

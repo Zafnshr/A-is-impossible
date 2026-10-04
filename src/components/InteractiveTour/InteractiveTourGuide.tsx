@@ -242,10 +242,10 @@ export const InteractiveTourGuide: React.FC<InteractiveTourGuideProps> = ({
           <button
             type="button"
             onClick={handleStepAction}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer shrink-0"
             title={currentStep.shortHint}
           >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
+            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
             <span className="whitespace-nowrap">{currentStep.actionText}</span>
           </button>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, ShieldCheck, Smartphone, HardDrive, ArrowRight } from 'lucide-react';
+import { HardDrive, ArrowRight } from 'lucide-react';
 import { BrandLogo } from '../Brand/BrandLogo';
 
 interface FirstLaunchWelcomeModalProps {

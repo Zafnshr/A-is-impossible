@@ -25,6 +25,7 @@ import {
   StudySessionRecord,
 } from '../../types';
 import { Tooltip } from '../Tooltip';
+import { CountUp } from '../CountUp';
 import { rebuildEngine } from '../../services/rebuildEngine';
 
 interface DashboardViewProps {
@@ -233,11 +234,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {recentDecks.length === 0 ? (
-          <div className="p-6 text-center rounded-2xl bg-subtle border border-subtle text-xs text-secondary">
-            No lecture decks added yet. Decks you create or study will appear here.
+          <div className="p-6 text-center rounded-2xl bg-subtle border border-subtle text-xs text-secondary space-y-3">
+            <p>No lecture decks added yet. Decks you create or study will appear here.</p>
+            <button
+              onClick={onCreateDeckPrompt}
+              className="px-4 py-2 rounded-xl bg-subtle hover:bg-surface border border-subtle text-primary font-bold text-xs transition active:scale-95"
+            >
+              Import or Create Your First Deck
+            </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {recentDecks.map((deck) => {
               const isDeckActive = activeSession ? activeSession.deckIds.includes(deck.id) : false;
               const deckAttempts = attempts.filter((a) => a.deckId === deck.id);
@@ -312,15 +319,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <h2 className="text-xs font-bold text-secondary uppercase tracking-wider">
           3. Study Statistics
         </h2>
+        {totalAttempts === 0 && (
+          <p className="text-[11px] text-muted leading-relaxed">
+            Complete a study session to populate these stats. Accuracy, streaks, and
+            consistency trends appear here automatically.
+          </p>
+        )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="stagger grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* Questions Solved */}
           <div className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-1">
             <div className="flex items-center justify-between text-xs text-secondary">
               <span>Questions Solved</span>
               <CheckCircle2 className="w-4 h-4 text-cyan-500" />
             </div>
-            <div className="text-xl font-black text-primary">{uniqueQuestionsSolved}</div>
+            <div className="text-xl font-black text-primary"><CountUp value={uniqueQuestionsSolved} /></div>
             <div className="text-[11px] font-mono text-muted">{totalAttempts} attempts</div>
           </div>
 
@@ -330,7 +343,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>Accuracy</span>
               <TrendingUp className="w-4 h-4 text-emerald-500" />
             </div>
-            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{accuracyPercentage}%</div>
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400"><CountUp value={accuracyPercentage} format={(n) => `${Math.round(n)}%`} /></div>
             <div className="text-[11px] font-mono text-muted">
               {correctAttempts} of {totalAttempts}
             </div>
@@ -342,7 +355,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>Study Time</span>
               <Clock className="w-4 h-4 text-cyan-500" />
             </div>
-            <div className="text-xl font-black text-primary">{studyMins}m</div>
+            <div className="text-xl font-black text-primary"><CountUp value={studyMins} format={(n) => `${Math.round(n)}m`} /></div>
             <div className="text-[11px] font-mono text-muted">
               {(totalStudySeconds / 3600).toFixed(1)} hrs
             </div>
@@ -354,7 +367,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>Current Streak</span>
               <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
             </div>
-            <div className="text-xl font-black text-amber-600 dark:text-amber-400">{streak.current} Days</div>
+            <div className="text-xl font-black text-amber-600 dark:text-amber-400"><CountUp value={streak.current} format={(n) => `${Math.round(n)} Days`} /></div>
             <div className="text-[11px] font-mono text-muted">Longest: {streak.longest}d</div>
           </div>
 
@@ -364,7 +377,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span>Total Decks</span>
               <FolderTree className="w-4 h-4 text-muted" />
             </div>
-            <div className="text-xl font-black text-primary">{decks.length}</div>
+            <div className="text-xl font-black text-primary"><CountUp value={decks.length} /></div>
             <div className="text-[11px] font-mono text-muted">
               {questions.length} total questions
             </div>
