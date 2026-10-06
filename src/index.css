@@ -647,7 +647,7 @@ button.bg-purple-600 .fill-white {
   }
 }
 .animate-slide-up {
-  animation: slideUpBottomSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUpBottomSheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* ==========================================================================
@@ -739,7 +739,7 @@ button.bg-purple-600 .fill-white {
 .animate-in {
   animation-duration: var(--motion-duration-base);
   animation-timing-function: var(--motion-ease-out);
-  animation-fill-mode: both;
+  animation-fill-mode: backwards;
 }
 .animate-in.fade-in {
   animation-name: premium-fade-in;
@@ -764,41 +764,41 @@ button.bg-purple-600 .fill-white {
   animation-duration: var(--motion-duration-fast);
 }
 .animate-fadeIn {
-  animation: premium-fade-in var(--motion-duration-fast) var(--motion-ease-out) both;
+  animation: premium-fade-in var(--motion-duration-fast) var(--motion-ease-out) backwards;
 }
 
 /* --- Screen / view transitions (applied via keyed wrapper in App) --- */
 .animate-view-enter {
-  animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) both;
-  will-change: opacity, transform;
+  animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) backwards;
+  will-change: opacity;
 }
 /* Stagger children of a newly entered view for an intentional, alive feel */
-.animate-view-enter > *:nth-child(1) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) both; }
-.animate-view-enter > *:nth-child(2) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 30ms both; }
-.animate-view-enter > *:nth-child(3) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 60ms both; }
-.animate-view-enter > *:nth-child(4) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 90ms both; }
-.animate-view-enter > *:nth-child(n+5) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 120ms both; }
+.animate-view-enter > *:nth-child(1) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) backwards; }
+.animate-view-enter > *:nth-child(2) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 30ms backwards; }
+.animate-view-enter > *:nth-child(3) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 60ms backwards; }
+.animate-view-enter > *:nth-child(4) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 90ms backwards; }
+.animate-view-enter > *:nth-child(n+5) { animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) 120ms backwards; }
 
 /* --- Modal system: overlay fades, panel pops (auto-applied) --- */
 div[class*="fixed inset-0"][class*="backdrop-blur"] {
-  animation: premium-fade-in var(--motion-duration-fast) var(--motion-ease-out) both;
+  animation: premium-fade-in var(--motion-duration-fast) var(--motion-ease-out) backwards;
 }
 div[class*="fixed inset-0"][class*="backdrop-blur"] > div[class*="rounded"],
 div[class*="fixed inset-0"][class*="backdrop-blur"] > div[class*="bg-surface"] {
-  animation: premium-modal-panel-in var(--motion-duration-base) var(--motion-ease-out) both;
-  will-change: opacity, transform;
+  animation: premium-modal-panel-in var(--motion-duration-base) var(--motion-ease-out) backwards;
+  will-change: opacity;
 }
 
 /* --- Expandable / conditional blocks mount softly --- */
 .animate-expand {
-  animation: premium-expand-in var(--motion-duration-fast) var(--motion-ease-out) both;
+  animation: premium-expand-in var(--motion-duration-fast) var(--motion-ease-out) backwards;
   transform-origin: top center;
 }
 
 /* --- Study question transitions (keyed by question index) --- */
 .animate-q-enter {
-  animation: premium-q-enter var(--motion-duration-base) var(--motion-ease-out) both;
-  will-change: opacity, transform;
+  animation: premium-q-enter var(--motion-duration-base) var(--motion-ease-out) backwards;
+  will-change: opacity;
 }
 
 /* --- Micro-interactions: buttons, cards, options (global, low-risk) --- */
@@ -836,8 +836,8 @@ div[class*="hover:border-slate-400"]:hover {
 }
 .chart-bar-grow {
   transform-origin: bottom;
-  animation: premium-bar-grow 450ms var(--motion-ease-out) both;
-  will-change: opacity, transform;
+  animation: premium-bar-grow 450ms var(--motion-ease-out) backwards;
+  will-change: opacity;
 }
 .chart-bars > *:nth-child(2) .chart-bar-grow { animation-delay: 40ms; }
 .chart-bars > *:nth-child(3) .chart-bar-grow { animation-delay: 80ms; }
@@ -849,8 +849,8 @@ div[class*="hover:border-slate-400"]:hover {
 
 /* --- Staggered cascade entrances for grids/lists (visible, intentional) --- */
 .stagger > * {
-  animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) both;
-  will-change: opacity, transform;
+  animation: premium-view-enter var(--motion-duration-base) var(--motion-ease-out) backwards;
+  will-change: opacity;
 }
 .stagger > *:nth-child(2) { animation-delay: 45ms; }
 .stagger > *:nth-child(3) { animation-delay: 90ms; }
@@ -998,6 +998,6 @@ div[class*="fixed inset-0"][class*="z-50"] {
   100% { opacity: 1; transform: scale(1); }
 }
 .animate-success-pop {
-  animation: premium-success-pop 380ms var(--motion-ease-spring, cubic-bezier(0.34, 1.4, 0.64, 1)) both;
-  will-change: opacity, transform;
+  animation: premium-success-pop 380ms var(--motion-ease-spring, cubic-bezier(0.34, 1.4, 0.64, 1)) backwards;
+  will-change: opacity;
 }
