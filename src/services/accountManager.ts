@@ -93,7 +93,27 @@ export const accountManager = {
       localSettings || null
     );
 
-    // 3. Write unified merged data into local IndexedDB
+    // 3. Preserve deletions across the overwrite: rows the merge dropped
+    // (remote tombstones) move into local Trash instead of vanishing, and
+    // the existing Trash survives (previously wiped by `trash: []`).
+    const resultDeckIds = new Set(result.decks.map((d) => d.id));
+    const resultQIds = new Set(result.questions.map((q) => q.id));
+    for (const ld of localDecks) {
+      if (!resultDeckIds.has(ld.id)) {
+        await dbService.moveToTrash('workspace', 'deck', ld.lectureName, {
+          deck: ld,
+          questions: localQuestions.filter((q) => q.deckId === ld.id),
+        });
+      }
+    }
+    for (const lq of localQuestions) {
+      if (!resultQIds.has(lq.id) && resultDeckIds.has(lq.deckId)) {
+        await dbService.moveToTrash('workspace', 'question', lq.question.slice(0, 40), lq);
+      }
+    }
+    const preservedTrash = await dbService.getTrashItems('workspace');
+
+    // 4. Write unified merged data into local IndexedDB
     const userDump = {
       version: 2,
       exportedAt: Date.now(),
@@ -115,7 +135,7 @@ export const accountManager = {
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
         sessions: [],
         session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),
-        trash: [],
+        trash: preservedTrash,
       },
     };
 
@@ -146,6 +166,26 @@ export const accountManager = {
       localSettings || null
     );
 
+    // Preserve deletions across the overwrite: rows the merge dropped
+    // (remote tombstones) move into local Trash instead of vanishing, and
+    // the existing Trash survives (previously wiped by `trash: []`).
+    const activeResultDeckIds = new Set(result.decks.map((d) => d.id));
+    const activeResultQIds = new Set(result.questions.map((q) => q.id));
+    for (const ld of localDecks) {
+      if (!activeResultDeckIds.has(ld.id)) {
+        await dbService.moveToTrash('workspace', 'deck', ld.lectureName, {
+          deck: ld,
+          questions: localQuestions.filter((q) => q.deckId === ld.id),
+        });
+      }
+    }
+    for (const lq of localQuestions) {
+      if (!activeResultQIds.has(lq.id) && activeResultDeckIds.has(lq.deckId)) {
+        await dbService.moveToTrash('workspace', 'question', lq.question.slice(0, 40), lq);
+      }
+    }
+    const activePreservedTrash = await dbService.getTrashItems('workspace');
+
     const userDump = {
       version: 2,
       exportedAt: Date.now(),
@@ -167,7 +207,7 @@ export const accountManager = {
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
         sessions: [],
         session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),
-        trash: [],
+        trash: activePreservedTrash,
       },
     };
 

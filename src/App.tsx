@@ -337,6 +337,26 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Tombstone writer: propagates a LOCAL delete to the cloud BEFORE the next
+  // sync reads remote state, so the merge cannot resurrect the row. Guest
+  // mode skips (no cloud rows exist). Never throws — sync stays best-effort.
+  const tombstoneCloudDelete = useCallback(
+    async (deckIds: string[], questionIds: { id: string; deckId: string }[]) => {
+      if (!currentUser) return;
+      try {
+        if (deckIds.length > 0) {
+          await cloudSyncService.markDecksDeleted(currentUser.id, deckIds);
+        }
+        if (questionIds.length > 0) {
+          await cloudSyncService.markQuestionsDeleted(currentUser.id, questionIds);
+        }
+      } catch (err) {
+        console.warn('[Account] Tombstone sync notice:', err);
+      }
+    },
+    [currentUser]
+  );
+
   const handleSignInWithGoogle = async () => {
     // Snapshot the current guest workspace before redirecting to Google
     await accountManager.snapshotGuestWorkspace();
@@ -972,6 +992,14 @@ export default function App() {
     }));
 
     await dbService.saveQuestions(questionsToSave);
+    if (collisionAction === 'replace' && existingDeckId) {
+      await tombstoneCloudDelete(
+        [],
+        questions
+          .filter((q) => q.deckId === existingDeckId)
+          .map((q) => ({ id: q.id, deckId: q.deckId }))
+      );
+    }
     await reloadData();
     triggerAutoSave();
     triggerCloudSync(true);
@@ -1005,6 +1033,10 @@ export default function App() {
       questions: deckQuestions,
     });
     await dbService.deleteDeck(deckId);
+    await tombstoneCloudDelete(
+      [deckId],
+      deckQuestions.map((q) => ({ id: q.id, deckId: q.deckId }))
+    );
     await reloadData();
     setActiveTab('library');
     triggerAutoSave();
@@ -1042,15 +1074,39 @@ export default function App() {
     triggerCloudSync(true);
   };
 
+  const collectTombstoneIds = (items: TrashItem[]) => {
+    const deckIds: string[] = [];
+    const questionIds: { id: string; deckId: string }[] = [];
+    for (const item of items) {
+      if (item.itemType === 'deck' && item.data?.deck) {
+        deckIds.push(item.data.deck.id);
+        const qs = Array.isArray(item.data.questions) ? item.data.questions : [];
+        qs.forEach((q: any) => {
+          if (q?.id) questionIds.push({ id: q.id, deckId: q.deckId || item.data.deck.id });
+        });
+      } else if (item.itemType === 'question' && item.data?.id) {
+        questionIds.push({ id: item.data.id, deckId: item.data.deckId });
+      }
+    }
+    return { deckIds, questionIds };
+  };
+
   const handlePermanentlyDeleteTrash = async (itemId: string) => {
+    const target = trashItems.find((t) => t.id === itemId);
     await dbService.permanentlyDeleteTrash(itemId);
+    if (target) {
+      const { deckIds, questionIds } = collectTombstoneIds([target]);
+      await tombstoneCloudDelete(deckIds, questionIds);
+    }
     await reloadData();
     triggerAutoSave();
     triggerCloudSync(true);
   };
 
   const handleClearAllTrash = async () => {
+    const { deckIds, questionIds } = collectTombstoneIds(trashItems);
     await dbService.clearAllTrash(WORKSPACE_ID);
+    await tombstoneCloudDelete(deckIds, questionIds);
     await reloadData();
     triggerAutoSave();
     triggerCloudSync(true);
@@ -1069,6 +1125,7 @@ export default function App() {
     if (q) {
       await dbService.moveToTrash(WORKSPACE_ID, 'question', q.question.slice(0, 40), q);
       await dbService.deleteQuestion(questionId);
+      await tombstoneCloudDelete([], [{ id: questionId, deckId: q.deckId }]);
       await reloadData();
       triggerAutoSave();
       triggerCloudSync(true);

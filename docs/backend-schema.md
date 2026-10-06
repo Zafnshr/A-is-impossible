@@ -35,3 +35,15 @@ are required to run.
 Guest workspace snapshot → Google OAuth (`signInWithIdToken`/GSI) →
 migrate + sync active workspace (mutex, 1.5s debounce) → restore guest on
 sign-out. Failures degrade to local silently; never block study.
+
+Delete propagation (tombstones — both halves required):
+
+- Local delete writes the row's `is_deleted: true` tombstone to Supabase
+  (`markDecksDeleted` / `markQuestionsDeleted`, called from every App
+  delete path: deck, question, permanent trash delete, clear-all, import
+  replace) BEFORE the next sync reads remote state.
+- Merge honors a NEWER remote tombstone by dropping the local row instead
+  of resurrecting it; upload only upserts live rows (`is_deleted: false`).
+- Sync never wipes Trash: `importFullDump(overwrite)` receives preserved
+  local trash, and rows the merge drops are moved into Trash first.
+- Restore needs no tombstone handling — re-uploaded rows heal to live.
