@@ -298,6 +298,14 @@ export const StudySession: React.FC<StudySessionProps> = ({
         } else {
           handleReveal();
         }
+      } else if (e.key === 'Shift') {
+        // Toggle the focused choice in multiple-choice mode.
+        // Repeat-guarded so holding Shift never machine-gun toggles.
+        if (e.repeat) return;
+        e.preventDefault();
+        if (currentQuestion?.type === 'multiple_mcq' && !isSubmitted && focusedOptionIndex !== null) {
+          handleToggleMultipleOption(focusedOptionIndex);
+        }
       } else if (e.key >= '1' && e.key <= '9') {
         const num = parseInt(e.key, 10);
         if (currentQuestion && !isSubmitted) {
@@ -956,8 +964,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
           </h2>
           <div className="flex items-center gap-2 mt-1.5">
             {currentQuestion.type === 'multiple_mcq' ? (
-              <p className="text-xs text-cyan-600 dark:text-cyan-400 font-medium flex items-center gap-1">
-                <Info className="w-3.5 h-3.5" /> Multiple Answers: Select all that apply.
+              <p className="text-xs text-cyan-600 dark:text-cyan-400 font-medium flex items-center gap-1.5 flex-wrap">
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                <span>Multiple Answers: Select all that apply.</span>
+                <span className="text-muted font-mono text-[10px]">↑↓ move · Shift select · Enter submit</span>
               </p>
             ) : (
               <p className="text-[11px] text-muted flex items-center gap-1 font-medium">

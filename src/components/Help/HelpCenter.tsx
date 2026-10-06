@@ -267,6 +267,13 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onPlayCinem
                 </div>
 
                 <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
+                  <span className="text-secondary font-medium min-w-0 leading-snug">Toggle focused choice in multi-select mode</span>
+                  <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
+                    Shift
+                  </kbd>
+                </div>
+
+                <div className="p-3 rounded-xl bg-subtle border border-subtle flex items-center justify-between gap-3 text-xs">
                   <span className="text-secondary font-medium min-w-0 leading-snug">Ordering: Reposition active item</span>
                   <kbd className="px-2 py-1 rounded bg-surface border border-subtle text-cyan-600 dark:text-cyan-400 font-mono font-bold text-[11px] shrink-0">
                     1 - 9
