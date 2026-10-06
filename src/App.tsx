@@ -137,6 +137,14 @@ export default function App() {
   const [lastSavedAt, setLastSavedAt] = useState<number>(Date.now());
   const lastSessionSaveTimeRef = useRef<number>(0);
 
+  // Live mirror of the in-memory session for reloadData: storage can lose the
+  // saved session (e.g. a sync overwrite) while it is still alive in memory.
+  // The ref lets reloadData re-persist instead of dropping user progress.
+  const activeSessionRef = useRef<StudySessionState | null>(null);
+  useEffect(() => {
+    activeSessionRef.current = activeSession;
+  }, [activeSession]);
+
   // 1. Initial Load from IndexedDB
   const reloadData = useCallback(async () => {
     try {
@@ -181,10 +189,17 @@ export default function App() {
         if (!sessionDecksExist || !sessionQuestionsExist) {
           console.warn('[db] Cleared orphaned active session for deleted deck/questions');
           await dbService.clearActiveSession(WORKSPACE_ID);
+          activeSessionRef.current = null;
           setActiveSession(null);
         } else {
           setActiveSession(savedSession);
         }
+      } else if (activeSessionRef.current) {
+        // Storage lost a session that is still alive in memory (e.g. wiped by
+        // a background sync overwrite): re-persist it instead of dropping the
+        // user's in-progress work. Explicit clears null the ref first, so
+        // genuine completions/discards still resolve to no session.
+        await dbService.saveActiveSession(activeSessionRef.current);
       } else {
         setActiveSession(null);
       }
@@ -713,6 +728,7 @@ export default function App() {
     }
 
     await dbService.clearActiveSession(WORKSPACE_ID);
+    activeSessionRef.current = null;
     setActiveSession(null);
     await reloadData();
     triggerAutoSave();
@@ -739,6 +755,7 @@ export default function App() {
 
   const handleDiscardSession = async () => {
     await dbService.clearActiveSession(WORKSPACE_ID);
+    activeSessionRef.current = null;
     setActiveSession(null);
     await reloadData();
     setActiveTab('library');
@@ -748,6 +765,7 @@ export default function App() {
   const handleDiscardSessionForDeck = async (deckId?: string) => {
     if (activeSession && (!deckId || activeSession.deckIds?.includes(deckId))) {
       await dbService.clearActiveSession(WORKSPACE_ID);
+      activeSessionRef.current = null;
       setActiveSession(null);
       await reloadData();
       triggerAutoSave();
@@ -757,6 +775,7 @@ export default function App() {
   const handleRestartSessionForDeck = async (deckId: string) => {
     if (activeSession && activeSession.deckIds?.includes(deckId)) {
       await dbService.clearActiveSession(WORKSPACE_ID);
+      activeSessionRef.current = null;
       setActiveSession(null);
       await reloadData();
     }
@@ -865,6 +884,7 @@ export default function App() {
     // Immediately clear active study session if it belongs to this deck
     if (activeSession && activeSession.deckIds?.includes(deckId)) {
       await dbService.clearActiveSession(WORKSPACE_ID);
+      activeSessionRef.current = null;
       setActiveSession(null);
     }
 
@@ -1203,11 +1223,12 @@ export default function App() {
           onOpenGem={handleOpenGem}
         />
 
-        {/* Dynamic Workspace Content with Independent Scrolling */}
-        <main className={`flex-1 h-full overflow-y-auto ${activeTab === 'study' ? 'pb-2 md:pb-0' : 'pb-20 md:pb-0'}`}>
+        {/* Dynamic Workspace Content with Independent Scrolling (study locks to viewport: no page scroll) */}
+        <main className={`flex-1 h-full ${activeTab === 'study' ? 'overflow-hidden pb-2 md:pb-0' : 'overflow-y-auto pb-20 md:pb-0'}`}>
           {/* Keyed wrapper: re-mounts + softly transitions on every tab switch.
-              Purely presentational — no navigation / workflow / logic change. */}
-          <div key={activeTab} className="animate-view-enter">
+              Purely presentational — no navigation / workflow / logic change.
+              h-full carries viewport height to views that lock to it (study). */}
+          <div key={activeTab} className="animate-view-enter h-full min-h-0 flex flex-col">
           {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <ErrorBoundary fallbackTitle="Dashboard Error" onReset={reloadData}>

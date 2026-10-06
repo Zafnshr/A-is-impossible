@@ -683,8 +683,8 @@ button.bg-purple-600 .fill-white {
   to { opacity: 1; }
 }
 @keyframes premium-view-enter {
-  from { opacity: 0; transform: translateY(var(--motion-view-shift)) scale(0.995); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: scale(0.99); }
+  to { opacity: 1; transform: scale(1); }
 }
 @keyframes premium-modal-panel-in {
   from { opacity: 0; transform: translateY(var(--motion-modal-shift)) scale(var(--motion-modal-scale)); }

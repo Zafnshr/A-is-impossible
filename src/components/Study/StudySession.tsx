@@ -764,9 +764,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
   }, [questions, decksMap]);
 
   return (
-    <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-3 sm:px-6 py-4 space-y-4">
+    <div className="h-full min-h-0 flex-1 flex flex-col max-w-7xl mx-auto w-full px-3 sm:px-6 pt-3 md:pt-4 pb-20 md:pb-4 space-y-3">
       {/* Top Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-subtle">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-subtle">
         <div className="flex items-center gap-2 text-xs">
           <span className="text-secondary font-mono">
             {currentDeck?.year} · {currentDeck?.module} · {currentDeck?.subject}
@@ -824,11 +824,11 @@ export const StudySession: React.FC<StudySessionProps> = ({
       </div>
 
       {/* Main Layout Area: Question Column + Docked Question Map */}
-      <div className="flex-1 flex flex-col md:flex-row gap-5 items-start min-h-0 w-full">
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 items-stretch w-full">
         {/* Left/Center Question Column */}
-        <div className="flex-1 w-full min-w-0 space-y-4">
+        <div className="flex-1 w-full min-w-0 min-h-0 flex flex-col space-y-3">
           {/* Question Header & Question Map Launcher */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="shrink-0 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
@@ -913,6 +913,9 @@ export const StudySession: React.FC<StudySessionProps> = ({
             </div>
           </div>
 
+      {/* Scrollable middle: question card, notes, explanation.
+          Page never scrolls; this region absorbs overflow on short screens. */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5 pb-1">
       {/* Personal Note Drawer */}
       {noteOpen && (
         <div className="animate-expand p-4 bg-surface border border-cyan-500/30 rounded-xl space-y-3 text-xs shadow-card">
@@ -938,7 +941,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
       )}
 
       {/* Main Question Card — keyed by question so navigation glides instead of flashing */}
-      <div key={currentQuestion?.id ?? currentQIndex} className="animate-q-enter p-5 sm:p-7 rounded-2xl bg-surface border border-subtle shadow-card space-y-6">
+      <div key={currentQuestion?.id ?? currentQIndex} className="animate-q-enter p-4 sm:p-5 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
         {/* Case Vignette */}
         {currentQuestion.caseVignette && (
           <div className="p-4 rounded-xl bg-subtle border border-subtle text-xs sm:text-sm text-primary leading-relaxed font-serif">
@@ -966,7 +969,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
         {/* Option choices (Supports variable option count: 2, 3, 4, 5, 6, 7+ options) */}
         {(currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') && (
-          <div key={`opts-${currentQuestion?.id ?? currentQIndex}`} className="stagger space-y-2.5">
+          <div key={`opts-${currentQuestion?.id ?? currentQIndex}`} className="stagger space-y-2">
             {currentQuestion.options.map((opt, idx) => {
               const isSelected = currentAnswer === idx;
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
@@ -997,7 +1000,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                   }}
                   onDoubleClick={() => handleOptionDoubleClick(idx)}
                   disabled={isSubmitted}
-                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
+                  className={`w-full text-left p-3 sm:p-3.5 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
                 >
                   <span className="w-6 h-6 rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 border border-subtle bg-surface text-secondary">
                     {String.fromCharCode(65 + idx)}
@@ -1013,7 +1016,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
         {/* Multiple MCQ */}
         {currentQuestion.type === 'multiple_mcq' && (
-          <div key={`opts-m-${currentQuestion?.id ?? currentQIndex}`} className="stagger space-y-2.5">
+          <div key={`opts-m-${currentQuestion?.id ?? currentQIndex}`} className="stagger space-y-2">
             {currentQuestion.options.map((opt, idx) => {
               const list: number[] = Array.isArray(currentAnswer) ? currentAnswer : [];
               const isSelected = list.includes(idx);
@@ -1045,7 +1048,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                   }}
                   onDoubleClick={() => handleMultipleOptionDoubleClick(idx)}
                   disabled={isSubmitted}
-                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
+                  className={`w-full text-left p-3 sm:p-3.5 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
                 >
                   <span className="w-6 h-6 rounded-md text-xs font-mono font-bold flex items-center justify-center shrink-0 border border-subtle bg-surface text-secondary">
                     {String.fromCharCode(65 + idx)}
@@ -1532,9 +1535,11 @@ export const StudySession: React.FC<StudySessionProps> = ({
             </p>
           </div>
         )}
+        </div>
+        {/* End of scrollable middle */}
 
         {/* Action Controls Bar */}
-        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 pt-4 pb-2 border-t border-subtle">
+        <div className="shrink-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 pt-3 pb-1 border-t border-subtle">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -1612,7 +1617,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
 
         {/* Tablet & Desktop Docked / Expandable Question Map Panel (768px+) */}
         <div
-          className={`hidden md:block shrink-0 sticky top-4 h-[calc(100vh-6.5rem)] transition-all duration-300 ease-out ${
+          className={`hidden md:block shrink-0 min-h-0 h-full transition-all duration-300 ease-out ${
             isQuestionMapOpen ? 'w-72 lg:w-80 xl:w-96' : 'w-14'
           }`}
         >

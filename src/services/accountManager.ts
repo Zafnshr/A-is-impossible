@@ -93,7 +93,11 @@ export const accountManager = {
       localSettings || null
     );
 
-    // 3. Write unified merged data into local IndexedDB
+    // 3. Preserve the in-progress session across the overwrite below:
+    // wiping it here makes the next reload drop the user's live study work.
+    const preservedSession = await dbService.getActiveSession('workspace');
+
+    // 4. Write unified merged data into local IndexedDB
     const userDump = {
       version: 2,
       exportedAt: Date.now(),
@@ -113,7 +117,7 @@ export const accountManager = {
         questions: result.questions,
         question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
-        sessions: [],
+        sessions: preservedSession ? [preservedSession] : [],
         session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),
         trash: [],
       },
@@ -146,6 +150,9 @@ export const accountManager = {
       localSettings || null
     );
 
+    // Preserve the in-progress session across the overwrite below.
+    const preservedActiveSession = await dbService.getActiveSession('workspace');
+
     const userDump = {
       version: 2,
       exportedAt: Date.now(),
@@ -165,7 +172,7 @@ export const accountManager = {
         questions: result.questions,
         question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
-        sessions: [],
+        sessions: preservedActiveSession ? [preservedActiveSession] : [],
         session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),
         trash: [],
       },
