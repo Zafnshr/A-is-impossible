@@ -54,3 +54,10 @@ create unique index if not exists statuses_id_user_id
 On each device: open the account dialog → **Sync Cloud Now**. The amber
 dot clears on the first clean sync. Verify: create a deck on device A,
 force-sync, sign in on device B — it downloads on login automatically.
+
+## Fail-closed guarantee
+
+If any cloud read fails (denied table, flaky network), the sync aborts
+BEFORE uploading anything or touching local data, and the reason appears
+in the account dialog. A denied backend can therefore never be mistaken
+for an empty cloud, and can never clobber good data in either direction.

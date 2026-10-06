@@ -355,17 +355,20 @@ export const cloudSyncService = {
 
     // 0. Fetch Cloud User Profile Manifest (Contains full session history, attempts, extended metadata)
     let cloudPayload: CloudUserSettingsPayload = { version: 2, syncedAt: 0 };
+    let manifestReadError: any = null;
     try {
-      const { data: profileRow } = await supabase
+      const { data: profileRow, error: profileErr } = await supabase
         .from('profiles')
         .select('settings')
         .eq('id', userId)
         .maybeSingle();
 
+      if (profileErr) throw profileErr;
       if (profileRow?.settings && typeof profileRow.settings === 'object') {
         cloudPayload = profileRow.settings as CloudUserSettingsPayload;
       }
     } catch (profileFetchErr) {
+      manifestReadError = profileFetchErr;
       console.warn('[Sync] Could not fetch profiles settings payload:', profileFetchErr);
     }
 
@@ -373,8 +376,25 @@ export const cloudSyncService = {
     const cloudQExt = cloudPayload.questionExtensions || {};
     const cloudStatusExt = cloudPayload.statusExtensions || {};
 
-    // 1. Synchronize Decks
+    // 1. Read all remote tables FIRST (fail-closed: any read failure aborts
+    // before uploads and the local overwrite, so a denied or flaky backend
+    // can never be mistaken for an empty cloud or clobber good data).
     const remoteDecksRes = await supabase.from('decks').select('*').eq('user_id', userId);
+    const remoteQuestionsRes = await supabase.from('questions').select('*').eq('user_id', userId);
+    const remoteStatusesRes = await supabase.from('user_question_statuses').select('*').eq('user_id', userId);
+
+    const readError =
+      manifestReadError || remoteDecksRes.error || remoteQuestionsRes.error || remoteStatusesRes.error;
+    if (readError) {
+      const reason = summarizeSyncError(readError);
+      console.warn('[Sync] Aborting: cannot read cloud tables:', readError);
+      syncIssues.push(`read: ${reason}`);
+      throw new Error(
+        `Cloud sync aborted — cannot read cloud data (${reason}). Check connection and table permissions.`
+      );
+    }
+
+    // 2. Synchronize Decks (merge below; remote rows were read up-front)
     const remoteDecksMap = new Map<string, any>();
     if (remoteDecksRes.data) {
       remoteDecksRes.data.forEach((d) => remoteDecksMap.set(d.id, d));
@@ -462,8 +482,7 @@ export const cloudSyncService = {
       await upsertRows('decks', decksToUpsert, 100, syncIssues);
     }
 
-    // 2. Synchronize Questions
-    const remoteQuestionsRes = await supabase.from('questions').select('*').eq('user_id', userId);
+    // 3. Synchronize Questions (remote rows were read up-front)
     const remoteQuestionsMap = new Map<string, any>();
     if (remoteQuestionsRes.data) {
       remoteQuestionsRes.data.forEach((q) => remoteQuestionsMap.set(q.id, q));
@@ -556,8 +575,7 @@ export const cloudSyncService = {
       await upsertRows('questions', questionsToUpsert, 100, syncIssues);
     }
 
-    // 3. Synchronize Question User Statuses (Collections: Favorites, Flags, Incorrect, Notes, Progress)
-    const remoteStatusesRes = await supabase.from('user_question_statuses').select('*').eq('user_id', userId);
+    // 4. Synchronize Question User Statuses (remote rows were read up-front)
     const remoteStatusesMap = new Map<string, any>();
     if (remoteStatusesRes.data) {
       remoteStatusesRes.data.forEach((s) => remoteStatusesMap.set(s.question_id, s));
@@ -629,7 +647,7 @@ export const cloudSyncService = {
       await upsertRows('user_question_statuses', statusesToUpsert, 100, syncIssues);
     }
 
-    // 4. Synchronize Study Session History (Analytics)
+    // 5. Synchronize Study Session History (Analytics)
     const remoteSessions: StudySessionRecord[] = cloudPayload.sessionHistory || [];
     const mergedHistoryMap = new Map<string, StudySessionRecord>();
     remoteSessions.forEach((s) => mergedHistoryMap.set(s.id, { ...s, profileId: 'workspace' }));
@@ -645,7 +663,7 @@ export const cloudSyncService = {
       (a, b) => (b.completedAt || b.startedAt) - (a.completedAt || a.startedAt)
     );
 
-    // 5. Synchronize Attempts History
+    // 6. Synchronize Attempts History
     const remoteAttempts: UserAttemptRecord[] = cloudPayload.attempts || [];
     const mergedAttemptsMap = new Map<string, UserAttemptRecord>();
     remoteAttempts.forEach((a) => mergedAttemptsMap.set(a.id, { ...a, profileId: 'workspace' }));
@@ -658,10 +676,10 @@ export const cloudSyncService = {
       (a, b) => b.timestamp - a.timestamp
     );
 
-    // 6. Synchronize User Settings
+    // 7. Synchronize User Settings
     const finalSettings = localSettings || cloudPayload.userSettings || null;
 
-    // 7. Update Cloud Manifest in profiles.settings (Stores permanent canonical backup)
+    // 8. Update Cloud Manifest in profiles.settings (Stores permanent canonical backup)
     const finalQuestions = Array.from(mergedQuestionsMap.values());
     const finalDecks = Array.from(mergedDecksMap.values()).map((deck) => ({
       ...deck,
