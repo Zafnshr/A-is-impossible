@@ -380,11 +380,8 @@ export const cloudSyncService = {
           });
         }
       } else {
-        // Remote tombstone is newer than the local copy: honor the delete
-        // instead of resurrecting the row on the next upload.
-        if (rd.is_deleted && remoteTime > (existing.updatedAt || 0)) {
-          mergedDecksMap.delete(rd.id);
-        } else if (!rd.is_deleted && remoteTime > (existing.updatedAt || 0)) {
+        // If exists in both, merge attributes with conflict resolution
+        if (remoteTime > (existing.updatedAt || 0) && !rd.is_deleted) {
           existing.title = rd.title;
           existing.description = decoded.description;
           existing.year = rd.year || existing.year;
@@ -480,10 +477,6 @@ export const cloudSyncService = {
             updatedAt: remoteTime,
           });
         }
-      } else if (rq.is_deleted && remoteTime > (existing.updatedAt || 0)) {
-        // Remote tombstone is newer than the local copy: honor the delete
-        // instead of resurrecting the row on the next upload.
-        mergedQuestionsMap.delete(rq.id);
       } else {
         // If remote is newer, update question fields but preserve rich extensions if remote missed them
         if (remoteTime > (existing.updatedAt || 0) && !rq.is_deleted) {
@@ -719,68 +712,5 @@ export const cloudSyncService = {
       settings: finalSettings,
       syncedAt: now,
     };
-  },
-
-  /**
-   * Tombstone writer: propagates a LOCAL delete to the cloud so the next
-   * sync does not resurrect the row. The merge already honors `is_deleted`;
-   * nothing ever set it — this is the missing half. Never throws.
-   */
-  async markDecksDeleted(userId: string, deckIds: string[]): Promise<void> {
-    if (!userId || deckIds.length === 0) return;
-    const now = new Date().toISOString();
-    try {
-      for (let i = 0; i < deckIds.length; i += 50) {
-        const batch = deckIds.slice(i, i + 50).map((id) => ({
-          id,
-          user_id: userId,
-          title: '(deleted)',
-          description: '',
-          module: '',
-          subject: '',
-          year: '',
-          tags: [],
-          is_deleted: true,
-          updated_at: now,
-        }));
-        const { error } = await supabase.from('decks').upsert(batch, { onConflict: 'id,user_id' });
-        if (error) console.warn('[Sync] Deck tombstone warning:', error);
-      }
-    } catch (err) {
-      console.warn('[Sync] Deck tombstone failed:', err);
-    }
-  },
-
-  /**
-   * Tombstone writer for questions (same contract as markDecksDeleted).
-   * `items` carry the owning deck so the row shape stays valid.
-   */
-  async markQuestionsDeleted(
-    userId: string,
-    items: { id: string; deckId: string }[]
-  ): Promise<void> {
-    if (!userId || items.length === 0) return;
-    const now = new Date().toISOString();
-    try {
-      for (let i = 0; i < items.length; i += 100) {
-        const batch = items.slice(i, i + 100).map((q) => ({
-          id: q.id,
-          deck_id: q.deckId,
-          user_id: userId,
-          question_text: '(deleted)',
-          options: [],
-          correct_index: 0,
-          explanation: '',
-          difficulty: 'medium',
-          tags: [],
-          is_deleted: true,
-          updated_at: now,
-        }));
-        const { error } = await supabase.from('questions').upsert(batch, { onConflict: 'id,user_id' });
-        if (error) console.warn('[Sync] Question tombstone warning:', error);
-      }
-    } catch (err) {
-      console.warn('[Sync] Question tombstone failed:', err);
-    }
   },
 };

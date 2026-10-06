@@ -337,26 +337,6 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Tombstone writer: propagates a LOCAL delete to the cloud BEFORE the next
-  // sync reads remote state, so the merge cannot resurrect the row. Guest
-  // mode skips (no cloud rows exist). Never throws — sync stays best-effort.
-  const tombstoneCloudDelete = useCallback(
-    async (deckIds: string[], questionIds: { id: string; deckId: string }[]) => {
-      if (!currentUser) return;
-      try {
-        if (deckIds.length > 0) {
-          await cloudSyncService.markDecksDeleted(currentUser.id, deckIds);
-        }
-        if (questionIds.length > 0) {
-          await cloudSyncService.markQuestionsDeleted(currentUser.id, questionIds);
-        }
-      } catch (err) {
-        console.warn('[Account] Tombstone sync notice:', err);
-      }
-    },
-    [currentUser]
-  );
-
   const handleSignInWithGoogle = async () => {
     // Snapshot the current guest workspace before redirecting to Google
     await accountManager.snapshotGuestWorkspace();
@@ -740,145 +720,18 @@ export default function App() {
   };
 
   const handleEndEarlySaveAndExit = async () => {
+    // TRUE save-and-exit: persist the in-progress session exactly as-is
+    // (answers, position, timer) and leave to the dashboard WITHOUT
+    // recording history, touching deck stats, showing the completion modal,
+    // or clearing the session — so Resume restores this exact moment later.
+    // Previously this duplicated the complete-now path, which made
+    // "Save Progress & Resume Later" unresumable.
     if (activeSession) {
-      const qIds = activeSession.questionIds;
-      const answeredQIds = qIds.filter((qid) => activeSession.submittedQuestions[qid]);
-      const totalAnswered = answeredQIds.length;
-      let correct = 0;
-
-      answeredQIds.forEach((qid) => {
-        const q = questions.find((item) => item.id === qid);
-        const ans = activeSession.userAnswers[qid];
-        if (q && ans !== undefined) {
-          if (q.type === 'single_mcq' || q.type === 'true_false') {
-            if (ans === q.correctAnswers[0]) correct++;
-          } else if (q.type === 'multiple_mcq') {
-            const arr = Array.isArray(ans) ? ans : [];
-            const isMatch =
-              arr.length === q.correctAnswers.length &&
-              arr.every((idx: number) => q.correctAnswers.includes(idx));
-            if (isMatch) correct++;
-          }
-        }
+      await dbService.saveActiveSession({
+        ...activeSession,
+        lastSavedAt: Date.now(),
       });
-
-      const incorrect = totalAnswered - correct;
-      const score = totalAnswered > 0 ? Math.round((correct / totalAnswered) * 100) : 0;
-
-      const summary: SessionCompletionSummary = {
-        sessionId: activeSession.sessionId,
-        deckTitle: activeSession.sessionTitle,
-        totalQuestions: qIds.length,
-        solvedCount: totalAnswered,
-        unansweredCount: qIds.length - totalAnswered,
-        correctCount: correct,
-        incorrectCount: incorrect,
-        scorePercentage: score,
-        timeSpentSeconds: activeSession.timerSeconds,
-        completedAt: Date.now(),
-        questionIds: qIds,
-        incorrectQuestionIds: answeredQIds.filter((qid) => {
-          const q = questions.find((item) => item.id === qid);
-          const ans = activeSession.userAnswers[qid];
-          if (!q) return false;
-          if (q.type === 'single_mcq' || q.type === 'true_false') return ans !== q.correctAnswers[0];
-          return false;
-        }),
-      };
-
-      // Update deck stats for all decks in this session
-      const targetDeckIds = activeSession.deckIds?.length
-        ? activeSession.deckIds
-        : Array.from(new Set(sessionQuestions.map((q) => q.deckId)));
-
-      for (const dId of targetDeckIds) {
-        const deckQuestions = sessionQuestions.filter((q) => q.deckId === dId);
-        let dCorrect = 0;
-        let dAnswered = 0;
-        deckQuestions.forEach((q) => {
-          if (activeSession.submittedQuestions[q.id]) {
-            dAnswered++;
-            const ans = activeSession.userAnswers[q.id];
-            if (q.type === 'single_mcq' || q.type === 'true_false') {
-              if (q.correctAnswers.includes(ans)) dCorrect++;
-            } else if (q.type === 'multiple_mcq') {
-              const arr = Array.isArray(ans) ? ans : [];
-              if (arr.length === q.correctAnswers.length && arr.every((i) => q.correctAnswers.includes(i))) dCorrect++;
-            } else {
-              dCorrect++;
-            }
-          }
-        });
-        const deckScore = dAnswered > 0 ? Math.round((dCorrect / dAnswered) * 100) : score;
-        await dbService.updateDeckStats(dId, deckScore);
-      }
-
-      // Record to permanent session_history
-      const deckTitles = Array.from(
-        new Set(targetDeckIds.map((id) => decksMap[id]?.lectureName || id))
-      );
-      const modules = Array.from(
-        new Set(targetDeckIds.map((id) => decksMap[id]?.module).filter(Boolean) as string[])
-      );
-      const subjects = Array.from(
-        new Set(targetDeckIds.map((id) => decksMap[id]?.subject).filter(Boolean) as string[])
-      );
-      const years = Array.from(
-        new Set(targetDeckIds.map((id) => decksMap[id]?.year).filter(Boolean) as string[])
-      );
-
-      const dObj = new Date(summary.completedAt);
-      const localDate = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
-
-      const sessionRecord: StudySessionRecord = {
-        id: activeSession.sessionId || `session_${Date.now()}`,
-        profileId: WORKSPACE_ID,
-        sessionTitle: activeSession.sessionTitle || summary.deckTitle,
-        date: localDate,
-        startedAt: activeSession.startedAt || (summary.completedAt - summary.timeSpentSeconds * 1000),
-        completedAt: summary.completedAt,
-        durationSeconds: summary.timeSpentSeconds,
-        totalQuestions: summary.totalQuestions,
-        questionsAttempted: summary.solvedCount,
-        unansweredCount: summary.unansweredCount,
-        correctAnswers: summary.correctCount,
-        incorrectAnswers: summary.incorrectCount,
-        accuracy: summary.solvedCount > 0 ? Math.round((summary.correctCount / summary.solvedCount) * 100) : 0,
-        score: summary.scorePercentage,
-        deckIds: targetDeckIds,
-        deckTitles,
-        modules,
-        subjects,
-        years,
-        questionTypes: Array.from(new Set(sessionQuestions.map((q) => q.type))),
-        mode: activeSession.mode,
-        collectionType: activeSession.collectionFilter,
-        questionResults: sessionQuestions.map((q) => {
-          const isSubmitted = !!activeSession.submittedQuestions[q.id];
-          const userAns = activeSession.userAnswers[q.id];
-          let isCorrect = false;
-          if (isSubmitted) {
-            if (q.type === 'single_mcq' || q.type === 'true_false') {
-              isCorrect = q.correctAnswers.includes(userAns);
-            } else if (q.type === 'multiple_mcq') {
-              const arr = Array.isArray(userAns) ? userAns : [];
-              isCorrect = arr.length === q.correctAnswers.length && arr.every((i) => q.correctAnswers.includes(i));
-            }
-          }
-          return {
-            questionId: q.id,
-            deckId: q.deckId,
-            isCorrect,
-          };
-        }),
-      };
-
-      await dbService.saveSessionRecord(sessionRecord);
-
-      setCompletionSummary(summary);
-      await dbService.clearActiveSession(WORKSPACE_ID);
-      setActiveSession(null);
-      await reloadData();
+      setActiveTab('dashboard');
       triggerAutoSave();
       triggerCloudSync(true);
     }
@@ -992,14 +845,6 @@ export default function App() {
     }));
 
     await dbService.saveQuestions(questionsToSave);
-    if (collisionAction === 'replace' && existingDeckId) {
-      await tombstoneCloudDelete(
-        [],
-        questions
-          .filter((q) => q.deckId === existingDeckId)
-          .map((q) => ({ id: q.id, deckId: q.deckId }))
-      );
-    }
     await reloadData();
     triggerAutoSave();
     triggerCloudSync(true);
@@ -1033,10 +878,6 @@ export default function App() {
       questions: deckQuestions,
     });
     await dbService.deleteDeck(deckId);
-    await tombstoneCloudDelete(
-      [deckId],
-      deckQuestions.map((q) => ({ id: q.id, deckId: q.deckId }))
-    );
     await reloadData();
     setActiveTab('library');
     triggerAutoSave();
@@ -1074,39 +915,15 @@ export default function App() {
     triggerCloudSync(true);
   };
 
-  const collectTombstoneIds = (items: TrashItem[]) => {
-    const deckIds: string[] = [];
-    const questionIds: { id: string; deckId: string }[] = [];
-    for (const item of items) {
-      if (item.itemType === 'deck' && item.data?.deck) {
-        deckIds.push(item.data.deck.id);
-        const qs = Array.isArray(item.data.questions) ? item.data.questions : [];
-        qs.forEach((q: any) => {
-          if (q?.id) questionIds.push({ id: q.id, deckId: q.deckId || item.data.deck.id });
-        });
-      } else if (item.itemType === 'question' && item.data?.id) {
-        questionIds.push({ id: item.data.id, deckId: item.data.deckId });
-      }
-    }
-    return { deckIds, questionIds };
-  };
-
   const handlePermanentlyDeleteTrash = async (itemId: string) => {
-    const target = trashItems.find((t) => t.id === itemId);
     await dbService.permanentlyDeleteTrash(itemId);
-    if (target) {
-      const { deckIds, questionIds } = collectTombstoneIds([target]);
-      await tombstoneCloudDelete(deckIds, questionIds);
-    }
     await reloadData();
     triggerAutoSave();
     triggerCloudSync(true);
   };
 
   const handleClearAllTrash = async () => {
-    const { deckIds, questionIds } = collectTombstoneIds(trashItems);
     await dbService.clearAllTrash(WORKSPACE_ID);
-    await tombstoneCloudDelete(deckIds, questionIds);
     await reloadData();
     triggerAutoSave();
     triggerCloudSync(true);
@@ -1125,7 +942,6 @@ export default function App() {
     if (q) {
       await dbService.moveToTrash(WORKSPACE_ID, 'question', q.question.slice(0, 40), q);
       await dbService.deleteQuestion(questionId);
-      await tombstoneCloudDelete([], [{ id: questionId, deckId: q.deckId }]);
       await reloadData();
       triggerAutoSave();
       triggerCloudSync(true);
