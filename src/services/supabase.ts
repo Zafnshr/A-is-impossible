@@ -48,6 +48,42 @@ export interface CloudSyncResult {
   attempts: UserAttemptRecord[];
   settings: UserSettings | null;
   syncedAt: number;
+  /** Non-fatal backend warnings (table/constraint/RLS). Empty = clean. */
+  syncIssues?: string[];
+}
+
+// --- Resilient upsert with constraint fallback ---------------------------
+// Primary path assumes a composite unique index on (id, user_id). If the
+// project lacks it, PostgREST rejects ON CONFLICT — so fall back to a
+// primary-key upsert instead of failing the whole sync silently.
+function summarizeSyncError(err: any): string {
+  const code = err?.code ? `[${err.code}] ` : '';
+  const msg = err?.message || err?.hint || String(err || 'unknown sync error');
+  return `${code}${msg}`.slice(0, 140);
+}
+
+async function upsertRows(
+  table: 'decks' | 'questions' | 'user_question_statuses',
+  rows: any[],
+  batchSize: number,
+  issues: string[]
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const first = await supabase.from(table).upsert(batch, { onConflict: 'id,user_id' });
+    if (!first.error) continue;
+    const msg = first.error.message || '';
+    if (/constraint|on conflict|unique|42P10|PGRST106|PGRST204/i.test(msg)) {
+      const second = await supabase.from(table).upsert(batch);
+      if (second.error) {
+        console.warn(`[Sync] ${table} upsert fallback warning:`, second.error);
+        issues.push(`${table}: ${summarizeSyncError(second.error)}`);
+      }
+    } else {
+      console.warn(`[Sync] ${table} upsert batch warning:`, first.error);
+      issues.push(`${table}: ${summarizeSyncError(first.error)}`);
+    }
+  }
 }
 
 export interface CloudUserSettingsPayload {
@@ -314,6 +350,8 @@ export const cloudSyncService = {
     localSettings: UserSettings | null = null
   ): Promise<CloudSyncResult> {
     const now = Date.now();
+    // Collected backend warnings, surfaced to the UI instead of staying silent.
+    const syncIssues: string[] = [];
 
     // 0. Fetch Cloud User Profile Manifest (Contains full session history, attempts, extended metadata)
     let cloudPayload: CloudUserSettingsPayload = { version: 2, syncedAt: 0 };
@@ -421,11 +459,7 @@ export const cloudSyncService = {
     }));
 
     if (decksToUpsert.length > 0) {
-      for (let i = 0; i < decksToUpsert.length; i += 100) {
-        const batch = decksToUpsert.slice(i, i + 100);
-        const { error: dErr } = await supabase.from('decks').upsert(batch, { onConflict: 'id,user_id' });
-        if (dErr) console.warn('[Sync] Deck upsert batch warning:', dErr);
-      }
+      await upsertRows('decks', decksToUpsert, 100, syncIssues);
     }
 
     // 2. Synchronize Questions
@@ -519,11 +553,7 @@ export const cloudSyncService = {
     }));
 
     if (questionsToUpsert.length > 0) {
-      for (let i = 0; i < questionsToUpsert.length; i += 100) {
-        const batch = questionsToUpsert.slice(i, i + 100);
-        const { error: qErr } = await supabase.from('questions').upsert(batch, { onConflict: 'id,user_id' });
-        if (qErr) console.warn('[Sync] Question upsert batch warning:', qErr);
-      }
+      await upsertRows('questions', questionsToUpsert, 100, syncIssues);
     }
 
     // 3. Synchronize Question User Statuses (Collections: Favorites, Flags, Incorrect, Notes, Progress)
@@ -596,13 +626,7 @@ export const cloudSyncService = {
     }));
 
     if (statusesToUpsert.length > 0) {
-      for (let i = 0; i < statusesToUpsert.length; i += 100) {
-        const batch = statusesToUpsert.slice(i, i + 100);
-        const { error: sErr } = await supabase
-          .from('user_question_statuses')
-          .upsert(batch, { onConflict: 'id,user_id' });
-        if (sErr) console.warn('[Sync] Status upsert batch warning:', sErr);
-      }
+      await upsertRows('user_question_statuses', statusesToUpsert, 100, syncIssues);
     }
 
     // 4. Synchronize Study Session History (Analytics)
@@ -701,6 +725,7 @@ export const cloudSyncService = {
       );
     } catch (profileErr) {
       console.warn('[Sync] Failed to update profiles.settings manifest:', profileErr);
+      syncIssues.push(`profiles manifest: ${summarizeSyncError(profileErr)}`);
     }
 
     return {
@@ -711,6 +736,7 @@ export const cloudSyncService = {
       attempts: finalAttempts,
       settings: finalSettings,
       syncedAt: now,
+      syncIssues,
     };
   },
 };

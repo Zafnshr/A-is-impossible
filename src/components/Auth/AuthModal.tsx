@@ -21,6 +21,7 @@ interface AuthModalProps {
   currentUser: User | null;
   isSyncing: boolean;
   lastSyncedAt: number | null;
+  syncIssues?: string[];
   onSignInWithGoogle: () => Promise<void>;
   onSignInWithIdToken?: (idToken: string) => Promise<void>;
   onSignOut: () => Promise<void>;
@@ -37,6 +38,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   currentUser,
   isSyncing,
   lastSyncedAt,
+  syncIssues = [],
   onSignInWithGoogle,
   onSignInWithIdToken,
   onSignOut,
@@ -305,6 +307,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     {formatLastSync(lastSyncedAt)}
                   </span>
                 </div>
+
+                {syncIssues.length > 0 && (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-700 dark:text-amber-300 space-y-1 animate-in fade-in">
+                    <div className="font-bold">Last sync reported backend warnings:</div>
+                    <ul className="list-disc list-inside space-y-0.5 font-mono break-words">
+                      {syncIssues.slice(0, 4).map((issue, i) => (
+                        <li key={i}>{issue}</li>
+                      ))}
+                    </ul>
+                    {syncIssues.length > 4 && (
+                      <div className="text-muted">+{syncIssues.length - 4} more — see browser console</div>
+                    )}
+                  </div>
+                )}
 
                 {syncFeedback && (
                   <div className="pt-2 border-t border-subtle text-center text-cyan-600 dark:text-cyan-400 text-[11px] font-medium animate-pulse">

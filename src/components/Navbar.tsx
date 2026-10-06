@@ -21,6 +21,7 @@ interface NavbarProps {
   isTimerRunning?: boolean;
   currentUser?: User | null;
   isSyncing?: boolean;
+  syncIssues?: string[];
   onOpenAuthModal?: () => void;
   onOpenGlobalSearch: () => void;
   onOpenHelp: () => void;
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isTimerRunning,
   currentUser,
   isSyncing,
+  syncIssues = [],
   onOpenAuthModal,
   onOpenGlobalSearch,
   onStartTour,
@@ -146,8 +148,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={onOpenAuthModal}
-              className="flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/[0.08] hover:bg-emerald-500/[0.15] text-primary transition shadow-xs cursor-pointer"
-              title={`Account: ${currentUser.email} • Cloud Sync Active`}
+              className={`flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full border transition shadow-xs cursor-pointer ${
+                syncIssues.length > 0
+                  ? 'border-amber-500/40 bg-amber-500/[0.08] hover:bg-amber-500/[0.15]'
+                  : 'border-emerald-500/30 bg-emerald-500/[0.08] hover:bg-emerald-500/[0.15]'
+              } text-primary`}
+              title={
+                syncIssues.length > 0
+                  ? `Account: ${currentUser.email} • Last sync reported issues: ${syncIssues.join(' | ')}`
+                  : `Account: ${currentUser.email} • Cloud Sync Active`
+              }
             >
               {currentUser.user_metadata?.avatar_url || currentUser.user_metadata?.picture ? (
                 <img
@@ -163,7 +173,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-xs font-semibold max-w-[100px] truncate text-primary hidden sm:inline">
                 {currentUser.user_metadata?.full_name?.split(' ')[0] || currentUser.email?.split('@')[0]}
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span
+                className={`w-2 h-2 rounded-full animate-pulse ${
+                  syncIssues.length > 0 ? 'bg-amber-400' : 'bg-emerald-400'
+                }`}
+              />
             </button>
           ) : (
             <button

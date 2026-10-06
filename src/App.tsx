@@ -115,6 +115,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  // Non-fatal backend warnings from the last sync (empty = healthy).
+  const [syncIssues, setSyncIssues] = useState<string[]>([]);
 
   // First Launch & Active Learning Tour state
   const [firstLaunchOpen, setFirstLaunchOpen] = useState<boolean>(() => {
@@ -312,10 +314,16 @@ export default function App() {
           isSyncingMutexRef.current = true;
           if (isMounted) setIsSyncing(true);
           const result = await accountManager.migrateAndSyncGoogleUser(user.id);
-          if (isMounted) setLastSyncedAt(result.syncedAt);
+          if (isMounted) {
+            setLastSyncedAt(result.syncedAt);
+            setSyncIssues(result.syncIssues || []);
+          }
           await reloadData();
         } catch (err) {
           console.error('[Account] Error migrating/syncing account world:', err);
+          if (isMounted) {
+            setSyncIssues([(err as any)?.message || 'Account sync failed']);
+          }
         } finally {
           isSyncingMutexRef.current = false;
           if (isMounted) setIsSyncing(false);
@@ -341,8 +349,10 @@ export default function App() {
         setIsSyncing(true);
         const result = await accountManager.syncActiveWorkspace(currentUser.id);
         setLastSyncedAt(result.syncedAt);
+        setSyncIssues(result.syncIssues || []);
       } catch (err) {
         console.warn('[AutoSync] Background cloud sync notice:', err);
+        setSyncIssues([(err as any)?.message || 'Background sync failed']);
       } finally {
         isSyncingMutexRef.current = false;
         setIsSyncing(false);
@@ -379,6 +389,7 @@ export default function App() {
       if (res?.user) {
         const syncRes = await accountManager.migrateAndSyncGoogleUser(res.user.id);
         setLastSyncedAt(syncRes.syncedAt);
+        setSyncIssues(syncRes.syncIssues || []);
       }
       await reloadData();
     } catch (err: any) {
@@ -417,9 +428,11 @@ export default function App() {
       setIsSyncing(true);
       const result = await accountManager.migrateAndSyncGoogleUser(currentUser.id);
       setLastSyncedAt(result.syncedAt);
+      setSyncIssues(result.syncIssues || []);
       await reloadData();
     } catch (err) {
       console.error('[Account] Error syncing guest data:', err);
+      setSyncIssues([(err as any)?.message || 'Guest data sync failed']);
     } finally {
       setIsSyncing(false);
     }
@@ -512,9 +525,11 @@ export default function App() {
       setIsSyncing(true);
       const result = await accountManager.syncActiveWorkspace(currentUser.id);
       setLastSyncedAt(result.syncedAt);
+      setSyncIssues(result.syncIssues || []);
       await reloadData();
     } catch (err) {
       console.error('[Account] Force sync error:', err);
+      setSyncIssues([(err as any)?.message || 'Manual sync failed']);
     } finally {
       setIsSyncing(false);
     }
@@ -1239,6 +1254,7 @@ export default function App() {
         isTimerRunning={activeSession?.timerRunning}
         currentUser={currentUser}
         isSyncing={isSyncing}
+        syncIssues={syncIssues}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
         onOpenHelp={() => setActiveTab('help')}
@@ -1633,6 +1649,7 @@ export default function App() {
         currentUser={currentUser}
         isSyncing={isSyncing}
         lastSyncedAt={lastSyncedAt}
+        syncIssues={syncIssues}
         onSignInWithGoogle={handleSignInWithGoogle}
         onSignInWithIdToken={handleSignInWithIdToken}
         onSignOut={handleSignOut}
