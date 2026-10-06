@@ -13,6 +13,64 @@ import { rebuildEngine } from './rebuildEngine';
 
 const GUEST_SNAPSHOT_KEY = 'a_plus_guest_snapshot_v2';
 const GUEST_FLAG_KEY = 'a_plus_is_guest';
+// Local-only deletion guard: IDs the user removed on this device. The sync
+// merge is never told to delete anything in the cloud; these rows are simply
+// filtered out of what sync writes back locally, so a locally-deleted deck
+// can never be resurrected by a later sync. Restoring re-admits the IDs.
+const LOCAL_TOMBSTONE_KEY = 'a_plus_local_deletes_v1';
+const LOCAL_TOMBSTONE_CAP = 5000;
+
+export function getLocalTombstones(): string[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_TOMBSTONE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addLocalTombstones(ids: string[]): void {
+  try {
+    const set = new Set(getLocalTombstones());
+    ids.forEach((id) => {
+      if (typeof id === 'string' && id) set.add(id);
+    });
+    const trimmed = Array.from(set).slice(-LOCAL_TOMBSTONE_CAP);
+    localStorage.setItem(LOCAL_TOMBSTONE_KEY, JSON.stringify(trimmed));
+  } catch {
+    // Storage restrictions must never break deletes.
+  }
+}
+
+export function removeLocalTombstones(ids: string[]): void {
+  try {
+    const remove = new Set(ids);
+    const kept = getLocalTombstones().filter((id) => !remove.has(id));
+    localStorage.setItem(LOCAL_TOMBSTONE_KEY, JSON.stringify(kept));
+  } catch {
+    // Ignore storage restrictions.
+  }
+}
+
+/**
+ * Pure deletion guard: drops tombstoned decks and questions orphaned by a
+ * dropped deck from a sync result before it is written locally. No I/O,
+ * no cloud writes — safe to unit-test.
+ */
+export function applyLocalTombstones<
+  D extends { id: string },
+  Q extends { id: string; deckId: string },
+>(decks: D[], questions: Q[]): { decks: D[]; questions: Q[] } {
+  const tombstoned = new Set(getLocalTombstones());
+  if (tombstoned.size === 0) return { decks, questions };
+  const liveDecks = decks.filter((d) => !tombstoned.has(d.id));
+  const liveDeckIds = new Set(liveDecks.map((d) => d.id));
+  const liveQuestions = questions.filter(
+    (q) => !tombstoned.has(q.id) && liveDeckIds.has(q.deckId)
+  );
+  return { decks: liveDecks, questions: liveQuestions };
+}
 
 export const accountManager = {
   /**
@@ -97,7 +155,15 @@ export const accountManager = {
     // wiping it here makes the next reload drop the user's live study work.
     const preservedSession = await dbService.getActiveSession('workspace');
 
-    // 4. Write unified merged data into local IndexedDB
+    // 4. Local deletion guard: drop tombstoned rows (and questions orphaned
+    // by a dropped deck) so sync can never resurrect what the user removed.
+    // Cloud rows are untouched — this only filters what lands locally.
+    const { decks: liveDecks, questions: liveQuestions } = applyLocalTombstones(
+      result.decks,
+      result.questions
+    );
+
+    // 5. Write unified merged data into local IndexedDB
     const userDump = {
       version: 2,
       exportedAt: Date.now(),
@@ -113,8 +179,8 @@ export const accountManager = {
           },
         ],
         settings: result.settings ? [{ ...result.settings, profileId: 'workspace' }] : [],
-        decks: result.decks,
-        questions: result.questions,
+        decks: liveDecks,
+        questions: liveQuestions,
         question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
         sessions: preservedSession ? [preservedSession] : [],
@@ -153,6 +219,13 @@ export const accountManager = {
     // Preserve the in-progress session across the overwrite below.
     const preservedActiveSession = await dbService.getActiveSession('workspace');
 
+    // Local deletion guard: drop tombstoned rows (and questions orphaned by
+    // a dropped deck) so sync can never resurrect what the user removed.
+    const { decks: activeLiveDecks, questions: activeLiveQuestions } = applyLocalTombstones(
+      result.decks,
+      result.questions
+    );
+
     const userDump = {
       version: 2,
       exportedAt: Date.now(),
@@ -168,8 +241,8 @@ export const accountManager = {
           },
         ],
         settings: result.settings ? [{ ...result.settings, profileId: 'workspace' }] : [],
-        decks: result.decks,
-        questions: result.questions,
+        decks: activeLiveDecks,
+        questions: activeLiveQuestions,
         question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
         sessions: preservedActiveSession ? [preservedActiveSession] : [],

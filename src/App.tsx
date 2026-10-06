@@ -54,7 +54,11 @@ import { User } from '@supabase/supabase-js';
 import { AuthModal } from './components/Auth/AuthModal';
 import { openOfficialQuestionGenerator } from './services/gemLink';
 import { cloudAuthService, cloudSyncService, GOOGLE_CLIENT_ID, cleanUrlHash } from './services/supabase';
-import { accountManager } from './services/accountManager';
+import {
+  accountManager,
+  addLocalTombstones,
+  removeLocalTombstones,
+} from './services/accountManager';
 import {
   tourSampleService,
   SAMPLE_RAW_COLLEGE_EXAM_TEXT,
@@ -821,6 +825,9 @@ export default function App() {
     let finalDeckId = existingDeckId || `deck_${Date.now()}`;
 
     if (collisionAction === 'replace' && existingDeckId) {
+      addLocalTombstones(
+        questions.filter((q) => q.deckId === existingDeckId).map((q) => q.id)
+      );
       await dbService.deleteQuestionsForDeck(existingDeckId);
       const existingDeck = await dbService.getDeck(existingDeckId);
       if (existingDeck) {
@@ -897,6 +904,8 @@ export default function App() {
       deck,
       questions: deckQuestions,
     });
+    // Local deletion guard so no later sync can resurrect this deck.
+    addLocalTombstones([deckId, ...deckQuestions.map((q) => q.id)]);
     await dbService.deleteDeck(deckId);
     await reloadData();
     setActiveTab('library');
@@ -929,6 +938,13 @@ export default function App() {
   };
 
   const handleRestoreTrashItem = async (item: TrashItem) => {
+    // Re-admit restored rows so sync keeps them.
+    if (item.itemType === 'deck' && item.data?.deck) {
+      const qs = Array.isArray(item.data.questions) ? item.data.questions : [];
+      removeLocalTombstones([item.data.deck.id, ...qs.map((q: any) => q?.id).filter(Boolean)]);
+    } else if (item.itemType === 'question' && item.data?.id) {
+      removeLocalTombstones([item.data.id]);
+    }
     await dbService.restoreTrashItem(item);
     await reloadData();
     triggerAutoSave();
@@ -936,6 +952,15 @@ export default function App() {
   };
 
   const handlePermanentlyDeleteTrash = async (itemId: string) => {
+    const target = trashItems.find((t) => t.id === itemId);
+    if (target) {
+      if (target.itemType === 'deck' && target.data?.deck) {
+        const qs = Array.isArray(target.data.questions) ? target.data.questions : [];
+        addLocalTombstones([target.data.deck.id, ...qs.map((q: any) => q?.id).filter(Boolean)]);
+      } else if (target.itemType === 'question' && target.data?.id) {
+        addLocalTombstones([target.data.id]);
+      }
+    }
     await dbService.permanentlyDeleteTrash(itemId);
     await reloadData();
     triggerAutoSave();
@@ -943,6 +968,19 @@ export default function App() {
   };
 
   const handleClearAllTrash = async () => {
+    const ids: string[] = [];
+    trashItems.forEach((t) => {
+      if (t.itemType === 'deck' && t.data?.deck) {
+        ids.push(t.data.deck.id);
+        const qs = Array.isArray(t.data.questions) ? t.data.questions : [];
+        qs.forEach((q: any) => {
+          if (q?.id) ids.push(q.id);
+        });
+      } else if (t.itemType === 'question' && t.data?.id) {
+        ids.push(t.data.id);
+      }
+    });
+    addLocalTombstones(ids);
     await dbService.clearAllTrash(WORKSPACE_ID);
     await reloadData();
     triggerAutoSave();
@@ -961,6 +999,7 @@ export default function App() {
     const q = questions.find((item) => item.id === questionId);
     if (q) {
       await dbService.moveToTrash(WORKSPACE_ID, 'question', q.question.slice(0, 40), q);
+      addLocalTombstones([questionId]);
       await dbService.deleteQuestion(questionId);
       await reloadData();
       triggerAutoSave();

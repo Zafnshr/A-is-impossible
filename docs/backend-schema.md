@@ -35,3 +35,9 @@ are required to run.
 Guest workspace snapshot → Google OAuth (`signInWithIdToken`/GSI) →
 migrate + sync active workspace (mutex, 1.5s debounce) → restore guest on
 sign-out. Failures degrade to local silently; never block study.
+
+Local deletion guard (no cloud writes): removed deck/question IDs are kept
+in a capped localStorage set (`a_plus_local_deletes_v1`). Both sync paths
+filter those IDs (plus questions orphaned by a dropped deck) out of what
+they write back locally, so sync can never resurrect a removed deck —
+including after emptying Trash. Restoring re-admits the IDs.
