@@ -312,13 +312,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   </div>
                 )}
-                <div className="flex items-center gap-1">
-                  <Tooltip content="Resume active study session" side={isCollapsed ? 'right' : 'top'} className="flex-1">
+                <div className={`flex gap-1 ${isCollapsed ? 'flex-col gap-1.5' : 'flex-row items-center'}`}>
+                  <Tooltip content="Resume active study session" side={isCollapsed ? 'right' : 'top'} className={isCollapsed ? 'w-full' : 'flex-1'}>
                     <button
                       type="button"
                       onClick={() => onTabChange('study')}
                       className={`w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-lg transition active:scale-95 shadow-sm flex items-center justify-center ${
-                        isCollapsed ? 'px-1 text-[10px]' : 'px-2'
+                        isCollapsed ? 'px-1 text-[10px] h-9' : 'px-2'
                       }`}
                     >
                       {isCollapsed ? (
@@ -329,14 +329,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                   </Tooltip>
                   {isCollapsed && onDiscardActiveSession && (
-                    <Tooltip content="Discard session" side="right">
+                    <Tooltip content="Discard session" side="right" className="w-full">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setDiscardConfirmOpen(true);
                         }}
-                        className="p-1.5 rounded-lg bg-subtle hover:bg-rose-950/30 text-muted hover:text-rose-400 border border-subtle transition cursor-pointer"
+                        className="w-full flex items-center justify-center py-1 rounded-lg bg-subtle hover:bg-rose-950/30 text-muted hover:text-rose-400 border border-subtle transition cursor-pointer"
                         aria-label="Discard session"
                       >
                         <X className="w-3.5 h-3.5" />
