@@ -200,6 +200,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
     };
   }, [session.timerRunning]);
 
+  const isExamMode = session.studyMode === 'exam';
   const isSubmitted = currentQuestion ? !!session.submittedQuestions[currentQuestion.id] : false;
   const isRevealed = currentQuestion ? !!session.revealedQuestions[currentQuestion.id] : false;
 
@@ -578,10 +579,14 @@ export const StudySession: React.FC<StudySessionProps> = ({
       await dbService.saveQuestionStatus(updatedStatus);
     }
 
+    const isExam = currentSession.studyMode === 'exam';
     const updated = {
       ...currentSession,
       submittedQuestions: { ...currentSession.submittedQuestions, [currentQuestion.id]: true },
-      revealedQuestions: { ...currentSession.revealedQuestions, [currentQuestion.id]: true },
+      revealedQuestions: {
+        ...currentSession.revealedQuestions,
+        [currentQuestion.id]: isExam ? false : true,
+      },
       lastSavedAt: Date.now(),
     };
     sessionRef.current = updated;
@@ -983,7 +988,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
             {currentQuestion.options.map((opt, idx) => {
               const isSelected = currentAnswer === idx;
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
-              const showValidation = isSubmitted || isRevealed;
+              const showValidation = !isExamMode && (isSubmitted || isRevealed);
 
               const isFocused = focusedOptionIndex === idx && !showValidation;
               let style = 'border-subtle bg-subtle hover:bg-subtle/80 text-primary';
@@ -1031,7 +1036,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
               const list: number[] = Array.isArray(currentAnswer) ? currentAnswer : [];
               const isSelected = list.includes(idx);
               const isCorrectOpt = currentQuestion.correctAnswers.includes(idx);
-              const showValidation = isSubmitted || isRevealed;
+              const showValidation = !isExamMode && (isSubmitted || isRevealed);
 
               const isFocused = focusedOptionIndex === idx && !showValidation;
               let style = 'border-subtle bg-subtle hover:bg-subtle/80 text-primary';
@@ -1079,7 +1084,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
               const userSelection = matchingSelections[pair.id] || '';
               const isPairCorrect = userSelection === pair.right;
 
-              if (isSubmitted || isRevealed) {
+              if (!isExamMode && (isSubmitted || isRevealed)) {
                 return (
                   <div
                     key={pair.id}
@@ -1296,7 +1301,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
             {currentQuestion.subQuestions.map((sub, sIdx) => {
               const chosen = caseAnswers[sub.id];
               const isSubCorrect = chosen === sub.correctAnswer;
-              const hasSubmitted = isSubmitted || isRevealed;
+              const hasSubmitted = !isExamMode && (isSubmitted || isRevealed);
 
               return (
                 <div key={sub.id} className="p-4 rounded-xl border border-subtle bg-subtle space-y-3 text-xs">
@@ -1534,7 +1539,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
         )}
 
         {/* Explanation & Clinical Rationale - ONLY SHOWN IF EXPLANATION EXISTS */}
-        {(isSubmitted || isRevealed) && currentQuestion.explanation && currentQuestion.explanation.trim().length > 0 && (
+        {!isExamMode && (isSubmitted || isRevealed) && currentQuestion.explanation && currentQuestion.explanation.trim().length > 0 && (
           <div className="p-4 sm:p-5 rounded-2xl border border-cyan-500/30 bg-cyan-50/40 dark:bg-cyan-950/20 space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-700 dark:text-cyan-300 uppercase tracking-wide">
               <BookOpen className="w-4 h-4 text-cyan-500" />
@@ -1584,38 +1589,48 @@ export const StudySession: React.FC<StudySessionProps> = ({
           <div className="flex items-center gap-2">
             {!isSubmitted ? (
               <>
-                <button
-                  type="button"
-                  onClick={handleReveal}
-                  className="px-3.5 py-2.5 rounded-xl border border-subtle bg-subtle text-secondary hover:text-primary text-xs font-semibold transition min-tap-target cursor-pointer active:scale-95"
-                >
-                  {isRevealed ? 'Hide Answer' : 'Reveal Answer'}
-                </button>
+                {!isExamMode && (
+                  <button
+                    type="button"
+                    onClick={handleReveal}
+                    className="px-3.5 py-2.5 rounded-xl border border-subtle bg-subtle text-secondary hover:text-primary text-xs font-semibold transition min-tap-target cursor-pointer active:scale-95"
+                  >
+                    {isRevealed ? 'Hide Answer' : 'Reveal Answer'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSubmitCurrent}
                   className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Submit</span>
+                  <span>{isExamMode ? 'Confirm Answer' : 'Submit'}</span>
                 </button>
               </>
             ) : (
               <>
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-semibold text-xs transition border border-subtle min-tap-target cursor-pointer active:scale-95"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Retry (R)</span>
-                </button>
+                {!isExamMode && (
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-semibold text-xs transition border border-subtle min-tap-target cursor-pointer active:scale-95"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Retry (R)</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleNext}
                   className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
-                  <span>{currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}</span>
+                  <span>
+                    {currentQIndex === questions.length - 1
+                      ? isExamMode
+                        ? 'Finish Exam'
+                        : 'Finish'
+                      : 'Next'}
+                  </span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </>

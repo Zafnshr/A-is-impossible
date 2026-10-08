@@ -490,16 +490,6 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
                   <strong className="text-secondary capitalize">{selectedSubjectSlug.replace(/-/g, ' ')}</strong> in{' '}
                   {activeModule?.title}. Select another subject tab or check back soon.
                 </p>
-                {activeModule?.slug === 'blood' && selectedSubjectSlug !== 'physiology' && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSubjectSlug('physiology')}
-                    className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold cursor-pointer shadow-sm"
-                  >
-                    <span>View Blood Physiology Lectures</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
               </div>
             ) : (
               /* Grouped by Week */

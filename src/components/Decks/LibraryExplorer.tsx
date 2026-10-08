@@ -40,7 +40,6 @@ interface LibraryExplorerProps {
   onRenameDeck?: (deckId: string, newLectureName: string) => void;
   onDeleteDeck?: (deckId: string) => void;
   initialLocation?: { year?: string; module?: string; subject?: string } | null;
-  onLoadSampleDeck?: () => Promise<void>;
   onOpenWorkflowGuide?: () => void;
   onNavigateToOfficialContent?: () => void;
 }
@@ -54,7 +53,6 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
   onRenameDeck,
   onDeleteDeck,
   initialLocation,
-  onLoadSampleDeck,
   onOpenWorkflowGuide,
   onNavigateToOfficialContent,
 }) => {
@@ -344,22 +342,12 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                 <BookOpen className="w-10 h-10 text-muted mx-auto" />
                 <h3 className="text-sm font-bold text-primary">No Decks in {selectedModule} → {selectedSubject}</h3>
                 <p className="text-xs text-secondary max-w-sm mx-auto">
-                  Create a new lecture deck here, load the Egyptian medical sample deck, or explore the step-by-step workflow guide.
+                  Create a new lecture deck here, import external files, or explore the step-by-step workflow guide.
                 </p>
                 <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
-                  {onLoadSampleDeck && (
-                    <button
-                      type="button"
-                      onClick={onLoadSampleDeck}
-                      className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-white" />
-                      <span>Load Sample Year 2 Blood Deck</span>
-                    </button>
-                  )}
                   <button
                     onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
-                    className="px-4 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-primary border border-subtle font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
                   >
                     Create Deck Here
                   </button>

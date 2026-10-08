@@ -16,6 +16,7 @@ import {
   StudySessionRecord,
   OfficialLecture,
   QuestionVersionType,
+  StudyModeType,
 } from './types';
 import { dbService } from './services/db';
 import { rebuildEngine } from './services/rebuildEngine';
@@ -577,7 +578,8 @@ export default function App() {
 
   const handleStartOfficialStudyTrack = async (
     lecture: OfficialLecture,
-    versionType: QuestionVersionType
+    versionType: QuestionVersionType,
+    studyMode: StudyModeType = 'learning'
   ) => {
     try {
       const officialQs = await officialContentService.getQuestionsForLecture(
@@ -632,6 +634,9 @@ export default function App() {
         userAnswers: {},
         submittedQuestions: {},
         revealedQuestions: {},
+        studyMode,
+        versionType,
+        officialLectureId: lecture.id,
         timerType: 'stopwatch',
         timerSeconds: 0,
         countdownInitialSeconds: 600,
@@ -1452,7 +1457,6 @@ export default function App() {
                 onRenameDeck={handleRenameDeck}
                 onDeleteDeck={handleDeleteDeck}
                 initialLocation={libraryLocation}
-                onLoadSampleDeck={handleTourLoadSampleDeck}
                 onOpenWorkflowGuide={() => setIsWorkflowGuideOpen(true)}
                 onNavigateToOfficialContent={() => setActiveTab('official_library')}
               />
@@ -1477,6 +1481,7 @@ export default function App() {
                 }}
                 onStartStudyTrack={handleStartOfficialStudyTrack}
                 currentUserId={currentUser?.id || 'guest_user'}
+                userPreferredMode={settings?.preferredStudyMode}
               />
             </ErrorBoundary>
           )}

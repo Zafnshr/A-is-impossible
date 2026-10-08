@@ -28,7 +28,6 @@ interface MyContentViewProps {
   onCreateDeckPrompt: (year?: string, module?: string, subject?: string) => void;
   onRenameDeck?: (deckId: string, newLectureName: string) => void;
   onDeleteDeck?: (deckId: string) => void;
-  onLoadSampleDeck?: () => Promise<void>;
   onOpenWorkflowGuide?: () => void;
   onOpenImportPrompt?: () => void;
   onSwitchToOfficial?: () => void;
@@ -42,7 +41,6 @@ export const MyContentView: React.FC<MyContentViewProps> = ({
   onCreateDeckPrompt,
   onRenameDeck,
   onDeleteDeck,
-  onLoadSampleDeck,
   onOpenWorkflowGuide,
   onOpenImportPrompt,
   onSwitchToOfficial,
@@ -203,7 +201,6 @@ export const MyContentView: React.FC<MyContentViewProps> = ({
           onCreateDeckPrompt={onCreateDeckPrompt}
           onRenameDeck={onRenameDeck}
           onDeleteDeck={onDeleteDeck}
-          onLoadSampleDeck={onLoadSampleDeck}
           onOpenWorkflowGuide={onOpenWorkflowGuide}
         />
       ) : (
