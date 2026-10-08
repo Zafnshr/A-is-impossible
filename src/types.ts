@@ -113,6 +113,9 @@ export interface StudySessionState {
   collectionFilter?: 'favorites' | 'flagged' | 'incorrect';
   startedAt: number;
   isCompleted?: boolean;
+  studyMode?: 'learning' | 'exam';
+  versionType?: QuestionVersionType;
+  officialLectureId?: string;
   orderDebugInfo?: OrderDebugInfo;
 }
 
@@ -212,6 +215,7 @@ export interface UserSettings {
     shuffleQuestions: boolean;
     shuffleAnswers: boolean;
   };
+  preferredStudyMode?: StudyModeType;
 }
 
 export interface TrashItem {
@@ -331,3 +335,37 @@ export interface UserPdfUpload {
   pageCount: number;
   createdAt: number;
 }
+
+export interface OfficialAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  targetUrl?: string;
+  isActive: boolean;
+  createdAt: number;
+  expiresAt?: number;
+}
+
+export interface QuestionFeedbackRecord {
+  id: string;
+  userId: string;
+  questionId: string;
+  lectureId: string;
+  isFavorite: boolean;
+  isDisliked: boolean;
+  dislikeReason?: DislikeReasonType;
+  dislikeNotes?: string;
+  createdAt: number;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  name?: string;
+  joinedAt: number;
+  questionsSolved: number;
+  accuracyRate: number;
+  isBanned: boolean;
+  isAdmin: boolean;
+}
+

@@ -4,217 +4,22 @@
  * Implements Year 2 preclinical curriculum structure:
  * Year 2 → Modules → Subjects → Weeks → Lectures & Formative Exams (MCQ-only)
  * Strict zero-explanation model: Stem + Options (A-E) + Correct Answer flag.
+ *
+ * PHILOSOPHY: Zero fake/seed data. Official Content begins empty until
+ * administrators author and publish official academic content.
  */
 
 import {
-  CurriculumModule,
-  CurriculumSubject,
-  SubjectWeek,
   OfficialLecture,
   OfficialQuestion,
   UserLectureMetrics,
   QuestionVersionType,
+  QuestionFeedbackRecord,
+  DislikeReasonType,
 } from '../types';
 import { dbService } from './db';
 
-// Canonical Sample PDF for testing viewer (High-yield medical lecture slide demonstration)
-const DEMO_LECTURE_PDF_URL = '/sample_lecture_slides.pdf';
-
-/* ==========================================================================
-   CANONICAL SEED CURRICULUM DEFINITION (YEAR 2)
-   ========================================================================== */
-
-const SEED_QUESTIONS_PLASMA_PROTEINS: OfficialQuestion[] = [
-  // Practice Questions (Formative Concept Drill)
-  {
-    id: 'q_practice_plasma_01',
-    lectureId: 'lec_plasma_proteins',
-    versionType: 'practice',
-    stem: 'Which plasma protein is primarily responsible for generating the colloid osmotic (oncotic) pressure that opposes capillary filtration?',
-    displayOrder: 1,
-    options: [
-      { id: 'opt_p1_a', optionLetter: 'A', content: 'Fibrinogen', isCorrect: false, displayOrder: 1 },
-      { id: 'opt_p1_b', optionLetter: 'B', content: 'Albumin', isCorrect: true, displayOrder: 2 },
-      { id: 'opt_p1_c', optionLetter: 'C', content: 'Alpha-1 antitrypsin', isCorrect: false, displayOrder: 3 },
-      { id: 'opt_p1_d', optionLetter: 'D', content: 'Transferrin', isCorrect: false, displayOrder: 4 },
-      { id: 'opt_p1_e', optionLetter: 'E', content: 'Gamma globulin', isCorrect: false, displayOrder: 5 },
-    ],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'q_practice_plasma_02',
-    lectureId: 'lec_plasma_proteins',
-    versionType: 'practice',
-    stem: 'What is the average physiological concentration of total plasma proteins in normal adult human plasma?',
-    displayOrder: 2,
-    options: [
-      { id: 'opt_p2_a', optionLetter: 'A', content: '2.0 - 3.5 g/dL', isCorrect: false, displayOrder: 1 },
-      { id: 'opt_p2_b', optionLetter: 'B', content: '4.0 - 5.5 g/dL', isCorrect: false, displayOrder: 2 },
-      { id: 'opt_p2_c', optionLetter: 'C', content: '6.0 - 8.0 g/dL', isCorrect: true, displayOrder: 3 },
-      { id: 'opt_p2_d', optionLetter: 'D', content: '9.5 - 11.0 g/dL', isCorrect: false, displayOrder: 4 },
-      { id: 'opt_p2_e', optionLetter: 'E', content: '12.0 - 14.5 g/dL', isCorrect: false, displayOrder: 5 },
-    ],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'q_practice_plasma_03',
-    lectureId: 'lec_plasma_proteins',
-    versionType: 'practice',
-    stem: 'Which organ is the sole site of synthesis for all circulating plasma albumin and fibrinogen?',
-    displayOrder: 3,
-    options: [
-      { id: 'opt_p3_a', optionLetter: 'A', content: 'Bone marrow plasma cells', isCorrect: false, displayOrder: 1 },
-      { id: 'opt_p3_b', optionLetter: 'B', content: 'Hepatocytes (Liver)', isCorrect: true, displayOrder: 2 },
-      { id: 'opt_p3_c', optionLetter: 'C', content: 'Splenic reticuloendothelial cells', isCorrect: false, displayOrder: 3 },
-      { id: 'opt_p3_d', optionLetter: 'D', content: 'Renal tubular epithelial cells', isCorrect: false, displayOrder: 4 },
-      { id: 'opt_p3_e', optionLetter: 'E', content: 'Vascular endothelial cells', isCorrect: false, displayOrder: 5 },
-    ],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-
-  // University Exam Style Questions (Authentic Clinical Vignette Simulation)
-  {
-    id: 'q_exam_plasma_01',
-    lectureId: 'lec_plasma_proteins',
-    versionType: 'university_exam_style',
-    stem: 'A 54-year-old male with decompensated alcoholic cirrhosis presents with massive abdominal ascites and bilateral 3+ pitting pedal edema. Urinalysis shows no significant proteinuria. Which alteration in microvascular Starling forces is the primary underlying driver of his fluid extravasation?',
-    displayOrder: 1,
-    options: [
-      { id: 'opt_e1_a', optionLetter: 'A', content: 'Markedly increased capillary permeability to macromolecules', isCorrect: false, displayOrder: 1 },
-      { id: 'opt_e1_b', optionLetter: 'B', content: 'Decreased plasma colloid oncotic pressure due to hypoalbuminemia', isCorrect: true, displayOrder: 2 },
-      { id: 'opt_e1_c', optionLetter: 'C', content: 'Obstruction of major retroperitoneal lymphatic collectors', isCorrect: false, displayOrder: 3 },
-      { id: 'opt_e1_d', optionLetter: 'D', content: 'Decreased interstitial hydrostatic pressure', isCorrect: false, displayOrder: 4 },
-      { id: 'opt_e1_e', optionLetter: 'E', content: 'Primary renal sodium excretion failure with arterial hypertension', isCorrect: false, displayOrder: 5 },
-    ],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'q_exam_plasma_02',
-    lectureId: 'lec_plasma_proteins',
-    versionType: 'university_exam_style',
-    stem: 'Serum protein electrophoresis (SPEP) performed on an asymptomatic 62-year-old woman undergoing routine health screening displays a narrow, tall, sharp spike in the gamma globulin region. Quantitative immunofixation confirms monoclonal IgG kappa protein. Which cellular source is responsible for this electrophoretic abnormality?',
-    displayOrder: 2,
-    options: [
-      { id: 'opt_e2_a', optionLetter: 'A', content: 'Clonal expansion of transformed plasma cells', isCorrect: true, displayOrder: 1 },
-      { id: 'opt_e2_b', optionLetter: 'B', content: 'Hyperactive hepatic Kupfer cells', isCorrect: false, displayOrder: 2 },
-      { id: 'opt_e2_c', optionLetter: 'C', content: 'Polyclonal CD4+ T helper lymphocyte proliferation', isCorrect: false, displayOrder: 3 },
-      { id: 'opt_e2_d', optionLetter: 'D', content: 'Excess synthesis of acute-phase reactants by hepatocytes', isCorrect: false, displayOrder: 4 },
-      { id: 'opt_e2_e', optionLetter: 'E', content: 'Accelerated megakaryocyte turnover in marrow', isCorrect: false, displayOrder: 5 },
-    ],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-];
-
-// Seed Formative Exam Questions (Strictly Single-Best-Answer MCQ Only)
-const SEED_QUESTIONS_BLOOD_FORMATIVE_W1: OfficialQuestion[] = [
-  {
-    id: 'q_formative_b1_01',
-    lectureId: 'lec_blood_formative_w1',
-    versionType: 'university_exam_style',
-    stem: 'Which Starling force primarily governs the reabsorption of fluid back into the capillary lumen at the venular end?',
-    displayOrder: 1,
-    options: [
-      { id: 'opt_fb1_a', optionLetter: 'A', content: 'Capillary hydrostatic pressure', isCorrect: false, displayOrder: 1 },
-      { id: 'opt_fb1_b', optionLetter: 'B', content: 'Plasma colloid osmotic pressure', isCorrect: true, displayOrder: 2 },
-      { id: 'opt_fb1_c', optionLetter: 'C', content: 'Interstitial hydrostatic pressure', isCorrect: false, displayOrder: 3 },
-      { id: 'opt_fb1_d', optionLetter: 'D', content: 'Interstitial oncotic pressure', isCorrect: false, displayOrder: 4 },
-      { id: 'opt_fb1_e', optionLetter: 'E', content: 'Lymphatic pump pulse pressure', isCorrect: false, displayOrder: 5 },
-    ],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'q_formative_b1_02',
-    lectureId: 'lec_blood_formative_w1',
-    versionType: 'university_exam_style',
-    stem: 'A 22-year-old student donates blood. Over the subsequent 48 hours, renal juxtaglomerular apparatus interstitial cells sense mild hypoxia and respond by upregulating which growth factor?',
-    displayOrder: 2,
-    options: [
-      { id: 'opt_fb2_a', optionLetter: 'A', content: 'Thrombopoietin', isCorrect: false, displayOrder: 1 },
-      { id: 'opt_fb2_b', optionLetter: 'B', content: 'Erythropoietin (EPO)', isCorrect: true, displayOrder: 2 },
-      { id: 'opt_fb2_c', optionLetter: 'C', content: 'Granulocyte-colony stimulating factor (G-CSF)', isCorrect: false, displayOrder: 3 },
-      { id: 'opt_fb2_d', optionLetter: 'D', content: 'Interleukin-3', isCorrect: false, displayOrder: 4 },
-      { id: 'opt_fb2_e', optionLetter: 'E', content: 'Fibroblast growth factor 23', isCorrect: false, displayOrder: 5 },
-    ],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-];
-
-const SEED_LECTURES: OfficialLecture[] = [
-  {
-    id: 'lec_plasma_proteins',
-    weekId: 'week_blood_phys_1',
-    moduleSlug: 'blood',
-    subjectSlug: 'physiology',
-    weekSlug: 'week-1',
-    slug: 'plasma-proteins',
-    title: 'Plasma Proteins & Colloid Osmotic Pressure',
-    description: 'Comprehensive analysis of serum albumin, globulin subfractions, fibrinogen kinetics, and microvascular Starling capillary forces.',
-    pdfUrl: DEMO_LECTURE_PDF_URL,
-    pdfPageCount: 14,
-    pdfFileSizeBytes: 1048576,
-    status: 'published',
-    displayOrder: 1,
-    viewCount: 42,
-    pdfViewCount: 28,
-    practiceQuestionsCount: 3,
-    universityExamStyleQuestionsCount: 2,
-    publishedAt: Date.now() - 86400000 * 7,
-    createdAt: Date.now() - 86400000 * 7,
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'lec_erythropoiesis',
-    weekId: 'week_blood_phys_1',
-    moduleSlug: 'blood',
-    subjectSlug: 'physiology',
-    weekSlug: 'week-1',
-    slug: 'erythropoiesis',
-    title: 'Erythropoiesis, Iron Kinetics & Hemoglobin Synthesis',
-    description: 'Stages of proerythroblast maturation, EPO signaling via JAK2-STAT5, transferrin receptor cycling, and heme biosynthesis.',
-    pdfUrl: DEMO_LECTURE_PDF_URL,
-    pdfPageCount: 22,
-    pdfFileSizeBytes: 1572864,
-    status: 'published',
-    displayOrder: 2,
-    viewCount: 19,
-    pdfViewCount: 11,
-    practiceQuestionsCount: 0,
-    universityExamStyleQuestionsCount: 0,
-    publishedAt: Date.now() - 86400000 * 5,
-    createdAt: Date.now() - 86400000 * 5,
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'lec_blood_formative_w1',
-    weekId: 'week_blood_formative_1',
-    moduleSlug: 'blood',
-    subjectSlug: 'formative-exams',
-    weekSlug: 'week-1',
-    slug: 'week-1-quiz',
-    title: 'Week 1 Formative Assessment (Blood Module)',
-    description: 'Official single-best-answer milestone examination covering Week 1 Physiology, Anatomy, and Histology of the Blood module.',
-    status: 'published',
-    displayOrder: 1,
-    viewCount: 15,
-    pdfViewCount: 0,
-    practiceQuestionsCount: 0,
-    universityExamStyleQuestionsCount: 2,
-    publishedAt: Date.now() - 86400000 * 3,
-    createdAt: Date.now() - 86400000 * 3,
-    updatedAt: Date.now(),
-  },
-];
-
-/* ==========================================================================
-   OFFICIAL CONTENT SERVICE CLASS
-   ========================================================================== */
+const PURGE_KEY = 'a_plus_official_sample_purged_v1';
 
 class OfficialContentService {
   private isInitialized = false;
@@ -223,28 +28,15 @@ class OfficialContentService {
     if (this.isInitialized) return;
 
     try {
-      const existing = await dbService.getOfficialLectures();
-      if (!existing || existing.length === 0) {
-        // Seed canonical lectures
-        for (const lec of SEED_LECTURES) {
-          await dbService.saveOfficialLecture(lec);
-        }
-
-        // Seed canonical questions
-        await dbService.saveOfficialQuestionsBatch(SEED_QUESTIONS_PLASMA_PROTEINS);
-        await dbService.saveOfficialQuestionsBatch(SEED_QUESTIONS_BLOOD_FORMATIVE_W1);
-      } else {
-        // Migrate any outdated external raw github URL to local fast same-origin PDF
-        for (const lec of existing) {
-          if (lec.pdfUrl && lec.pdfUrl.includes('raw.githubusercontent.com')) {
-            lec.pdfUrl = DEMO_LECTURE_PDF_URL;
-            await dbService.saveOfficialLecture(lec);
-          }
-        }
+      // One-time purge of legacy hardcoded sample/demo data from IndexedDB
+      if (typeof window !== 'undefined' && !localStorage.getItem(PURGE_KEY)) {
+        await dbService.purgeSampleOfficialData();
+        localStorage.setItem(PURGE_KEY, 'true');
+        console.log('[OfficialContentService] Purged legacy sample official data.');
       }
       this.isInitialized = true;
     } catch (e) {
-      console.warn('[OfficialContentService] Error initializing seed curriculum:', e);
+      console.warn('[OfficialContentService] Error during initialization:', e);
       this.isInitialized = true;
     }
   }
@@ -269,12 +61,43 @@ class OfficialContentService {
     return dbService.getOfficialLectureById(id);
   }
 
+  public async saveOfficialLecture(lecture: OfficialLecture): Promise<void> {
+    await this.initializeOfficialContent();
+    await dbService.saveOfficialLecture(lecture);
+  }
+
+  public async deleteOfficialLecture(lectureId: string): Promise<void> {
+    await this.initializeOfficialContent();
+    await dbService.deleteOfficialLecture(lectureId);
+  }
+
   public async getQuestionsForLecture(
     lectureId: string,
     versionType?: QuestionVersionType
   ): Promise<OfficialQuestion[]> {
     await this.initializeOfficialContent();
     return dbService.getOfficialQuestions(lectureId, versionType);
+  }
+
+  public async saveOfficialQuestionsBatch(questions: OfficialQuestion[]): Promise<void> {
+    await this.initializeOfficialContent();
+    await dbService.saveOfficialQuestionsBatch(questions);
+  }
+
+  public async deleteOfficialQuestion(questionId: string): Promise<void> {
+    await this.initializeOfficialContent();
+    await dbService.deleteOfficialQuestion(questionId);
+  }
+
+  public async purgeAllSampleData(): Promise<void> {
+    await dbService.purgeSampleOfficialData();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PURGE_KEY, 'true');
+    }
+  }
+
+  public async clearAllOfficialContent(): Promise<void> {
+    await dbService.clearAllOfficialContent();
   }
 
   public async getLectureMetrics(userId: string, lectureId: string): Promise<UserLectureMetrics> {
@@ -323,6 +146,237 @@ class OfficialContentService {
 
     await dbService.saveUserLectureMetrics(current);
     return current;
+  }
+
+  // --- QA Feedback & Dislikes ---
+  public recordQuestionFeedback(
+    userId: string,
+    questionId: string,
+    lectureId: string,
+    feedback: {
+      isFavorite?: boolean;
+      isDisliked?: boolean;
+      dislikeReason?: DislikeReasonType;
+      dislikeNotes?: string;
+    }
+  ): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const key = `feedback_${userId}_${questionId}`;
+      const record: QuestionFeedbackRecord = {
+        id: key,
+        userId,
+        questionId,
+        lectureId,
+        isFavorite: !!feedback.isFavorite,
+        isDisliked: !!feedback.isDisliked,
+        dislikeReason: feedback.dislikeReason,
+        dislikeNotes: feedback.dislikeNotes,
+        createdAt: Date.now(),
+      };
+      localStorage.setItem(key, JSON.stringify(record));
+    } catch {}
+  }
+
+  public getDislikedQuestionsQA(): {
+    questionId: string;
+    lectureId: string;
+    dislikeCount: number;
+    reasons: Record<DislikeReasonType, number>;
+  }[] {
+    if (typeof window === 'undefined') return [];
+    try {
+      const records: QuestionFeedbackRecord[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('feedback_')) {
+          const val = localStorage.getItem(k);
+          if (val) {
+            const rec = JSON.parse(val) as QuestionFeedbackRecord;
+            if (rec.isDisliked) records.push(rec);
+          }
+        }
+      }
+
+      const grouped: Record<
+        string,
+        {
+          questionId: string;
+          lectureId: string;
+          dislikeCount: number;
+          reasons: Record<DislikeReasonType, number>;
+        }
+      > = {};
+
+      for (const rec of records) {
+        if (!grouped[rec.questionId]) {
+          grouped[rec.questionId] = {
+            questionId: rec.questionId,
+            lectureId: rec.lectureId,
+            dislikeCount: 0,
+            reasons: {
+              wrong_answer: 0,
+              ambiguous: 0,
+              duplicate: 0,
+              other: 0,
+            },
+          };
+        }
+        grouped[rec.questionId].dislikeCount += 1;
+        if (rec.dislikeReason) {
+          grouped[rec.questionId].reasons[rec.dislikeReason] =
+            (grouped[rec.questionId].reasons[rec.dislikeReason] || 0) + 1;
+        }
+      }
+
+      return Object.values(grouped).sort((a, b) => b.dislikeCount - a.dislikeCount);
+    } catch {
+      return [];
+    }
+  }
+
+  // --- Announcements API ---
+  public async getAnnouncements(): Promise<OfficialAnnouncement[]> {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('a_plus_official_announcements_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  public async getActiveAnnouncements(): Promise<OfficialAnnouncement[]> {
+    const all = await this.getAnnouncements();
+    const now = Date.now();
+    return all.filter((a) => a.isActive && (!a.expiresAt || a.expiresAt > now));
+  }
+
+  public async saveAnnouncement(announcement: OfficialAnnouncement): Promise<void> {
+    if (typeof window === 'undefined') return;
+    const all = await this.getAnnouncements();
+    const index = all.findIndex((a) => a.id === announcement.id);
+    if (index >= 0) {
+      all[index] = announcement;
+    } else {
+      all.unshift(announcement);
+    }
+    localStorage.setItem('a_plus_official_announcements_v1', JSON.stringify(all));
+  }
+
+  public async deleteAnnouncement(id: string): Promise<void> {
+    if (typeof window === 'undefined') return;
+    const all = await this.getAnnouncements();
+    const filtered = all.filter((a) => a.id !== id);
+    localStorage.setItem('a_plus_official_announcements_v1', JSON.stringify(filtered));
+  }
+
+  // --- User Administration API ---
+  public async getAdminUsersList(): Promise<AdminUserSummary[]> {
+    try {
+      const profiles = await dbService.getProfiles();
+      const bannedKey = 'a_plus_banned_user_ids';
+      const bannedSet = new Set<string>(
+        typeof window !== 'undefined'
+          ? JSON.parse(localStorage.getItem(bannedKey) || '[]')
+          : []
+      );
+
+      const users: AdminUserSummary[] = [];
+
+      for (const p of profiles) {
+        const attempts = await dbService.getAttemptsByProfile(p.id);
+        const correctCount = attempts.filter((a) => a.isCorrect).length;
+        const accuracy =
+          attempts.length > 0 ? Math.round((correctCount / attempts.length) * 100) : 0;
+
+        users.push({
+          id: p.id,
+          email: p.email || `${p.name?.toLowerCase().replace(/\s+/g, '') || 'user'}@student.med`,
+          name: p.name || 'Medical Student',
+          joinedAt: p.createdAt || Date.now(),
+          questionsSolved: attempts.length,
+          accuracyRate: accuracy,
+          isBanned: bannedSet.has(p.id),
+          isAdmin: false,
+        });
+      }
+
+      return users;
+    } catch {
+      return [];
+    }
+  }
+
+  public async resetUserProgress(userId: string): Promise<void> {
+    try {
+      // Clear attempts & question status for user
+      const attempts = await dbService.getAttemptsByProfile(userId);
+      for (const att of attempts) {
+        await dbService.deleteAttempt(att.id);
+      }
+    } catch (e) {
+      console.warn('[OfficialContentService] Error resetting user progress:', e);
+    }
+  }
+
+  public async toggleUserBan(userId: string): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
+    const bannedKey = 'a_plus_banned_user_ids';
+    const current: string[] = JSON.parse(localStorage.getItem(bannedKey) || '[]');
+    let isBannedNow = false;
+    if (current.includes(userId)) {
+      const updated = current.filter((id) => id !== userId);
+      localStorage.setItem(bannedKey, JSON.stringify(updated));
+      isBannedNow = false;
+    } else {
+      const updated = [...current, userId];
+      localStorage.setItem(bannedKey, JSON.stringify(updated));
+      isBannedNow = true;
+    }
+    return isBannedNow;
+  }
+
+  // --- Curriculum Analytics ---
+  public async getCurriculumAnalytics() {
+    const lectures = await this.getOfficialLectures();
+    let practiceQuestions = 0;
+    let examQuestions = 0;
+    let withPdfCount = 0;
+    const moduleCounts: Record<string, number> = {};
+
+    let publishedLectures = 0;
+    let draftLectures = 0;
+    let hiddenLectures = 0;
+
+    for (const l of lectures) {
+      practiceQuestions += l.practiceQuestionsCount || 0;
+      examQuestions += l.universityExamStyleQuestionsCount || 0;
+      if (l.pdfUrl) withPdfCount += 1;
+
+      const mod = l.moduleSlug || 'other';
+      moduleCounts[mod] = (moduleCounts[mod] || 0) + 1;
+
+      if (l.status === 'published') publishedLectures++;
+      else if (l.status === 'draft') draftLectures++;
+      else if (l.status === 'hidden') hiddenLectures++;
+    }
+
+    const qaList = this.getDislikedQuestionsQA();
+
+    return {
+      totalLectures: lectures.length,
+      publishedLectures,
+      draftLectures,
+      hiddenLectures,
+      practiceQuestions,
+      examQuestions,
+      totalQuestions: practiceQuestions + examQuestions,
+      pdfCoverageRate:
+        lectures.length > 0 ? Math.round((withPdfCount / lectures.length) * 100) : 0,
+      moduleCounts,
+      flaggedQuestionsCount: qaList.length,
+    };
   }
 }
 

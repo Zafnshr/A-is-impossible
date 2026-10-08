@@ -21,10 +21,12 @@ import {
   OfficialLecture,
   UserLectureMetrics,
   QuestionVersionType,
+  StudyModeType,
 } from '../../types';
 import { officialContentService } from '../../services/officialContentService';
 import { PDFViewerModal } from '../PDF/PDFViewerModal';
 import { LectureSlidePreview } from './LectureSlidePreview';
+import { OfficialSessionSetupModal } from './OfficialSessionSetupModal';
 
 interface LectureOverviewViewProps {
   moduleSlug: string;
@@ -33,8 +35,13 @@ interface LectureOverviewViewProps {
   lectureSlug: string;
   onNavigateBackToLibrary: () => void;
   onNavigateToModule: (moduleSlug: string) => void;
-  onStartStudyTrack: (lecture: OfficialLecture, versionType: QuestionVersionType) => void;
+  onStartStudyTrack: (
+    lecture: OfficialLecture,
+    versionType: QuestionVersionType,
+    studyMode: StudyModeType
+  ) => void;
   currentUserId?: string;
+  userPreferredMode?: StudyModeType;
 }
 
 export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
@@ -46,11 +53,13 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
   onNavigateToModule,
   onStartStudyTrack,
   currentUserId = 'guest_user',
+  userPreferredMode,
 }) => {
   const [lecture, setLecture] = useState<OfficialLecture | null>(null);
   const [metrics, setMetrics] = useState<UserLectureMetrics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [pendingSetupTrack, setPendingSetupTrack] = useState<QuestionVersionType | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -417,7 +426,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onStartStudyTrack(lecture, 'practice')}
+              onClick={() => setPendingSetupTrack('practice')}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition-all active:scale-[0.98] group"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
@@ -468,7 +477,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
 
             <button
               type="button"
-              onClick={() => onStartStudyTrack(lecture, 'university_exam_style')}
+              onClick={() => setPendingSetupTrack('university_exam_style')}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition-all active:scale-[0.98] group"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
@@ -492,6 +501,27 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
           title={lecture.title}
           moduleName={lecture.moduleSlug.replace(/-/g, ' ')}
           subjectName={lecture.subjectSlug.replace(/-/g, ' ')}
+        />
+      )}
+
+      {/* Official Session Setup Modal (Step between track selection & session launch) */}
+      {pendingSetupTrack && lecture && (
+        <OfficialSessionSetupModal
+          isOpen={true}
+          onClose={() => setPendingSetupTrack(null)}
+          lecture={lecture}
+          versionType={pendingSetupTrack}
+          questionCount={
+            pendingSetupTrack === 'practice'
+              ? lecture.practiceQuestionsCount || 0
+              : lecture.universityExamStyleQuestionsCount || 0
+          }
+          userPreferredMode={userPreferredMode}
+          onStartSession={(studyMode) => {
+            const track = pendingSetupTrack;
+            setPendingSetupTrack(null);
+            onStartStudyTrack(lecture, track, studyMode);
+          }}
         />
       )}
     </div>

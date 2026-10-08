@@ -1240,6 +1240,86 @@ class IndexedDBStorage {
     }
   }
 
+  public async deleteOfficialQuestion(questionId: string): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.official_questions.delete(questionId);
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_questions.delete(questionId);
+      return;
+    }
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('official_questions', 'readwrite');
+      const store = tx.objectStore('official_questions');
+      const req = store.delete(questionId);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async deleteOfficialLecture(lectureId: string): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.official_lectures.delete(lectureId);
+      for (const [id, q] of this.memoryStores.official_questions.entries()) {
+        if (q.lectureId === lectureId) this.memoryStores.official_questions.delete(id);
+      }
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_lectures.delete(lectureId);
+      for (const [id, q] of this.memoryStores.official_questions.entries()) {
+        if (q.lectureId === lectureId) this.memoryStores.official_questions.delete(id);
+      }
+      return;
+    }
+    const questions = await this.getOfficialQuestions(lectureId);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(['official_lectures', 'official_questions'], 'readwrite');
+      const lStore = tx.objectStore('official_lectures');
+      const qStore = tx.objectStore('official_questions');
+      lStore.delete(lectureId);
+      for (const q of questions) {
+        qStore.delete(q.id);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  public async purgeSampleOfficialData(): Promise<void> {
+    const sampleLectureIds = ['lec_plasma_proteins', 'lec_erythropoiesis', 'lec_blood_formative_w1'];
+    for (const id of sampleLectureIds) {
+      await this.deleteOfficialLecture(id);
+    }
+  }
+
+  public async clearAllOfficialContent(): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.official_lectures.clear();
+      this.memoryStores.official_questions.clear();
+      this.memoryStores.user_lecture_metrics.clear();
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_lectures.clear();
+      this.memoryStores.official_questions.clear();
+      this.memoryStores.user_lecture_metrics.clear();
+      return;
+    }
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(['official_lectures', 'official_questions', 'user_lecture_metrics'], 'readwrite');
+      tx.objectStore('official_lectures').clear();
+      tx.objectStore('official_questions').clear();
+      tx.objectStore('user_lecture_metrics').clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   public async getUserLectureMetrics(
     userId: string,
     lectureId: string

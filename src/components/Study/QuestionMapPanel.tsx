@@ -250,12 +250,15 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
   }, [questions, session.submittedQuestions, session.userAnswers, currentQIndex]);
 
   // Filter and Sort Questions
+  const isExamMode = session.studyMode === 'exam';
+
   const filteredAndSortedQuestions = useMemo(() => {
     // 1. Map to enriched metadata
     const items = questions.map((q, sessionIndex) => {
       const isSubmitted = !!session.submittedQuestions[q.id];
-      const isCorrect = isSubmitted && evaluateQuestionCorrectness(q, session.userAnswers[q.id]);
-      const isIncorrect = isSubmitted && !isCorrect;
+      const isCorrect =
+        !isExamMode && isSubmitted && evaluateQuestionCorrectness(q, session.userAnswers[q.id]);
+      const isIncorrect = !isExamMode && isSubmitted && !isCorrect;
       const isFlagged = effectiveFlaggedSet.has(q.id);
       const isUnanswered = !isSubmitted;
 
@@ -275,9 +278,9 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
 
     if (activeFilter === 'unanswered') {
       filtered = filtered.filter((item) => item.isUnanswered);
-    } else if (activeFilter === 'incorrect') {
+    } else if (activeFilter === 'incorrect' && !isExamMode) {
       filtered = filtered.filter((item) => item.isIncorrect);
-    } else if (activeFilter === 'correct') {
+    } else if (activeFilter === 'correct' && !isExamMode) {
       filtered = filtered.filter((item) => item.isCorrect);
     } else if (activeFilter === 'flagged') {
       filtered = filtered.filter((item) => item.isFlagged);
@@ -801,7 +804,12 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
                         let stateLabel = 'Unanswered';
 
                         if (isSubmitted) {
-                          if (isCorrect) {
+                          if (isExamMode) {
+                            tileBaseStyle =
+                              'bg-cyan-500/15 border-cyan-500/40 text-cyan-700 dark:text-cyan-300 font-bold shadow-xs';
+                            badgeIcon = <CheckCircle2 className="w-3 h-3 text-cyan-500" />;
+                            stateLabel = 'Answered';
+                          } else if (isCorrect) {
                             tileBaseStyle =
                               'bg-emerald-500/15 border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-bold shadow-xs';
                             badgeIcon = <CheckCircle2 className="w-3 h-3 text-emerald-500" />;
