@@ -7,6 +7,7 @@ import {
   Clock,
   Search,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 import { UserSettings } from '../types';
@@ -22,6 +23,8 @@ interface NavbarProps {
   currentUser?: User | null;
   isSyncing?: boolean;
   syncIssues?: string[];
+  isAdmin?: boolean;
+  onOpenAdminPortal?: () => void;
   onOpenAuthModal?: () => void;
   onOpenGlobalSearch: () => void;
   onOpenHelp: () => void;
@@ -36,6 +39,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   isSyncing,
   syncIssues = [],
+  isAdmin = false,
+  onOpenAdminPortal,
   onOpenAuthModal,
   onOpenGlobalSearch,
   onStartTour,
@@ -141,6 +146,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
         </Tooltip>
+
+        {/* Admin Portal Shortcut (If Whitelisted) */}
+        {isAdmin && onOpenAdminPortal && (
+          <Tooltip content="Open Administrator Portal">
+            <button
+              type="button"
+              onClick={onOpenAdminPortal}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-xs font-bold border border-cyan-500/30 transition shadow-xs cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Admin</span>
+            </button>
+          </Tooltip>
+        )}
 
         {/* Account & Cloud Sync Control */}
         {onOpenAuthModal && (

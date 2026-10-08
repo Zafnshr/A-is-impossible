@@ -14,14 +14,22 @@ import {
   TrashItem,
   OrderDebugInfo,
   StudySessionRecord,
+  OfficialLecture,
+  QuestionVersionType,
 } from './types';
 import { dbService } from './services/db';
 import { rebuildEngine } from './services/rebuildEngine';
 import { createDefaultSettings } from './services/defaultSettings';
+import { officialContentService } from './services/officialContentService';
+import { isAdminEmail } from './services/adminAuth';
 import { Navbar } from './components/Navbar';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { DashboardView } from './components/Dashboard/DashboardView';
 import { LibraryExplorer } from './components/Decks/LibraryExplorer';
+import { LibraryRoot } from './components/Library/LibraryRoot';
+import { OfficialLibraryView } from './components/Library/OfficialLibraryView';
+import { LectureOverviewView } from './components/Lecture/LectureOverviewView';
+import { AdminPortalView } from './components/Admin/AdminPortalView';
 import { DeckDetailView } from './components/Decks/DeckDetailView';
 import { StudySession } from './components/Study/StudySession';
 import { StudySetupModal } from './components/Study/StudySetupModal';
@@ -101,6 +109,13 @@ export default function App() {
   // Navigation & Sessions
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [selectedDeckForDetail, setSelectedDeckForDetail] = useState<Deck | null>(null);
+  const [activeLectureParams, setActiveLectureParams] = useState<{
+    moduleSlug: string;
+    subjectSlug: string;
+    weekSlug: string;
+    lectureSlug: string;
+  } | null>(null);
+  const [activeOfficialModuleSlug, setActiveOfficialModuleSlug] = useState<string | null>('blood');
   const [activeSession, setActiveSession] = useState<StudySessionState | null>(null);
   const [completionSummary, setCompletionSummary] = useState<SessionCompletionSummary | null>(null);
 
@@ -112,6 +127,9 @@ export default function App() {
 
   // Cloud Auth & Sync state (Google OAuth + Supabase Cloud)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const isAdmin = useMemo(() => {
+    return isAdminEmail(currentUser?.email);
+  }, [currentUser]);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
@@ -150,6 +168,13 @@ export default function App() {
   useEffect(() => {
     activeSessionRef.current = activeSession;
   }, [activeSession]);
+
+  // Initialize Official Content seed and stores
+  useEffect(() => {
+    officialContentService.initializeOfficialContent().catch((err) => {
+      console.warn('[OfficialContent] Init warning:', err);
+    });
+  }, []);
 
   // 1. Initial Load from IndexedDB
   const reloadData = useCallback(async () => {
@@ -537,6 +562,98 @@ export default function App() {
 
   const handleOpenGem = () => {
     openOfficialQuestionGenerator();
+  };
+
+  const handleSelectOfficialLecture = (
+    moduleSlug: string,
+    subjectSlug: string,
+    weekSlug: string,
+    lectureSlug: string
+  ) => {
+    setActiveOfficialModuleSlug(moduleSlug);
+    setActiveLectureParams({ moduleSlug, subjectSlug, weekSlug, lectureSlug });
+    setActiveTab('lecture_overview');
+  };
+
+  const handleStartOfficialStudyTrack = async (
+    lecture: OfficialLecture,
+    versionType: QuestionVersionType
+  ) => {
+    try {
+      const officialQs = await officialContentService.getQuestionsForLecture(
+        lecture.id,
+        versionType
+      );
+      if (!officialQs || officialQs.length === 0) {
+        alert(
+          `No ${
+            versionType === 'practice' ? 'Practice' : 'University Exam Style'
+          } questions registered yet for this lecture.`
+        );
+        return;
+      }
+
+      const mappedQuestions: Question[] = officialQs.map((oq, index) => {
+        const correctIndices = oq.options
+          .map((opt, i) => (opt.isCorrect ? i : -1))
+          .filter((i) => i >= 0);
+        return {
+          id: oq.id,
+          deckId: lecture.id,
+          type: 'single_mcq',
+          question: oq.stem,
+          options: oq.options.map((opt) => opt.content),
+          correctAnswers: correctIndices.length > 0 ? correctIndices : [0],
+          originalOrderIndex: index,
+          createdAt: oq.createdAt,
+          updatedAt: oq.updatedAt,
+        };
+      });
+
+      const versionLabel =
+        versionType === 'practice' ? 'Practice Questions' : 'University Exam Style Questions';
+      const title = `${lecture.title} — ${versionLabel}`;
+
+      const newSession: StudySessionState = {
+        profileId: WORKSPACE_ID,
+        sessionId: `session_official_${Date.now()}`,
+        deckIds: [lecture.id],
+        sessionTitle: title,
+        mode: 'single_lecture',
+        orderMode: 'sequential',
+        shuffleOptions: {
+          shuffleQuestions: false,
+          shuffleAnswers: false,
+          shuffleLectures: false,
+        },
+        questionIds: mappedQuestions.map((q) => q.id),
+        sessionQuestions: mappedQuestions,
+        currentIndex: 0,
+        userAnswers: {},
+        submittedQuestions: {},
+        revealedQuestions: {},
+        timerType: 'stopwatch',
+        timerSeconds: 0,
+        countdownInitialSeconds: 600,
+        timerRunning: true,
+        lastSavedAt: Date.now(),
+        startedAt: Date.now(),
+      };
+
+      setQuestions((prev) => {
+        const existingIds = new Set(prev.map((q) => q.id));
+        const newQs = mappedQuestions.filter((q) => !existingIds.has(q.id));
+        return [...prev, ...newQs];
+      });
+
+      await dbService.saveActiveSession(newSession);
+      setActiveSession(newSession);
+      setActiveTab('study');
+      triggerAutoSave();
+    } catch (err: any) {
+      console.error('[OfficialStudyTrack] Error launching study session:', err);
+      alert('Unable to launch official questions session.');
+    }
   };
 
   const decksMap = useMemo(() => {
@@ -1255,6 +1372,8 @@ export default function App() {
         currentUser={currentUser}
         isSyncing={isSyncing}
         syncIssues={syncIssues}
+        isAdmin={isAdmin}
+        onOpenAdminPortal={() => setActiveTab('admin_portal')}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
         onOpenHelp={() => setActiveTab('help')}
@@ -1276,6 +1395,7 @@ export default function App() {
           trashCount={trashItems.length}
           onOpenImportPrompt={() => handleCreateDeckPrompt()}
           onOpenGem={handleOpenGem}
+          isAdmin={isAdmin}
         />
 
         {/* Dynamic Workspace Content with Independent Scrolling (study locks to viewport: no page scroll) */}
@@ -1304,7 +1424,23 @@ export default function App() {
             </ErrorBoundary>
           )}
 
-          {/* TAB: LIBRARY */}
+          {/* TAB: OFFICIAL CONTENT (Accredited Preclinical Curriculum & Slide Decks) */}
+          {activeTab === 'official_library' && (
+            <ErrorBoundary fallbackTitle="Official Content Error" onReset={reloadData}>
+              <div className="flex-1 overflow-y-auto">
+                <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
+                  <OfficialLibraryView
+                    onSelectLecture={handleSelectOfficialLecture}
+                    onSwitchToMyContent={() => setActiveTab('library')}
+                    initialModuleSlug={activeOfficialModuleSlug}
+                    onModuleChange={setActiveOfficialModuleSlug}
+                  />
+                </div>
+              </div>
+            </ErrorBoundary>
+          )}
+
+          {/* TAB: MY CONTENT (Personal Decks, Flashcards & Workspace) */}
           {activeTab === 'library' && (
             <ErrorBoundary fallbackTitle="Library Explorer Error" onReset={reloadData}>
               <LibraryExplorer
@@ -1318,6 +1454,40 @@ export default function App() {
                 initialLocation={libraryLocation}
                 onLoadSampleDeck={handleTourLoadSampleDeck}
                 onOpenWorkflowGuide={() => setIsWorkflowGuideOpen(true)}
+                onNavigateToOfficialContent={() => setActiveTab('official_library')}
+              />
+            </ErrorBoundary>
+          )}
+
+          {/* TAB: LECTURE OVERVIEW (Central Home Base) */}
+          {activeTab === 'lecture_overview' && activeLectureParams && (
+            <ErrorBoundary fallbackTitle="Lecture Overview Error" onReset={reloadData}>
+              <LectureOverviewView
+                moduleSlug={activeLectureParams.moduleSlug}
+                subjectSlug={activeLectureParams.subjectSlug}
+                weekSlug={activeLectureParams.weekSlug}
+                lectureSlug={activeLectureParams.lectureSlug}
+                onNavigateBackToLibrary={() => {
+                  setActiveOfficialModuleSlug(null);
+                  setActiveTab('official_library');
+                }}
+                onNavigateToModule={(modSlug) => {
+                  setActiveOfficialModuleSlug(modSlug);
+                  setActiveTab('official_library');
+                }}
+                onStartStudyTrack={handleStartOfficialStudyTrack}
+                currentUserId={currentUser?.id || 'guest_user'}
+              />
+            </ErrorBoundary>
+          )}
+
+          {/* TAB: ADMIN PORTAL (Whitelist Guarded) */}
+          {activeTab === 'admin_portal' && (
+            <ErrorBoundary fallbackTitle="Admin Portal Error" onReset={reloadData}>
+              <AdminPortalView
+                currentUser={currentUser}
+                onReturnToPlatform={() => setActiveTab('library')}
+                onOpenAuthModal={() => setIsAuthModalOpen(true)}
               />
             </ErrorBoundary>
           )}

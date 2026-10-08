@@ -12,10 +12,15 @@ import {
   StudySessionState,
   StudySessionRecord,
   TrashItem,
+  OfficialLecture,
+  OfficialQuestion,
+  UserLectureMetrics,
+  QuestionVersionType,
+  UserPdfUpload,
 } from '../types';
 
 const DB_NAME = 'APlusIsImpossible_DB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 class IndexedDBStorage {
   private db: IDBDatabase | null = null;
@@ -32,6 +37,10 @@ class IndexedDBStorage {
     sessions: new Map(),
     session_history: new Map(),
     trash: new Map(),
+    official_lectures: new Map(),
+    official_questions: new Map(),
+    user_lecture_metrics: new Map(),
+    user_pdf_uploads: new Map(),
   };
 
   private seedMemoryFromInitialSnapshot() {
@@ -132,6 +141,34 @@ class IndexedDBStorage {
           if (!db.objectStoreNames.contains('trash')) {
             const trashStore = db.createObjectStore('trash', { keyPath: 'id' });
             trashStore.createIndex('by_profileId', 'profileId', { unique: false });
+          }
+
+          // Official Lectures store
+          if (!db.objectStoreNames.contains('official_lectures')) {
+            const lecStore = db.createObjectStore('official_lectures', { keyPath: 'id' });
+            lecStore.createIndex('by_slug', 'slug', { unique: false });
+            lecStore.createIndex('by_module', 'moduleSlug', { unique: false });
+            lecStore.createIndex('by_subject', 'subjectSlug', { unique: false });
+            lecStore.createIndex('by_week', 'weekSlug', { unique: false });
+          }
+
+          // Official Questions store
+          if (!db.objectStoreNames.contains('official_questions')) {
+            const qStore = db.createObjectStore('official_questions', { keyPath: 'id' });
+            qStore.createIndex('by_lectureId', 'lectureId', { unique: false });
+            qStore.createIndex('by_versionType', 'versionType', { unique: false });
+          }
+
+          // User Lecture Metrics store
+          if (!db.objectStoreNames.contains('user_lecture_metrics')) {
+            const mStore = db.createObjectStore('user_lecture_metrics', { keyPath: ['userId', 'lectureId'] });
+            mStore.createIndex('by_userId', 'userId', { unique: false });
+          }
+
+          // User Personal PDF Uploads store
+          if (!db.objectStoreNames.contains('user_pdf_uploads')) {
+            const pdfStore = db.createObjectStore('user_pdf_uploads', { keyPath: 'id' });
+            pdfStore.createIndex('by_userId', 'userId', { unique: false });
           }
         };
 
@@ -1066,6 +1103,248 @@ class IndexedDBStorage {
         // Ignore cache clear error
       }
     }
+  }
+
+  /* ==========================================================================
+     OFFICIAL CONTENT STORE ACCESSORS (Phases 1-4)
+     ========================================================================== */
+
+  public async getOfficialLectures(): Promise<OfficialLecture[]> {
+    if (this.isMemoryMode) {
+      return Array.from(this.memoryStores.official_lectures.values());
+    }
+    const db = await this.getDB();
+    if (!db) return Array.from(this.memoryStores.official_lectures.values());
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('official_lectures', 'readonly');
+      const store = tx.objectStore('official_lectures');
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async getOfficialLectureById(id: string): Promise<OfficialLecture | null> {
+    if (this.isMemoryMode) {
+      return this.memoryStores.official_lectures.get(id) || null;
+    }
+    const db = await this.getDB();
+    if (!db) return this.memoryStores.official_lectures.get(id) || null;
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('official_lectures', 'readonly');
+      const store = tx.objectStore('official_lectures');
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async getOfficialLectureBySlug(
+    moduleSlug: string,
+    subjectSlug: string,
+    weekSlug: string,
+    lectureSlug: string
+  ): Promise<OfficialLecture | null> {
+    const all = await this.getOfficialLectures();
+    return (
+      all.find(
+        (l) =>
+          l.moduleSlug.toLowerCase() === moduleSlug.toLowerCase() &&
+          l.subjectSlug.toLowerCase() === subjectSlug.toLowerCase() &&
+          l.weekSlug.toLowerCase() === weekSlug.toLowerCase() &&
+          l.slug.toLowerCase() === lectureSlug.toLowerCase()
+      ) || null
+    );
+  }
+
+  public async saveOfficialLecture(lecture: OfficialLecture): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.official_lectures.set(lecture.id, lecture);
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_lectures.set(lecture.id, lecture);
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('official_lectures', 'readwrite');
+      const store = tx.objectStore('official_lectures');
+      const req = store.put(lecture);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async getOfficialQuestions(
+    lectureId: string,
+    versionType?: QuestionVersionType
+  ): Promise<OfficialQuestion[]> {
+    if (this.isMemoryMode) {
+      const all = Array.from(this.memoryStores.official_questions.values());
+      return all.filter(
+        (q) => q.lectureId === lectureId && (!versionType || q.versionType === versionType)
+      );
+    }
+    const db = await this.getDB();
+    if (!db) {
+      const all = Array.from(this.memoryStores.official_questions.values());
+      return all.filter(
+        (q) => q.lectureId === lectureId && (!versionType || q.versionType === versionType)
+      );
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('official_questions', 'readonly');
+      const store = tx.objectStore('official_questions');
+      const index = store.index('by_lectureId');
+      const req = index.getAll(lectureId);
+      req.onsuccess = () => {
+        const results: OfficialQuestion[] = req.result || [];
+        if (versionType) {
+          resolve(results.filter((q) => q.versionType === versionType));
+        } else {
+          resolve(results);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async saveOfficialQuestion(question: OfficialQuestion): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.official_questions.set(question.id, question);
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_questions.set(question.id, question);
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('official_questions', 'readwrite');
+      const store = tx.objectStore('official_questions');
+      const req = store.put(question);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async saveOfficialQuestionsBatch(questions: OfficialQuestion[]): Promise<void> {
+    for (const q of questions) {
+      await this.saveOfficialQuestion(q);
+    }
+  }
+
+  public async getUserLectureMetrics(
+    userId: string,
+    lectureId: string
+  ): Promise<UserLectureMetrics | null> {
+    if (this.isMemoryMode) {
+      const key = `${userId}_${lectureId}`;
+      return this.memoryStores.user_lecture_metrics.get(key) || null;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      const key = `${userId}_${lectureId}`;
+      return this.memoryStores.user_lecture_metrics.get(key) || null;
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('user_lecture_metrics', 'readonly');
+      const store = tx.objectStore('user_lecture_metrics');
+      const req = store.get([userId, lectureId]);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async saveUserLectureMetrics(metrics: UserLectureMetrics): Promise<void> {
+    if (this.isMemoryMode) {
+      const key = `${metrics.userId}_${metrics.lectureId}`;
+      this.memoryStores.user_lecture_metrics.set(key, metrics);
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      const key = `${metrics.userId}_${metrics.lectureId}`;
+      this.memoryStores.user_lecture_metrics.set(key, metrics);
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('user_lecture_metrics', 'readwrite');
+      const store = tx.objectStore('user_lecture_metrics');
+      const req = store.put(metrics);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async getAllUserLectureMetrics(userId: string): Promise<UserLectureMetrics[]> {
+    if (this.isMemoryMode) {
+      const all = Array.from(this.memoryStores.user_lecture_metrics.values());
+      return all.filter((m) => m.userId === userId);
+    }
+    const db = await this.getDB();
+    if (!db) {
+      const all = Array.from(this.memoryStores.user_lecture_metrics.values());
+      return all.filter((m) => m.userId === userId);
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('user_lecture_metrics', 'readonly');
+      const store = tx.objectStore('user_lecture_metrics');
+      const index = store.index('by_userId');
+      const req = index.getAll(userId);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async getUserPdfUploads(userId: string): Promise<UserPdfUpload[]> {
+    if (this.isMemoryMode) {
+      const all = Array.from(this.memoryStores.user_pdf_uploads.values());
+      return all.filter((p) => p.userId === userId);
+    }
+    const db = await this.getDB();
+    if (!db) {
+      const all = Array.from(this.memoryStores.user_pdf_uploads.values());
+      return all.filter((p) => p.userId === userId);
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('user_pdf_uploads', 'readonly');
+      const store = tx.objectStore('user_pdf_uploads');
+      const index = store.index('by_userId');
+      const req = index.getAll(userId);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  public async saveUserPdfUpload(pdf: UserPdfUpload): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.user_pdf_uploads.set(pdf.id, pdf);
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.user_pdf_uploads.set(pdf.id, pdf);
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('user_pdf_uploads', 'readwrite');
+      const store = tx.objectStore('user_pdf_uploads');
+      const req = store.put(pdf);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
   }
 }
 

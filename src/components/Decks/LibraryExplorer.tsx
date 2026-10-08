@@ -42,6 +42,7 @@ interface LibraryExplorerProps {
   initialLocation?: { year?: string; module?: string; subject?: string } | null;
   onLoadSampleDeck?: () => Promise<void>;
   onOpenWorkflowGuide?: () => void;
+  onNavigateToOfficialContent?: () => void;
 }
 
 export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
@@ -55,6 +56,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
   initialLocation,
   onLoadSampleDeck,
   onOpenWorkflowGuide,
+  onNavigateToOfficialContent,
 }) => {
   const initialYear = initialLocation?.year || getDefaultYear();
   const initialModule = initialLocation?.module || getDefaultModule(initialYear);
@@ -138,6 +140,19 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {onNavigateToOfficialContent && (
+            <Tooltip content="Explore accredited Year 2 Organ System modules & lecture slides">
+              <button
+                type="button"
+                onClick={onNavigateToOfficialContent}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>✦ Official Curriculum</span>
+              </button>
+            </Tooltip>
+          )}
+
           <Tooltip content="Open official Gemini Gem to generate MCQs from lecture slides">
             <button
               type="button"

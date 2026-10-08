@@ -222,3 +222,112 @@ export interface TrashItem {
   data: any;
   deletedAt: number;
 }
+
+/* ==========================================================================
+   OFFICIAL CONTENT ARCHITECTURE TYPES (Phases 1-4)
+   Strict zero-explanation mandate, dual question versions, and lecture home base
+   ========================================================================== */
+
+export type ContentStatus = 'draft' | 'published' | 'hidden';
+export type QuestionVersionType = 'practice' | 'university_exam_style';
+export type StudyModeType = 'learning' | 'exam';
+export type DislikeReasonType = 'wrong_answer' | 'ambiguous' | 'duplicate' | 'other';
+
+export interface OfficialQuestionOption {
+  id: string;
+  optionLetter: 'A' | 'B' | 'C' | 'D' | 'E';
+  content: string;
+  isCorrect: boolean;
+  displayOrder: number;
+}
+
+export interface OfficialQuestion {
+  id: string;
+  lectureId: string;
+  versionType: QuestionVersionType;
+  stem: string;
+  imageUrl?: string;
+  options: OfficialQuestionOption[];
+  displayOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface OfficialLecture {
+  id: string;
+  weekId: string;
+  moduleSlug: string;
+  subjectSlug: string;
+  weekSlug: string;
+  slug: string;
+  title: string;
+  description?: string;
+  pdfUrl?: string;
+  pdfPageCount?: number;
+  pdfFileSizeBytes?: number;
+  status: ContentStatus;
+  displayOrder: number;
+  viewCount: number;
+  pdfViewCount: number;
+  practiceQuestionsCount: number;
+  universityExamStyleQuestionsCount: number;
+  publishedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SubjectWeek {
+  id: string;
+  subjectId: string;
+  weekNumber: number;
+  slug: string;
+  title?: string;
+  displayOrder: number;
+  lectures: OfficialLecture[];
+}
+
+export interface CurriculumSubject {
+  id: string;
+  moduleId: string;
+  slug: string;
+  title: string;
+  isFormativeExam: boolean;
+  displayOrder: number;
+  weeks: SubjectWeek[];
+}
+
+export interface CurriculumModule {
+  id: string;
+  yearId: string;
+  slug: string;
+  title: string;
+  description?: string;
+  iconName?: string;
+  displayOrder: number;
+  subjects: CurriculumSubject[];
+}
+
+export interface UserLectureMetrics {
+  id: string;
+  userId: string;
+  lectureId: string;
+  practiceTotalQuestions: number;
+  practiceSolvedCount: number;
+  practiceCorrectCount: number;
+  practiceAccuracyRate: number;
+  examTotalQuestions: number;
+  examSolvedCount: number;
+  examCorrectCount: number;
+  examAccuracyRate: number;
+  lastStudiedAt: number;
+}
+
+export interface UserPdfUpload {
+  id: string;
+  userId: string;
+  title: string;
+  pdfUrl: string;
+  fileSizeBytes: number;
+  pageCount: number;
+  createdAt: number;
+}

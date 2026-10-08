@@ -42,30 +42,33 @@ export interface AcademicCurriculumConfig {
  * - Parasitology
  */
 export const STANDARD_SUBJECTS: readonly string[] = [
-  'Anatomy',
   'Physiology',
-  'Biochemistry',
+  'Anatomy',
   'Histology',
   'Pathology',
   'Pharmacology',
   'Microbiology',
   'Parasitology',
+  'Biochemistry',
+  'Formative Exams',
 ] as const;
 
 /**
  * CENTRALIZED ACADEMIC CONFIGURATION OBJECT
  *
- * Initial implementation includes:
- * YEAR 2
+ * Full Year 2 Preclinical Curriculum:
  * Modules:
  *   1. Blood
- *   2. CVS
+ *   2. CVS (Cardiovascular)
  *   3. Respiratory
+ *   4. Gastrointestinal (GI)
+ *   5. Renal
+ *   6. Musculoskeletal
+ *   7. Endocrine
+ *   8. Reproductive
+ *   9. Central Nervous System (CNS)
  *
- * Subjects inside every module:
- *   - Anatomy, Physiology, Biochemistry, Histology, Pathology, Pharmacology, Microbiology, Parasitology
- *
- * To add Year 1, Year 3, or other modules in the future, simply add them here.
+ * Formative Exams is modeled as a specialized Subject inside every Module.
  */
 export const ACADEMIC_CURRICULUM_CONFIG: AcademicCurriculumConfig = {
   defaultYear: 'Year 2',
@@ -87,6 +90,36 @@ export const ACADEMIC_CURRICULUM_CONFIG: AcademicCurriculumConfig = {
         {
           id: 'Respiratory',
           name: 'Respiratory',
+          subjects: [...STANDARD_SUBJECTS],
+        },
+        {
+          id: 'Gastrointestinal',
+          name: 'Gastrointestinal',
+          subjects: [...STANDARD_SUBJECTS],
+        },
+        {
+          id: 'Renal',
+          name: 'Renal',
+          subjects: [...STANDARD_SUBJECTS],
+        },
+        {
+          id: 'Musculoskeletal',
+          name: 'Musculoskeletal',
+          subjects: [...STANDARD_SUBJECTS],
+        },
+        {
+          id: 'Endocrine',
+          name: 'Endocrine',
+          subjects: [...STANDARD_SUBJECTS],
+        },
+        {
+          id: 'Reproductive',
+          name: 'Reproductive',
+          subjects: [...STANDARD_SUBJECTS],
+        },
+        {
+          id: 'CNS',
+          name: 'CNS',
           subjects: [...STANDARD_SUBJECTS],
         },
       ],

@@ -17,6 +17,7 @@ import {
   ChevronUp,
   Sparkles,
   ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -24,6 +25,9 @@ import { ConfirmDialog } from './ConfirmDialog';
 export type ActiveTab =
   | 'dashboard'
   | 'library'
+  | 'official_library'
+  | 'lecture_overview'
+  | 'admin_portal'
   | 'collections'
   | 'analytics'
   | 'trash'
@@ -44,6 +48,7 @@ interface SidebarProps {
   trashCount: number;
   onOpenImportPrompt: () => void;
   onOpenGem?: () => void;
+  isAdmin?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -55,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   trashCount,
   onOpenImportPrompt,
   onOpenGem,
+  isAdmin = false,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
@@ -124,10 +130,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       tooltip: 'Home dashboard with study progress and consistency',
     },
     {
+      id: 'official_library' as ActiveTab,
+      label: 'Official Content',
+      icon: Sparkles,
+      tooltip: 'Year 2 Preclinical Curriculum: Organ System Modules & Slides',
+      badge: 'Year 2',
+      badgeColor: 'text-cyan-500 font-bold',
+    },
+    {
       id: 'library' as ActiveTab,
-      label: 'Library',
+      label: 'My Content',
       icon: FolderTree,
-      tooltip: 'Curriculum explorer: Year → Module → Subject → Decks',
+      tooltip: 'Personal Decks, Flashcards & External Imports',
     },
     {
       id: 'collections' as ActiveTab,
@@ -169,6 +183,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Sliders,
       tooltip: 'Theme, typography scaling, and study preferences',
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin_portal' as ActiveTab,
+            label: 'Admin Portal',
+            icon: ShieldCheck,
+            tooltip: 'Curriculum & Ingestion Administration',
+            badge: 'Admin',
+            badgeColor: 'text-cyan-400 font-bold',
+          },
+        ]
+      : []),
   ];
 
   return (
