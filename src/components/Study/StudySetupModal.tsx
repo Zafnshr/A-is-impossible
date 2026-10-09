@@ -67,7 +67,7 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
   onStartSession,
   initialLectureId,
   initialDeckId,
-  initialTrack = 'practice',
+  initialTrack = 'both',
   initialStudyMode,
   userPreferredMode,
   defaultShuffleOptions,
@@ -95,9 +95,9 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
   const allItems: UnifiedStudyItem[] = useMemo(() => {
     const list: UnifiedStudyItem[] = [];
 
-    // 1. Official lectures (Only published for students; drafts tagged for admin)
+    // 1. Official lectures (Only published for students; drafts tagged for admin or explicit initial lecture)
     const activeLectures = loadedOfficialLectures.filter(
-      (lec) => isAdmin || lec.status === 'published'
+      (lec) => isAdmin || lec.status === 'published' || (initialLectureId && lec.id === initialLectureId)
     );
 
     activeLectures.forEach((lec) => {
@@ -134,7 +134,13 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
     });
 
     return list;
-  }, [loadedOfficialLectures, decks]);
+  }, [loadedOfficialLectures, decks, isAdmin, initialLectureId]);
+
+  // Initial Item resolution
+  const initialItem = useMemo(() => {
+    const targetId = initialLectureId || initialDeckId;
+    return allItems.find((item) => item.id === targetId) || (allItems.length > 0 ? allItems[0] : null);
+  }, [allItems, initialLectureId, initialDeckId]);
 
   // Selected Scope
   const [scopeType, setScopeType] = useState<
@@ -143,7 +149,7 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
 
   // Track selection: practice, university_exam_style, or both
   const [selectedTrack, setSelectedTrack] = useState<'practice' | 'university_exam_style' | 'both'>(
-    initialTrack
+    initialTrack || 'both'
   );
 
   // Mode selection: learning vs exam
@@ -161,19 +167,16 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
   const [selectedModule, setSelectedModule] = useState<string>('blood');
   const [selectedSubject, setSelectedSubject] = useState<string>('physiology');
 
-  // Initialize modal state on open
+  // Initialize modal state on open or when initialItem resolves
   useEffect(() => {
     if (!isOpen) return;
-
-    const targetId = initialLectureId || initialDeckId;
-    const initialItem = allItems.find((item) => item.id === targetId);
 
     if (initialItem) {
       setSelectedIds([initialItem.id]);
       setSelectedYear(initialItem.year);
       setSelectedModule(initialItem.module);
       setSelectedSubject(initialItem.subject);
-    } else if (allItems.length > 0) {
+    } else if (allItems.length > 0 && selectedIds.length === 0) {
       setSelectedIds([allItems[0].id]);
       setSelectedYear(allItems[0].year);
       setSelectedModule(allItems[0].module);
@@ -193,12 +196,10 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
     }
   }, [
     isOpen,
-    initialLectureId,
-    initialDeckId,
+    initialItem,
     initialTrack,
     initialStudyMode,
     userPreferredMode,
-    allItems,
   ]);
 
   // Distinct hierarchy values
@@ -211,83 +212,122 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
   const distinctModules = useMemo(() => {
     const filtered = allItems.filter((i) => i.year === selectedYear);
     const set = new Set(filtered.map((i) => i.module));
-    if (set.size === 0) set.add('blood');
+    if (set.size === 0) {
+      if (initialItem) set.add(initialItem.module);
+      else set.add('blood');
+    }
     return Array.from(set);
-  }, [allItems, selectedYear]);
+  }, [allItems, selectedYear, initialItem]);
 
   const distinctSubjects = useMemo(() => {
     const filtered = allItems.filter(
       (i) => i.year === selectedYear && i.module === selectedModule
     );
     const set = new Set(filtered.map((i) => i.subject));
-    if (set.size === 0) set.add('physiology');
+    if (set.size === 0) {
+      if (initialItem && initialItem.module === selectedModule) set.add(initialItem.subject);
+      else set.add('physiology');
+    }
     return Array.from(set);
-  }, [allItems, selectedYear, selectedModule]);
+  }, [allItems, selectedYear, selectedModule, initialItem]);
 
   // Keep dropdowns valid when changing parent levels
   useEffect(() => {
     if (distinctModules.length > 0 && !distinctModules.includes(selectedModule)) {
-      setSelectedModule(distinctModules[0]);
+      if (!initialItem || !distinctModules.includes(initialItem.module)) {
+        setSelectedModule(distinctModules[0]);
+      }
     }
-  }, [distinctModules, selectedModule]);
+  }, [distinctModules, selectedModule, initialItem]);
 
   useEffect(() => {
     if (distinctSubjects.length > 0 && !distinctSubjects.includes(selectedSubject)) {
-      setSelectedSubject(distinctSubjects[0]);
+      if (!initialItem || !distinctSubjects.includes(initialItem.subject)) {
+        setSelectedSubject(distinctSubjects[0]);
+      }
     }
-  }, [distinctSubjects, selectedSubject]);
+  }, [distinctSubjects, selectedSubject, initialItem]);
 
   // Items matching currently selected module/subject
   const subjectDeckList = useMemo(() => {
-    return allItems.filter(
+    const matches = allItems.filter(
       (i) =>
         i.year.toLowerCase() === selectedYear.toLowerCase() &&
         i.module.toLowerCase() === selectedModule.toLowerCase() &&
         i.subject.toLowerCase() === selectedSubject.toLowerCase()
     );
-  }, [allItems, selectedYear, selectedModule, selectedSubject]);
+    if (scopeType === 'single_lecture' && initialItem) {
+      if (!matches.some((m) => m.id === initialItem.id)) {
+        return [initialItem, ...matches];
+      }
+    }
+    return matches.length > 0 ? matches : allItems;
+  }, [allItems, selectedYear, selectedModule, selectedSubject, scopeType, initialItem]);
 
   // Helper to get question count for an item based on active track
   const getItemCount = (item: UnifiedStudyItem) => {
-    if (selectedTrack === 'practice') return item.practiceCount;
-    if (selectedTrack === 'university_exam_style') return item.examCount;
+    if (selectedTrack === 'practice') {
+      return item.practiceCount > 0 ? item.practiceCount : item.totalCount;
+    }
+    if (selectedTrack === 'university_exam_style') {
+      return item.examCount > 0 ? item.examCount : item.totalCount;
+    }
     return item.totalCount;
   };
 
   // Determine which items are actively in scope
   const activeScopedItems = useMemo(() => {
     if (scopeType === 'single_lecture') {
-      const targetId = selectedIds[0];
-      return allItems.filter((i) => i.id === targetId);
+      const targetId = selectedIds[0] || initialItem?.id;
+      const found = allItems.filter((i) => i.id === targetId);
+      if (found.length > 0) return found;
+      if (initialItem) return [initialItem];
+      return allItems.slice(0, 1);
     }
     if (scopeType === 'multiple_lectures') {
       const idSet = new Set(selectedIds);
-      return allItems.filter((i) => idSet.has(i.id));
+      const found = allItems.filter((i) => idSet.has(i.id));
+      if (found.length > 0) return found;
+      if (initialItem) return [initialItem];
+      return allItems.slice(0, 1);
     }
     if (scopeType === 'entire_subject') {
-      return allItems.filter(
+      const found = allItems.filter(
         (i) =>
           i.year.toLowerCase() === selectedYear.toLowerCase() &&
           i.module.toLowerCase() === selectedModule.toLowerCase() &&
           i.subject.toLowerCase() === selectedSubject.toLowerCase()
       );
+      if (found.length > 0) return found;
+      if (initialItem) return [initialItem];
+      return allItems.slice(0, 1);
     }
     if (scopeType === 'entire_module') {
-      return allItems.filter(
+      const found = allItems.filter(
         (i) =>
           i.year.toLowerCase() === selectedYear.toLowerCase() &&
           i.module.toLowerCase() === selectedModule.toLowerCase()
       );
+      if (found.length > 0) return found;
+      if (initialItem) return [initialItem];
+      return allItems.slice(0, 1);
     }
     if (scopeType === 'entire_year') {
-      return allItems.filter((i) => i.year.toLowerCase() === selectedYear.toLowerCase());
+      const found = allItems.filter((i) => i.year.toLowerCase() === selectedYear.toLowerCase());
+      if (found.length > 0) return found;
+      if (initialItem) return [initialItem];
+      return allItems.slice(0, 1);
     }
-    return [];
-  }, [scopeType, selectedIds, allItems, selectedYear, selectedModule, selectedSubject]);
+    return initialItem ? [initialItem] : allItems.slice(0, 1);
+  }, [scopeType, selectedIds, allItems, selectedYear, selectedModule, selectedSubject, initialItem]);
 
   // Total questions to study based on scope and track
   const totalQuestionsToStudy = useMemo(() => {
-    return activeScopedItems.reduce((acc, item) => acc + getItemCount(item), 0);
+    const sum = activeScopedItems.reduce((acc, item) => acc + getItemCount(item), 0);
+    if (sum === 0 && activeScopedItems.length > 0) {
+      return activeScopedItems.reduce((acc, item) => acc + item.totalCount, 0);
+    }
+    return sum;
   }, [activeScopedItems, selectedTrack]);
 
   // Multi-select helpers
@@ -302,16 +342,20 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
   };
 
   const handleLaunch = () => {
-    if (activeScopedItems.length === 0 || totalQuestionsToStudy === 0) {
-      alert('Please select at least one lecture or deck with available questions in the chosen track.');
+    const launchItems = activeScopedItems.length > 0
+      ? activeScopedItems
+      : (initialItem ? [initialItem] : allItems.slice(0, 1));
+
+    if (launchItems.length === 0) {
+      alert('Please select at least one lecture or deck.');
       return;
     }
 
-    const officialLectureIds = activeScopedItems
+    const officialLectureIds = launchItems
       .filter((i) => i.isOfficial)
       .map((i) => i.id);
 
-    const deckIds = activeScopedItems
+    const deckIds = launchItems
       .filter((i) => !i.isOfficial)
       .map((i) => i.id);
 
@@ -558,10 +602,57 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
           )}
         </div>
 
-        {/* 2. Study Mode Selection (Learning Mode vs Exam Mode) */}
+        {/* 2. Question Pool Track (All / Practice / Exam Style) */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-secondary uppercase tracking-wider">
-            2. Choose Study Mode
+            2. Choose Question Track
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedTrack('both')}
+              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                selectedTrack === 'both'
+                  ? 'border-cyan-500 bg-cyan-50/50 dark:bg-cyan-950/30 text-primary ring-1 ring-cyan-500 shadow-xs'
+                  : 'border-subtle bg-subtle text-secondary hover:text-primary hover:border-subtle/80'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-cyan-500" />
+              <span className="text-xs font-bold">All Questions</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedTrack('practice')}
+              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                selectedTrack === 'practice'
+                  ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-primary ring-1 ring-emerald-500 shadow-xs'
+                  : 'border-subtle bg-subtle text-secondary hover:text-primary hover:border-subtle/80'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 text-emerald-500" />
+              <span className="text-xs font-bold">Practice Track</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedTrack('university_exam_style')}
+              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                selectedTrack === 'university_exam_style'
+                  ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-primary ring-1 ring-indigo-500 shadow-xs'
+                  : 'border-subtle bg-subtle text-secondary hover:text-primary hover:border-subtle/80'
+              }`}
+            >
+              <Award className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs font-bold">Univ Exam Style</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3. Study Mode Selection (Learning Mode vs Exam Mode) */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-secondary uppercase tracking-wider">
+            3. Choose Study Mode
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Learning Mode */}
@@ -629,7 +720,10 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
         <div className="flex items-center justify-between pt-3 border-t border-subtle">
           <div className="text-xs font-mono font-bold text-secondary">
             Ready to Study:{' '}
-            <span className="text-primary font-black text-sm">{totalQuestionsToStudy}</span> Qs
+            <span className="text-primary font-black text-sm">
+              {totalQuestionsToStudy > 0 ? totalQuestionsToStudy : 'All'}
+            </span>{' '}
+            Qs
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -644,12 +738,14 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
             <Tooltip content="Launch Study Session with selected parameters">
               <button
                 type="button"
-                disabled={totalQuestionsToStudy === 0}
+                disabled={allItems.length === 0}
                 onClick={handleLaunch}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-white text-white" />
-                <span>Start Studying ({totalQuestionsToStudy} Qs)</span>
+                <span>
+                  Start Studying ({totalQuestionsToStudy > 0 ? `${totalQuestionsToStudy} Qs` : 'All Available'})
+                </span>
               </button>
             </Tooltip>
           </div>

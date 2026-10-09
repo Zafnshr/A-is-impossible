@@ -1220,6 +1220,66 @@ class IndexedDBStorage {
     });
   }
 
+  public async deleteOfficialLecture(lectureId: string): Promise<void> {
+    if (this.activePdfBlobUrls.has(lectureId)) {
+      try {
+        URL.revokeObjectURL(this.activePdfBlobUrls.get(lectureId)!);
+      } catch {}
+      this.activePdfBlobUrls.delete(lectureId);
+    }
+
+    if (this.isMemoryMode) {
+      this.memoryStores.official_lectures.delete(lectureId);
+      this.memoryStores.official_pdf_storage.delete(lectureId);
+      for (const [qId, q] of this.memoryStores.official_questions.entries()) {
+        if (q.lectureId === lectureId) {
+          this.memoryStores.official_questions.delete(qId);
+        }
+      }
+      return;
+    }
+
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_lectures.delete(lectureId);
+      this.memoryStores.official_pdf_storage.delete(lectureId);
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(
+          ['official_lectures', 'official_questions', 'official_pdf_storage'],
+          'readwrite'
+        );
+        const lecStore = tx.objectStore('official_lectures');
+        lecStore.delete(lectureId);
+
+        const pdfStore = tx.objectStore('official_pdf_storage');
+        pdfStore.delete(lectureId);
+
+        const qStore = tx.objectStore('official_questions');
+        const qReq = qStore.getAll();
+        qReq.onsuccess = () => {
+          const qs: OfficialQuestion[] = qReq.result || [];
+          for (const q of qs) {
+            if (q.lectureId === lectureId) {
+              qStore.delete(q.id);
+            }
+          }
+        };
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        console.error('[db] deleteOfficialLecture error:', err);
+        this.memoryStores.official_lectures.delete(lectureId);
+        resolve();
+      }
+    });
+  }
+
   // --- Official PDF File Storage ---
   private activePdfBlobUrls = new Map<string, string>();
 
@@ -1462,35 +1522,6 @@ class IndexedDBStorage {
     });
   }
 
-  public async deleteOfficialLecture(lectureId: string): Promise<void> {
-    if (this.isMemoryMode) {
-      this.memoryStores.official_lectures.delete(lectureId);
-      for (const [id, q] of this.memoryStores.official_questions.entries()) {
-        if (q.lectureId === lectureId) this.memoryStores.official_questions.delete(id);
-      }
-      return;
-    }
-    const db = await this.getDB();
-    if (!db) {
-      this.memoryStores.official_lectures.delete(lectureId);
-      for (const [id, q] of this.memoryStores.official_questions.entries()) {
-        if (q.lectureId === lectureId) this.memoryStores.official_questions.delete(id);
-      }
-      return;
-    }
-    const questions = await this.getOfficialQuestions(lectureId);
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(['official_lectures', 'official_questions'], 'readwrite');
-      const lStore = tx.objectStore('official_lectures');
-      const qStore = tx.objectStore('official_questions');
-      lStore.delete(lectureId);
-      for (const q of questions) {
-        qStore.delete(q.id);
-      }
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  }
 
   public async purgeSampleOfficialData(): Promise<void> {
     const sampleLectureIds = ['lec_plasma_proteins', 'lec_erythropoiesis', 'lec_blood_formative_w1'];

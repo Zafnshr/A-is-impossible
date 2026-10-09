@@ -37,6 +37,7 @@ interface OfficialLibraryViewProps {
   initialModuleSlug?: string | null;
   onModuleChange?: (moduleSlug: string | null) => void;
   isAdmin?: boolean;
+  officialLectures?: OfficialLecture[];
 }
 
 // Module configuration with clinical icons and theme hues
@@ -150,12 +151,20 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
   initialModuleSlug,
   onModuleChange,
   isAdmin = false,
+  officialLectures,
 }) => {
-  const [lectures, setLectures] = useState<OfficialLecture[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [lectures, setLectures] = useState<OfficialLecture[]>(officialLectures || []);
+  const [loading, setLoading] = useState(!officialLectures || officialLectures.length === 0);
   const [adminShowDrafts, setAdminShowDrafts] = useState<boolean>(false);
   const [selectedModuleSlug, setSelectedModuleSlug] = useState<string | null>(initialModuleSlug || null);
-  const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>('physiology');
+  const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>('all');
+
+  useEffect(() => {
+    if (officialLectures !== undefined) {
+      setLectures(officialLectures);
+      setLoading(false);
+    }
+  }, [officialLectures]);
 
   useEffect(() => {
     if (initialModuleSlug !== undefined) {
@@ -165,6 +174,7 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
 
   const handleSetModuleSlug = (slug: string | null) => {
     setSelectedModuleSlug(slug);
+    setSelectedSubjectSlug('all');
     onModuleChange?.(slug);
   };
   const [searchQuery, setSearchQuery] = useState('');
@@ -200,13 +210,16 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
     return YEAR_2_MODULES.find((m) => m.slug === selectedModuleSlug) || null;
   }, [selectedModuleSlug]);
 
-  // Subject tabs: standard subjects formatted with slugs
+  // Subject tabs: All Subjects + standard subjects formatted with slugs
   const subjectTabs = useMemo(() => {
-    return STANDARD_SUBJECTS.map((subjectName) => ({
-      name: subjectName,
-      slug: subjectName.toLowerCase().replace(/\s+/g, '-'),
-      isFormative: subjectName === 'Formative Exams',
-    }));
+    return [
+      { name: 'All Subjects', slug: 'all', isFormative: false },
+      ...STANDARD_SUBJECTS.map((subjectName) => ({
+        name: subjectName,
+        slug: subjectName.toLowerCase().replace(/\s+/g, '-'),
+        isFormative: subjectName === 'Formative Exams',
+      })),
+    ];
   }, []);
 
   // Base pool of visible lectures:
@@ -250,7 +263,7 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
       if (selectedModuleSlug && lec.moduleSlug !== selectedModuleSlug) {
         return false;
       }
-      if (selectedModuleSlug && selectedSubjectSlug && lec.subjectSlug !== selectedSubjectSlug) {
+      if (selectedSubjectSlug !== 'all' && selectedModuleSlug && lec.subjectSlug !== selectedSubjectSlug) {
         return false;
       }
       if (searchQuery.trim()) {
@@ -521,12 +534,16 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
             <div className="flex items-center gap-2 min-w-max">
               {subjectTabs.map((tab) => {
                 const isSelected = selectedSubjectSlug === tab.slug;
+                const count = tab.slug === 'all'
+                  ? visibleLectures.filter((l) => !selectedModuleSlug || l.moduleSlug === selectedModuleSlug).length
+                  : visibleLectures.filter((l) => (!selectedModuleSlug || l.moduleSlug === selectedModuleSlug) && l.subjectSlug === tab.slug).length;
+
                 return (
                   <button
                     key={tab.slug}
                     type="button"
                     onClick={() => setSelectedSubjectSlug(tab.slug)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       isSelected
                         ? tab.isFormative
                           ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm ring-1 ring-amber-400/40'
@@ -538,6 +555,15 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
                   >
                     {tab.isFormative && <Flame className="w-3.5 h-3.5 text-current animate-pulse" />}
                     <span>{tab.name}</span>
+                    <span
+                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                        isSelected
+                          ? 'bg-black/20 text-current'
+                          : 'bg-surface border border-subtle text-muted'
+                      }`}
+                    >
+                      {count}
+                    </span>
                   </button>
                 );
               })}

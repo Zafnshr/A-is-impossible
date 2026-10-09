@@ -152,6 +152,11 @@ class OfficialContentService {
     return dbService.getOfficialQuestionsForLectures(lectureIds, versionType);
   }
 
+  public async saveOfficialQuestion(question: OfficialQuestion): Promise<void> {
+    await this.initializeOfficialContent();
+    await dbService.saveOfficialQuestion(question);
+  }
+
   public async saveOfficialQuestionsBatch(questions: OfficialQuestion[]): Promise<void> {
     await this.initializeOfficialContent();
     await dbService.saveOfficialQuestionsBatch(questions);

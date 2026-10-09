@@ -243,7 +243,7 @@ export type DislikeReasonType = 'wrong_answer' | 'ambiguous' | 'duplicate' | 'ot
 
 export interface OfficialQuestionOption {
   id: string;
-  optionLetter: 'A' | 'B' | 'C' | 'D' | 'E';
+  optionLetter: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
   content: string;
   isCorrect: boolean;
   displayOrder: number;
@@ -257,6 +257,7 @@ export interface OfficialQuestion {
   imageUrl?: string;
   options: OfficialQuestionOption[];
   displayOrder: number;
+  explanation?: string;
   createdAt: number;
   updatedAt: number;
 }

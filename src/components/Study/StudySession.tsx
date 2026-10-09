@@ -232,7 +232,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
         e.preventDefault();
         handlePrevious();
       } else if (e.key === 'ArrowUp') {
-        if (!isSubmitted && currentQuestion) {
+        if ((!isSubmitted || isExamMode) && currentQuestion) {
           e.preventDefault();
           if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
             const optLen = currentQuestion.options.length;
@@ -258,7 +258,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
           }
         }
       } else if (e.key === 'ArrowDown') {
-        if (!isSubmitted && currentQuestion) {
+        if ((!isSubmitted || isExamMode) && currentQuestion) {
           e.preventDefault();
           if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
             const optLen = currentQuestion.options.length;
@@ -286,11 +286,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (isExamMode) {
-          if (currentQIndex === questions.length - 1) {
-            handleRequestFinishExam();
-          } else {
-            handleNext();
-          }
+          // In Exam Mode, Enter has no submit/reveal job
+          return;
         } else {
           if (!isSubmitted) handleSubmitCurrent();
           else handleNext();
@@ -298,7 +295,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
       } else if (e.key.toLowerCase() === 'r') {
         // Retry Question shortcut
         e.preventDefault();
-        if (isSubmitted || isRevealed) {
+        if (!isExamMode && (isSubmitted || isRevealed)) {
           handleRetry();
         }
       } else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'g') {
@@ -311,22 +308,30 @@ export const StudySession: React.FC<StudySessionProps> = ({
         handleToggleFavorite();
       } else if (e.key === ' ' || e.key === 'Spacebar') {
         e.preventDefault();
-        if (currentQuestion?.type === 'multiple_mcq' && !isSubmitted && focusedOptionIndex !== null) {
-          handleToggleMultipleOption(focusedOptionIndex);
-        } else {
+        if (currentQuestion?.type === 'multiple_mcq' && (!isSubmitted || isExamMode)) {
+          const targetIdx = focusedOptionIndex !== null ? focusedOptionIndex : 0;
+          handleToggleMultipleOption(targetIdx);
+          setFocusedOptionIndex(targetIdx);
+        } else if (!isExamMode) {
           handleReveal();
         }
       } else if (e.key === 'Shift') {
-        // Toggle the focused choice in multiple-choice mode.
-        // Repeat-guarded so holding Shift never machine-gun toggles.
+        // Toggle the focused choice in multiple-choice mode
         if (e.repeat) return;
-        e.preventDefault();
-        if (currentQuestion?.type === 'multiple_mcq' && !isSubmitted && focusedOptionIndex !== null) {
-          handleToggleMultipleOption(focusedOptionIndex);
+        if (currentQuestion?.type === 'multiple_mcq' && (!isSubmitted || isExamMode)) {
+          e.preventDefault();
+          const targetIdx = focusedOptionIndex !== null ? focusedOptionIndex : 0;
+          handleToggleMultipleOption(targetIdx);
+          setFocusedOptionIndex(targetIdx);
         }
-      } else if (e.key >= '1' && e.key <= '9') {
-        const num = parseInt(e.key, 10);
-        if (currentQuestion && !isSubmitted) {
+      } else if (
+        (e.key >= '1' && e.key <= '9') ||
+        (e.code && e.code.startsWith('Numpad') && e.key >= '1' && e.key <= '9')
+      ) {
+        const num = e.code && e.code.startsWith('Numpad')
+          ? parseInt(e.code.replace('Numpad', ''), 10)
+          : parseInt(e.key, 10);
+        if (currentQuestion && (!isSubmitted || isExamMode)) {
           if (currentQuestion.type === 'ordering') {
             const targetPos = num - 1;
             if (targetPos >= 0 && targetPos < orderingList.length) {
@@ -352,7 +357,23 @@ export const StudySession: React.FC<StudySessionProps> = ({
               setFocusedOptionIndex(optIdx);
             }
           }
-          // Note: Explicitly do NOT add this ordering number behavior to Matching or Case-Based questions.
+        }
+      } else if (['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].includes(e.key.toLowerCase())) {
+        const charCode = e.key.toLowerCase().charCodeAt(0) - 97; // 0 for 'a', 1 for 'b', etc.
+        if (currentQuestion && (!isSubmitted || isExamMode)) {
+          if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
+            if (charCode < currentQuestion.options.length) {
+              e.preventDefault();
+              handleSelectSingleOption(charCode);
+              setFocusedOptionIndex(charCode);
+            }
+          } else if (currentQuestion.type === 'multiple_mcq') {
+            if (charCode < currentQuestion.options.length) {
+              e.preventDefault();
+              handleToggleMultipleOption(charCode);
+              setFocusedOptionIndex(charCode);
+            }
+          }
         }
       }
     };
@@ -372,6 +393,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
     orderingList,
     selectedOrderingPos,
     focusedOptionIndex,
+    isExamMode,
   ]);
 
   if (!currentQuestion) {

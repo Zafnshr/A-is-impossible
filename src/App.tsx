@@ -117,7 +117,7 @@ export default function App() {
     weekSlug: string;
     lectureSlug: string;
   } | null>(null);
-  const [activeOfficialModuleSlug, setActiveOfficialModuleSlug] = useState<string | null>('blood');
+  const [activeOfficialModuleSlug, setActiveOfficialModuleSlug] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<StudySessionState | null>(null);
   const [completionSummary, setCompletionSummary] = useState<SessionCompletionSummary | null>(null);
   const [activeExamReview, setActiveExamReview] = useState<SessionCompletionSummary | null>(null);
@@ -1505,6 +1505,7 @@ export default function App() {
                     initialModuleSlug={activeOfficialModuleSlug}
                     onModuleChange={setActiveOfficialModuleSlug}
                     isAdmin={isAdmin}
+                    officialLectures={officialLectures}
                   />
                 </div>
               </div>
@@ -1560,6 +1561,7 @@ export default function App() {
                 currentUser={currentUser}
                 onReturnToPlatform={() => setActiveTab('library')}
                 onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                onReloadData={reloadData}
               />
             </ErrorBoundary>
           )}

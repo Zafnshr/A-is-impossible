@@ -44,7 +44,7 @@ import {
   removeSecondaryAdminEmail,
 } from '../../services/adminAuth';
 import { officialContentService } from '../../services/officialContentService';
-import { parseMcqText, ParsedQuestion } from '../../services/questionParser';
+import { parseQuestionsText } from '../../services/importer';
 import {
   OfficialLecture,
   OfficialQuestion,
@@ -55,10 +55,24 @@ import {
   DislikeReasonType,
 } from '../../types';
 
+interface AdminParsedQuestionPreview {
+  tempId: string;
+  stem: string;
+  options: {
+    letter: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+    content: string;
+    isCorrect: boolean;
+  }[];
+  explanation?: string;
+  isValid: boolean;
+  validationError?: string;
+}
+
 interface AdminPortalViewProps {
   currentUser: User | null;
   onReturnToPlatform: () => void;
   onOpenAuthModal: () => void;
+  onReloadData?: () => void;
 }
 
 type AdminSubTab =
@@ -97,6 +111,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   currentUser,
   onReturnToPlatform,
   onOpenAuthModal,
+  onReloadData,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminSubTab>('curriculum');
   const [lectures, setLectures] = useState<OfficialLecture[]>([]);
@@ -116,13 +131,23 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   // Lecture Modal State
   const [isLectureModalOpen, setIsLectureModalOpen] = useState(false);
   const [editingLecture, setEditingLecture] = useState<Partial<OfficialLecture> | null>(null);
+  const [lectureToDelete, setLectureToDelete] = useState<OfficialLecture | null>(null);
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Question Management State
+  const [managingQuestionsLecture, setManagingQuestionsLecture] = useState<OfficialLecture | null>(null);
+  const [lectureQuestions, setLectureQuestions] = useState<OfficialQuestion[]>([]);
+  const [isLoadingLectureQuestions, setIsLoadingLectureQuestions] = useState(false);
+  const [questionSearchQuery, setQuestionSearchQuery] = useState('');
+  const [questionTrackFilter, setQuestionTrackFilter] = useState<'all' | 'practice' | 'university_exam_style'>('all');
+  const [editingQuestion, setEditingQuestion] = useState<OfficialQuestion | null>(null);
+  const [questionToDelete, setQuestionToDelete] = useState<OfficialQuestion | null>(null);
 
   // Paste Ingestion State
   const [ingestLectureId, setIngestLectureId] = useState<string>('');
   const [ingestVersionType, setIngestVersionType] = useState<QuestionVersionType>('practice');
   const [rawPasteText, setRawPasteText] = useState('');
-  const [parsedPreview, setParsedPreview] = useState<ParsedQuestion[]>([]);
+  const [parsedPreview, setParsedPreview] = useState<AdminParsedQuestionPreview[]>([]);
   const [isCommittingQuestions, setIsCommittingQuestions] = useState(false);
 
   // User Management State
@@ -187,15 +212,53 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     loadData();
   }, [isAuthorized]);
 
-  // Live text parser update
+  // Live text parser update using the exact sequential document importer
   useEffect(() => {
     if (rawPasteText.trim()) {
-      const parsed = parseMcqText(rawPasteText);
-      setParsedPreview(parsed);
+      const targetLec = lectures.find((l) => l.id === ingestLectureId);
+      const result = parseQuestionsText(rawPasteText, {
+        year: 'Year 2',
+        module: targetLec?.moduleSlug || 'blood',
+        subject: targetLec?.subjectSlug || 'physiology',
+        lectureName: targetLec?.title || 'Lecture Questions',
+      });
+
+      const optionLetters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+      ];
+
+      const mapped: AdminParsedQuestionPreview[] = result.questions.map((q, idx) => {
+        const opts = q.options.map((optText, oIdx) => ({
+          letter: optionLetters[oIdx] || (String.fromCharCode(65 + oIdx) as any),
+          content: optText,
+          isCorrect: q.correctAnswers.includes(oIdx),
+        }));
+
+        let isValid = opts.length >= 2 && opts.some((o) => o.isCorrect);
+        let validationError: string | undefined = undefined;
+        if (opts.length < 2) {
+          validationError = `Need at least 2 options (detected ${opts.length})`;
+          isValid = false;
+        } else if (!opts.some((o) => o.isCorrect)) {
+          validationError = 'Missing correct answer key';
+          isValid = false;
+        }
+
+        return {
+          tempId: `preview_${idx}_${Date.now()}`,
+          stem: q.question,
+          options: opts,
+          explanation: q.explanation || '',
+          isValid,
+          validationError,
+        };
+      });
+
+      setParsedPreview(mapped);
     } else {
       setParsedPreview([]);
     }
-  }, [rawPasteText]);
+  }, [rawPasteText, ingestLectureId, lectures]);
 
   // --- Lecture CRUD Handlers ---
   const handleOpenCreateLecture = (prefillModule?: string, prefillSubject?: string) => {
@@ -260,6 +323,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     setEditingLecture(null);
     showToast(`Lecture "${lectureRecord.title}" saved successfully.`);
     await loadData();
+    onReloadData?.();
   };
 
   const handleUpdateLectureStatus = async (lectureId: string, newStatus: ContentStatus) => {
@@ -274,21 +338,164 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     await officialContentService.saveOfficialLecture(updated);
     setLectures((prev) => prev.map((l) => (l.id === lectureId ? updated : l)));
     showToast(`Status updated to ${newStatus.toUpperCase()}`);
+    onReloadData?.();
   };
 
-  const handleDeleteLecture = async (lecture: OfficialLecture) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to permanently delete "${lecture.title}"?\nAll associated questions will be removed.`
-      )
-    ) {
+  const handleDeleteLecture = (lecture: OfficialLecture) => {
+    setLectureToDelete(lecture);
+  };
+
+  const handleConfirmDeleteLecture = async () => {
+    if (!lectureToDelete) return;
+    try {
+      await officialContentService.deleteOfficialLecture(lectureToDelete.id);
+      setSelectedLectureIds((prev) => prev.filter((id) => id !== lectureToDelete.id));
+      setLectures((prev) => prev.filter((l) => l.id !== lectureToDelete.id));
+      showToast(`Lecture "${lectureToDelete.title}" deleted.`);
+      setLectureToDelete(null);
+      await loadData();
+      onReloadData?.();
+    } catch (err: any) {
+      console.error('[Admin] Error deleting lecture:', err);
+      alert('Failed to delete lecture.');
+    }
+  };
+
+  // --- Question Management Handlers ---
+  const handleOpenManageQuestions = async (lecture: OfficialLecture) => {
+    setManagingQuestionsLecture(lecture);
+    setIsLoadingLectureQuestions(true);
+    try {
+      const qs = await officialContentService.getQuestionsForLecture(lecture.id);
+      setLectureQuestions(qs);
+    } catch (err) {
+      console.error('[Admin] Error loading questions for lecture:', err);
+      showToast('Error loading lecture questions');
+    } finally {
+      setIsLoadingLectureQuestions(false);
+    }
+  };
+
+  const handleCreateNewQuestion = () => {
+    if (!managingQuestionsLecture) return;
+    const newQ: OfficialQuestion = {
+      id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      lectureId: managingQuestionsLecture.id,
+      versionType: 'practice',
+      stem: '',
+      options: [
+        { id: `opt_${Date.now()}_0`, optionLetter: 'A', content: '', isCorrect: true, displayOrder: 1 },
+        { id: `opt_${Date.now()}_1`, optionLetter: 'B', content: '', isCorrect: false, displayOrder: 2 },
+        { id: `opt_${Date.now()}_2`, optionLetter: 'C', content: '', isCorrect: false, displayOrder: 3 },
+        { id: `opt_${Date.now()}_3`, optionLetter: 'D', content: '', isCorrect: false, displayOrder: 4 },
+      ],
+      explanation: '',
+      displayOrder: lectureQuestions.length + 1,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setEditingQuestion(newQ);
+  };
+
+  const handleSaveQuestion = async () => {
+    if (!editingQuestion || !managingQuestionsLecture) return;
+    if (!editingQuestion.stem.trim()) {
+      alert('Question text (stem) is required.');
       return;
     }
-    await officialContentService.deleteOfficialLecture(lecture.id);
-    setSelectedLectureIds((prev) => prev.filter((id) => id !== lecture.id));
-    showToast(`Lecture deleted.`);
-    await loadData();
+    const validOpts = editingQuestion.options.filter((o) => o.content.trim());
+    if (validOpts.length < 2) {
+      alert('At least 2 options with content are required.');
+      return;
+    }
+    if (!validOpts.some((o) => o.isCorrect)) {
+      alert('Please mark at least one option as the correct answer.');
+      return;
+    }
+
+    try {
+      const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+      ];
+      const qToSave: OfficialQuestion = {
+        ...editingQuestion,
+        options: validOpts.map((o, idx) => ({
+          ...o,
+          optionLetter: letters[idx] || 'A',
+          displayOrder: idx + 1,
+        })),
+        updatedAt: Date.now(),
+      };
+
+      await officialContentService.saveOfficialQuestion(qToSave);
+
+      const updatedQs = await officialContentService.getQuestionsForLecture(managingQuestionsLecture.id);
+      setLectureQuestions(updatedQs);
+
+      const pCount = updatedQs.filter((x) => x.versionType === 'practice').length;
+      const eCount = updatedQs.filter((x) => x.versionType === 'university_exam_style').length;
+
+      const updatedLec: OfficialLecture = {
+        ...managingQuestionsLecture,
+        practiceQuestionsCount: pCount,
+        universityExamStyleQuestionsCount: eCount,
+        updatedAt: Date.now(),
+      };
+      await officialContentService.saveOfficialLecture(updatedLec);
+      setManagingQuestionsLecture(updatedLec);
+      setLectures((prev) => prev.map((l) => (l.id === updatedLec.id ? updatedLec : l)));
+      setEditingQuestion(null);
+      showToast('Question saved successfully.');
+      onReloadData?.();
+    } catch (err) {
+      console.error('[Admin] Error saving question:', err);
+      alert('Failed saving question.');
+    }
   };
+
+  const handleConfirmDeleteQuestion = async () => {
+    if (!questionToDelete || !managingQuestionsLecture) return;
+    try {
+      await officialContentService.deleteOfficialQuestion(questionToDelete.id);
+      const updatedQs = await officialContentService.getQuestionsForLecture(managingQuestionsLecture.id);
+      setLectureQuestions(updatedQs);
+
+      const pCount = updatedQs.filter((x) => x.versionType === 'practice').length;
+      const eCount = updatedQs.filter((x) => x.versionType === 'university_exam_style').length;
+
+      const updatedLec: OfficialLecture = {
+        ...managingQuestionsLecture,
+        practiceQuestionsCount: pCount,
+        universityExamStyleQuestionsCount: eCount,
+        updatedAt: Date.now(),
+      };
+      await officialContentService.saveOfficialLecture(updatedLec);
+      setManagingQuestionsLecture(updatedLec);
+      setLectures((prev) => prev.map((l) => (l.id === updatedLec.id ? updatedLec : l)));
+      setQuestionToDelete(null);
+      showToast('Question deleted.');
+      onReloadData?.();
+    } catch (err) {
+      console.error('[Admin] Error deleting question:', err);
+      alert('Failed deleting question.');
+    }
+  };
+
+  const filteredLectureQuestions = useMemo(() => {
+    return lectureQuestions.filter((q) => {
+      if (questionTrackFilter !== 'all' && q.versionType !== questionTrackFilter) {
+        return false;
+      }
+      if (questionSearchQuery.trim()) {
+        const query = questionSearchQuery.toLowerCase();
+        const matchStem = q.stem.toLowerCase().includes(query);
+        const matchOpts = q.options.some((o) => o.content.toLowerCase().includes(query));
+        const matchExp = q.explanation?.toLowerCase().includes(query) ?? false;
+        return matchStem || matchOpts || matchExp;
+      }
+      return true;
+    });
+  }, [lectureQuestions, questionTrackFilter, questionSearchQuery]);
 
   const handleToggleSelectLecture = (id: string) => {
     setSelectedLectureIds((prev) =>
@@ -382,6 +589,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
           isCorrect: opt.isCorrect,
           displayOrder: oIdx + 1,
         })),
+        explanation: q.explanation || '',
         displayOrder: idx + 1,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -395,17 +603,10 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       const examCount = liveQs.filter((q) => q.versionType === 'university_exam_style').length;
 
       if (targetLecture) {
-        let shouldPublish = false;
-        if (targetLecture.status === 'draft') {
-          shouldPublish = window.confirm(
-            `Target lecture "${targetLecture.title}" is currently in DRAFT mode (hidden from students).\n\nWould you like to PUBLISH it now so students can immediately access these questions?`
-          );
-        }
-
         const updatedLecture: OfficialLecture = {
           ...targetLecture,
-          status: shouldPublish ? 'published' : targetLecture.status,
-          publishedAt: shouldPublish ? Date.now() : targetLecture.publishedAt,
+          status: 'published',
+          publishedAt: targetLecture.publishedAt || Date.now(),
           practiceQuestionsCount: practiceCount,
           universityExamStyleQuestionsCount: examCount,
           updatedAt: Date.now(),
@@ -417,6 +618,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       setRawPasteText('');
       setParsedPreview([]);
       await loadData();
+      onReloadData?.();
     } catch (err: any) {
       console.error('[Admin] Error committing questions:', err);
       alert('Failed to save questions. Check console.');
@@ -1014,10 +1216,24 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
                               </select>
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                          <td
+                            onClick={() => {
+                              setQuestionTrackFilter('practice');
+                              handleOpenManageQuestions(lec);
+                            }}
+                            title="Manage Practice Questions"
+                            className="py-3 px-4 font-bold font-mono text-emerald-600 dark:text-emerald-400 cursor-pointer hover:underline"
+                          >
                             {lec.practiceQuestionsCount || 0}
                           </td>
-                          <td className="py-3 px-4 font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                          <td
+                            onClick={() => {
+                              setQuestionTrackFilter('university_exam_style');
+                              handleOpenManageQuestions(lec);
+                            }}
+                            title="Manage University Exam Style Questions"
+                            className="py-3 px-4 font-bold font-mono text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline"
+                          >
                             {lec.universityExamStyleQuestionsCount || 0}
                           </td>
                           <td className="py-3 px-4">
@@ -1034,6 +1250,15 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenManageQuestions(lec)}
+                                title={`Manage Questions (${(lec.practiceQuestionsCount || 0) + (lec.universityExamStyleQuestionsCount || 0)})`}
+                                className="px-2 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                              >
+                                <Database className="w-3.5 h-3.5" />
+                                <span>Questions ({(lec.practiceQuestionsCount || 0) + (lec.universityExamStyleQuestionsCount || 0)})</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1257,6 +1482,16 @@ Answer: B`}
                         </div>
                       ))}
                     </div>
+
+                    {q.explanation && (
+                      <div className="mt-3 text-[11px] text-secondary bg-subtle/70 p-2.5 rounded-xl border border-subtle flex items-start gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-500 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-primary font-semibold">Explanation: </strong>
+                          <span>{q.explanation}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1840,6 +2075,580 @@ Answer: B`}
                 className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm transition active:scale-95"
               >
                 Save Lecture
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CONFIRM DELETE LECTURE
+         ========================================================================= */}
+      {lectureToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setLectureToDelete(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-surface border border-rose-500/30 p-6 space-y-4 shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-primary">Delete Lecture?</h3>
+                <p className="text-xs text-muted">Permanent database removal</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-secondary leading-relaxed">
+              Are you sure you want to permanently delete <strong className="text-primary font-bold">"{lectureToDelete.title}"</strong>?
+              All associated questions (both Practice and University Exam Style), slide deck attachments, and student progress records will be permanently erased.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setLectureToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-subtle text-secondary font-semibold text-xs cursor-pointer hover:bg-subtle/80"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteLecture}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer shadow-sm transition active:scale-95"
+              >
+                Permanently Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: MANAGE QUESTIONS FOR LECTURE
+         ========================================================================= */}
+      {managingQuestionsLecture && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setManagingQuestionsLecture(null)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl bg-surface border border-subtle shadow-2xl animate-in zoom-in-95 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 border-b border-subtle flex items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-500">
+                    <Database className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-lg font-black text-primary tracking-tight">
+                    Manage Questions
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-bold font-mono text-xs">
+                    {lectureQuestions.length} Total
+                  </span>
+                </div>
+                <p className="text-xs text-secondary font-medium">
+                  {managingQuestionsLecture.title} • <span className="capitalize">{managingQuestionsLecture.moduleSlug} &gt; {managingQuestionsLecture.subjectSlug} &gt; {managingQuestionsLecture.weekSlug}</span>
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setManagingQuestionsLecture(null)}
+                className="p-1.5 rounded-full text-muted hover:text-primary hover:bg-subtle cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Filter & Action Toolbar */}
+            <div className="px-6 py-3.5 bg-subtle/40 border-b border-subtle flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {/* Track Filters */}
+                {(['all', 'practice', 'university_exam_style'] as const).map((track) => {
+                  const count =
+                    track === 'all'
+                      ? lectureQuestions.length
+                      : lectureQuestions.filter((q) => q.versionType === track).length;
+                  return (
+                    <button
+                      key={track}
+                      type="button"
+                      onClick={() => setQuestionTrackFilter(track)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        questionTrackFilter === track
+                          ? track === 'practice'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : track === 'university_exam_style'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-cyan-600 text-white shadow-xs'
+                          : 'bg-subtle text-secondary hover:text-primary'
+                      }`}
+                    >
+                      <span className="capitalize">{track.replace(/_/g, ' ')}</span>
+                      <span className="font-mono text-[10px] opacity-80">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative w-48 sm:w-60">
+                  <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search question stem or options..."
+                    value={questionSearchQuery}
+                    onChange={(e) => setQuestionSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-surface border border-subtle text-xs text-primary placeholder-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCreateNewQuestion}
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm transition active:scale-95 flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Question</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Questions List Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {isLoadingLectureQuestions ? (
+                <div className="py-16 text-center space-y-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin mx-auto" />
+                  <p className="text-xs text-muted font-mono">Loading questions from database...</p>
+                </div>
+              ) : filteredLectureQuestions.length === 0 ? (
+                <div className="py-16 text-center space-y-3">
+                  <BookOpen className="w-10 h-10 text-muted mx-auto stroke-1" />
+                  <h4 className="text-sm font-bold text-primary">No Questions Found</h4>
+                  <p className="text-xs text-muted max-w-sm mx-auto">
+                    {lectureQuestions.length === 0
+                      ? 'This lecture currently has no questions. Click "Add Question" or use the Ingestion Hub to paste questions in bulk.'
+                      : 'No questions matched your search or track filter.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCreateNewQuestion}
+                    className="px-4 py-2 rounded-xl bg-cyan-600 text-white text-xs font-bold cursor-pointer transition shadow-xs"
+                  >
+                    Create First Question
+                  </button>
+                </div>
+              ) : (
+                filteredLectureQuestions.map((q, idx) => (
+                  <div
+                    key={q.id}
+                    className="p-5 rounded-2xl bg-subtle/30 border border-subtle hover:border-subtle/80 transition-all space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-subtle text-muted">
+                          #{idx + 1}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono ${
+                            q.versionType === 'practice'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                              : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+                          }`}
+                        >
+                          {q.versionType === 'practice' ? 'Practice' : 'Univ Exam Style'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditingQuestion(q)}
+                          className="px-2.5 py-1 rounded-lg bg-surface hover:bg-subtle text-secondary hover:text-primary text-xs font-semibold border border-subtle transition cursor-pointer flex items-center gap-1"
+                          title="Edit this question"
+                        >
+                          <Edit2 className="w-3 h-3 text-cyan-500" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQuestionToDelete(q)}
+                          className="p-1 rounded-lg hover:bg-rose-500/10 text-rose-500 transition cursor-pointer"
+                          title="Delete this question"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-xs sm:text-sm font-semibold text-primary leading-relaxed">
+                      {q.stem}
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-subtle/60">
+                      {q.options.map((opt) => (
+                        <div
+                          key={opt.id}
+                          className={`px-3 py-2 rounded-xl border text-xs flex items-center gap-2 ${
+                            opt.isCorrect
+                              ? 'border-emerald-500/60 bg-emerald-500/15 font-bold text-emerald-700 dark:text-emerald-300'
+                              : 'border-subtle bg-surface text-secondary'
+                          }`}
+                        >
+                          <span
+                            className={`w-5 h-5 rounded font-mono font-bold flex items-center justify-center text-[10px] shrink-0 ${
+                              opt.isCorrect
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-subtle text-muted'
+                            }`}
+                          >
+                            {opt.optionLetter}
+                          </span>
+                          <span className="truncate flex-1">{opt.content}</span>
+                          {opt.isCorrect && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {q.explanation && (
+                      <div className="mt-2 text-[11px] text-secondary bg-surface/80 p-2.5 rounded-xl border border-subtle flex items-start gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-500 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-primary font-semibold">Explanation: </strong>
+                          <span>{q.explanation}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: EDIT / CREATE QUESTION
+         ========================================================================= */}
+      {editingQuestion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setEditingQuestion(null)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl bg-surface border border-subtle shadow-2xl p-6 sm:p-7 space-y-4 animate-in zoom-in-95 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-subtle">
+              <h3 className="text-base sm:text-lg font-bold text-primary">
+                {lectureQuestions.some((x) => x.id === editingQuestion.id)
+                  ? 'Edit Lecture Question'
+                  : 'New Lecture Question'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingQuestion(null)}
+                className="p-1.5 rounded-full text-muted hover:text-primary hover:bg-subtle cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Question Track */}
+              <div>
+                <label className="font-bold text-secondary uppercase tracking-wider text-[11px]">
+                  Question Track
+                </label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingQuestion((prev) => prev && { ...prev, versionType: 'practice' })
+                    }
+                    className={`py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                      editingQuestion.versionType === 'practice'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-subtle text-secondary hover:text-primary'
+                    }`}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Practice Track</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingQuestion((prev) =>
+                        prev && { ...prev, versionType: 'university_exam_style' }
+                      )
+                    }
+                    className={`py-2 px-3 rounded-xl font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                      editingQuestion.versionType === 'university_exam_style'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-subtle text-secondary hover:text-primary'
+                    }`}
+                  >
+                    <Award className="w-3.5 h-3.5" />
+                    <span>Univ Exam Style</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Question Stem */}
+              <div>
+                <label className="font-bold text-secondary uppercase tracking-wider text-[11px]">
+                  Question Stem (Text)
+                </label>
+                <textarea
+                  rows={3}
+                  value={editingQuestion.stem}
+                  onChange={(e) =>
+                    setEditingQuestion((prev) => prev && { ...prev, stem: e.target.value })
+                  }
+                  placeholder="Enter clear clinical question stem..."
+                  className="w-full mt-1 p-3 rounded-xl bg-subtle border border-subtle text-xs text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed resize-y"
+                />
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-secondary uppercase tracking-wider text-[11px]">
+                    Answer Options (Mark the correct answer)
+                  </label>
+                  {editingQuestion.options.length < 8 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = [
+                          'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                        ];
+                        const nextLetter = letters[editingQuestion.options.length] || 'H';
+                        setEditingQuestion((prev) => {
+                          if (!prev) return null;
+                          return {
+                            ...prev,
+                            options: [
+                              ...prev.options,
+                              {
+                                id: `opt_${Date.now()}_${prev.options.length}`,
+                                optionLetter: nextLetter,
+                                content: '',
+                                isCorrect: false,
+                                displayOrder: prev.options.length + 1,
+                              },
+                            ],
+                          };
+                        });
+                      }}
+                      className="text-cyan-500 hover:underline font-bold text-[11px] cursor-pointer"
+                    >
+                      + Add Option
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {editingQuestion.options.map((opt, oIdx) => (
+                    <div
+                      key={opt.id || oIdx}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2.5 transition ${
+                        opt.isCorrect
+                          ? 'border-emerald-500/50 bg-emerald-500/10'
+                          : 'border-subtle bg-subtle/50'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQuestion((prev) => {
+                            if (!prev) return null;
+                            return {
+                              ...prev,
+                              options: prev.options.map((o, idx) => ({
+                                ...o,
+                                isCorrect: idx === oIdx,
+                              })),
+                            };
+                          });
+                        }}
+                        title={opt.isCorrect ? 'Correct option' : 'Mark as correct'}
+                        className={`w-6 h-6 rounded-lg font-mono font-bold flex items-center justify-center text-xs cursor-pointer transition ${
+                          opt.isCorrect
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-subtle text-muted hover:text-primary'
+                        }`}
+                      >
+                        {opt.optionLetter}
+                      </button>
+
+                      <input
+                        type="text"
+                        value={opt.content}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingQuestion((prev) => {
+                            if (!prev) return null;
+                            return {
+                              ...prev,
+                              options: prev.options.map((o, idx) =>
+                                idx === oIdx ? { ...o, content: val } : o
+                              ),
+                            };
+                          });
+                        }}
+                        placeholder={`Option ${opt.optionLetter} content...`}
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-surface border border-subtle text-xs text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQuestion((prev) => {
+                            if (!prev) return null;
+                            return {
+                              ...prev,
+                              options: prev.options.map((o, idx) => ({
+                                ...o,
+                                isCorrect: idx === oIdx,
+                              })),
+                            };
+                          });
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
+                          opt.isCorrect
+                            ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                            : 'text-muted hover:text-secondary'
+                        }`}
+                      >
+                        {opt.isCorrect ? 'Correct ✓' : 'Mark Correct'}
+                      </button>
+
+                      {editingQuestion.options.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingQuestion((prev) => {
+                              if (!prev) return null;
+                              const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = [
+                                'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                              ];
+                              const filtered = prev.options.filter((_, idx) => idx !== oIdx);
+                              return {
+                                ...prev,
+                                options: filtered.map((o, idx) => ({
+                                  ...o,
+                                  optionLetter: letters[idx] || 'A',
+                                  displayOrder: idx + 1,
+                                })),
+                              };
+                            });
+                          }}
+                          className="p-1 rounded-lg text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                          title="Delete option"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Explanation */}
+              <div>
+                <label className="font-bold text-secondary uppercase tracking-wider text-[11px]">
+                  Explanation / Academic Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingQuestion.explanation || ''}
+                  onChange={(e) =>
+                    setEditingQuestion((prev) =>
+                      prev && { ...prev, explanation: e.target.value }
+                    )
+                  }
+                  placeholder="Optional concept rationale or high-yield summary..."
+                  className="w-full mt-1 p-3 rounded-xl bg-subtle border border-subtle text-xs text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed resize-y"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setEditingQuestion(null)}
+                className="px-4 py-2 rounded-xl bg-subtle text-secondary font-semibold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveQuestion}
+                className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm transition active:scale-95"
+              >
+                Save Question
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CONFIRM DELETE QUESTION
+         ========================================================================= */}
+      {questionToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setQuestionToDelete(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-surface border border-rose-500/30 p-6 space-y-4 shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-primary">Delete Question?</h3>
+                <p className="text-xs text-muted">Remove from curriculum database</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-secondary leading-relaxed line-clamp-3">
+              Are you sure you want to delete this question?
+              <br />
+              <strong className="text-primary mt-1 block font-semibold">
+                "{questionToDelete.stem}"
+              </strong>
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setQuestionToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-subtle text-secondary font-semibold text-xs cursor-pointer hover:bg-subtle/80"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteQuestion}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer shadow-sm transition active:scale-95"
+              >
+                Delete Question
               </button>
             </div>
           </div>

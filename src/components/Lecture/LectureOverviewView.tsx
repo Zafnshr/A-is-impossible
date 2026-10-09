@@ -652,6 +652,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
         <StudySetupModal
           isOpen={true}
           onClose={() => setPendingSetupTrack(null)}
+          officialLectures={[lecture]}
           initialLectureId={lecture.id}
           initialTrack={pendingSetupTrack}
           initialStudyMode={pendingSetupTrack === 'university_exam_style' ? 'exam' : 'learning'}
