@@ -19,8 +19,8 @@ export const Step6StudySetup: React.FC<ChapterProps> = ({
       ...prev,
       setup: {
         scope,
-        order: shuffled ? 'shuffled' : 'original',
-        shuffleAnswers: false,
+        order: 'original',
+        shuffleAnswers: true,
       },
     }));
     setReady(true);
@@ -86,50 +86,6 @@ export const Step6StudySetup: React.FC<ChapterProps> = ({
                 Whole Subject
                 <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
                   Full exam review
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Question Order */}
-          <div>
-            <label className="text-xs text-slate-400 block mb-1.5 font-medium">
-              2. Question Order
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  playBlip(400);
-                  setShuffled(false);
-                }}
-                className={`p-2.5 rounded-xl border text-xs font-semibold text-center transition cursor-pointer ${
-                  !shuffled
-                    ? 'border-sky-400 bg-sky-500/15 text-white'
-                    : 'border-white/5 bg-slate-950/40 text-slate-400 hover:text-white'
-                }`}
-              >
-                In Order
-                <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
-                  Follows lecture slides
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  playBlip(450);
-                  setShuffled(true);
-                }}
-                className={`p-2.5 rounded-xl border text-xs font-semibold text-center transition cursor-pointer ${
-                  shuffled
-                    ? 'border-sky-400 bg-sky-500/15 text-white'
-                    : 'border-white/5 bg-slate-950/40 text-slate-400 hover:text-white'
-                }`}
-              >
-                Shuffle
-                <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
-                  Random order
                 </span>
               </button>
             </div>

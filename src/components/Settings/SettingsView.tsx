@@ -257,27 +257,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               />
             </div>
 
-            <div className="p-3.5 rounded-xl bg-subtle border border-subtle flex items-center justify-between">
-              <div>
-                <span className="font-semibold text-primary">Default Shuffle Questions</span>
-                <p className="text-[11px] text-muted">
-                  Automatically randomize question order for new sessions.
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={Boolean(shuffleOptions.shuffleQuestions)}
-                onChange={(e) =>
-                  onUpdateSettings({
-                    defaultShuffleOptions: {
-                      shuffleQuestions: e.target.checked,
-                      shuffleAnswers: Boolean(shuffleOptions.shuffleAnswers),
-                    },
-                  })
-                }
-                className="w-4 h-4 rounded text-cyan-500 cursor-pointer"
-              />
-            </div>
 
             <div className="p-3.5 rounded-xl bg-subtle border border-subtle flex items-center justify-between">
               <div>

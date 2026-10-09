@@ -23,6 +23,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { officialContentService } from '../../services/officialContentService';
 
 // Configure Mozilla PDF.js worker
 if (typeof window !== 'undefined') {
@@ -396,14 +397,33 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
     setIsLoading(true);
     setLoadError(null);
 
-    const loadingTask = pdfjsLib.getDocument({
-      url: pdfUrl,
-      cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
-      cMapPacked: true,
-    });
+    const loadDocument = async () => {
+      try {
+        let pdfSource: any = { url: pdfUrl };
 
-    loadingTask.promise
-      .then(async (doc) => {
+        if (pdfUrl.startsWith('idb://')) {
+          const lectureId = pdfUrl.replace('idb://', '');
+          const record = await officialContentService.getOfficialPdf(lectureId);
+          if (record && record.fileData) {
+            let buffer: ArrayBuffer;
+            if (record.fileData instanceof ArrayBuffer) {
+              buffer = record.fileData;
+            } else if (record.fileData instanceof Blob) {
+              buffer = await record.fileData.arrayBuffer();
+            } else {
+              buffer = (record.fileData as Uint8Array).buffer as ArrayBuffer;
+            }
+            pdfSource = { data: buffer };
+          }
+        }
+
+        const loadingTask = pdfjsLib.getDocument({
+          ...pdfSource,
+          cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+          cMapPacked: true,
+        });
+
+        const doc = await loadingTask.promise;
         if (!isMounted) return;
         pdfDocRef.current = doc;
         setTotalPages(doc.numPages);
@@ -422,13 +442,15 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
         }
 
         setIsLoading(false);
-      })
-      .catch((err) => {
+      } catch (err: any) {
         if (!isMounted) return;
         console.warn('[PDFViewer] Canvas PDF.js failed, fallback available:', err);
         setLoadError(err.message || 'Unable to render via Canvas engine directly.');
         setIsLoading(false);
-      });
+      }
+    };
+
+    loadDocument();
 
     return () => {
       isMounted = false;

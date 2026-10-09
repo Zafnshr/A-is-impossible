@@ -190,8 +190,14 @@ export function generateStudyQuestions(
       generatedQuestions.push(...ordered);
     }
 
+    // Shuffling of answer choices is the default and only active shuffle behavior
+    if (config.shuffleOptions?.shuffleAnswers !== false) {
+      generatedQuestions = generatedQuestions.map(shuffleQuestionAnswers);
+      transformations.push('Option Shuffle Answers: Randomized answer choices (A–E) while preserving original question sequence.');
+    }
+
     transformations.push(
-      `Final Sequential Session composed: ${generatedQuestions.length} questions in exact lecture and question order.`
+      `Final Sequential Session composed: ${generatedQuestions.length} questions in exact lecture and question order with randomized answer choices.`
     );
   } else if (config.orderMode === 'shuffled') {
     // ====================================================

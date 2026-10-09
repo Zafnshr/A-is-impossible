@@ -41,6 +41,7 @@ interface LibraryExplorerProps {
   onDeleteDeck?: (deckId: string) => void;
   initialLocation?: { year?: string; module?: string; subject?: string } | null;
   onOpenWorkflowGuide?: () => void;
+  onLoadSampleDeck?: () => void;
   onNavigateToOfficialContent?: () => void;
 }
 

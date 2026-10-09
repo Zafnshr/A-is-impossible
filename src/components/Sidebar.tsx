@@ -37,7 +37,8 @@ export type ActiveTab =
   | 'study'
   | 'import'
   | 'editor'
-  | 'deck_detail';
+  | 'deck_detail'
+  | 'exam_review';
 
 interface SidebarProps {
   activeTab: ActiveTab;

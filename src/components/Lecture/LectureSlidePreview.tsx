@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { FileText, Eye, Maximize2, Loader2 } from 'lucide-react';
+import { officialContentService } from '../../services/officialContentService';
 
 // Configure Mozilla PDF.js worker
 if (typeof window !== 'undefined') {
@@ -50,25 +51,48 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
       try {
         let doc = cachedDocRef.current;
         if (!doc) {
-          try {
-            // First attempt: fetch arrayBuffer to avoid HTTP range issues in dev server
-            const response = await fetch(pdfUrl);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const arrayBuffer = await response.arrayBuffer();
-            if (isCancelled) return;
-            doc = await pdfjsLib.getDocument({
-              data: arrayBuffer,
-              cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
-              cMapPacked: true,
-            }).promise;
-          } catch {
-            if (isCancelled) return;
-            // Fallback: direct URL loading
-            doc = await pdfjsLib.getDocument({
-              url: pdfUrl,
-              cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
-              cMapPacked: true,
-            }).promise;
+          if (pdfUrl.startsWith('idb://')) {
+            const lectureId = pdfUrl.replace('idb://', '');
+            const record = await officialContentService.getOfficialPdf(lectureId);
+            if (record && record.fileData) {
+              let buffer: ArrayBuffer;
+              if (record.fileData instanceof ArrayBuffer) {
+                buffer = record.fileData;
+              } else if (record.fileData instanceof Blob) {
+                buffer = await record.fileData.arrayBuffer();
+              } else {
+                buffer = (record.fileData as Uint8Array).buffer as ArrayBuffer;
+              }
+              if (isCancelled) return;
+              doc = await pdfjsLib.getDocument({
+                data: buffer,
+                cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+                cMapPacked: true,
+              }).promise;
+            }
+          }
+
+          if (!doc) {
+            try {
+              // First attempt: fetch arrayBuffer to avoid HTTP range issues in dev server
+              const response = await fetch(pdfUrl);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const arrayBuffer = await response.arrayBuffer();
+              if (isCancelled) return;
+              doc = await pdfjsLib.getDocument({
+                data: arrayBuffer,
+                cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+                cMapPacked: true,
+              }).promise;
+            } catch {
+              if (isCancelled) return;
+              // Fallback: direct URL loading
+              doc = await pdfjsLib.getDocument({
+                url: pdfUrl,
+                cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+                cMapPacked: true,
+              }).promise;
+            }
           }
           cachedDocRef.current = doc;
         }

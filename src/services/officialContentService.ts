@@ -16,6 +16,9 @@ import {
   QuestionVersionType,
   QuestionFeedbackRecord,
   DislikeReasonType,
+  OfficialAnnouncement,
+  AdminUserSummary,
+  ContentStatus,
 } from '../types';
 import { dbService } from './db';
 
@@ -46,6 +49,43 @@ class OfficialContentService {
     return dbService.getOfficialLectures();
   }
 
+  public async getPublishedLectures(): Promise<OfficialLecture[]> {
+    const all = await this.getOfficialLectures();
+    return all.filter((l) => l.status === 'published');
+  }
+
+  public async updateLectureStatus(lectureId: string, status: ContentStatus): Promise<OfficialLecture | null> {
+    await this.initializeOfficialContent();
+    const existing = await dbService.getOfficialLectureById(lectureId);
+    if (!existing) return null;
+    const updated: OfficialLecture = {
+      ...existing,
+      status,
+      publishedAt: status === 'published' ? (existing.publishedAt || Date.now()) : existing.publishedAt,
+      updatedAt: Date.now(),
+    };
+    await dbService.saveOfficialLecture(updated);
+    return updated;
+  }
+
+  public async batchUpdateLectureStatus(lectureIds: string[], status: ContentStatus): Promise<number> {
+    await this.initializeOfficialContent();
+    let count = 0;
+    for (const id of lectureIds) {
+      const existing = await dbService.getOfficialLectureById(id);
+      if (existing) {
+        await dbService.saveOfficialLecture({
+          ...existing,
+          status,
+          publishedAt: status === 'published' ? (existing.publishedAt || Date.now()) : existing.publishedAt,
+          updatedAt: Date.now(),
+        });
+        count++;
+      }
+    }
+    return count;
+  }
+
   public async getLectureBySlug(
     moduleSlug: string,
     subjectSlug: string,
@@ -63,12 +103,37 @@ class OfficialContentService {
 
   public async saveOfficialLecture(lecture: OfficialLecture): Promise<void> {
     await this.initializeOfficialContent();
-    await dbService.saveOfficialLecture(lecture);
+    const withDefaults: OfficialLecture = {
+      ...lecture,
+      status: lecture.status || 'published',
+    };
+    await dbService.saveOfficialLecture(withDefaults);
   }
 
   public async deleteOfficialLecture(lectureId: string): Promise<void> {
     await this.initializeOfficialContent();
     await dbService.deleteOfficialLecture(lectureId);
+  }
+
+  public async saveOfficialPdf(
+    lectureId: string,
+    fileData: Blob | ArrayBuffer | Uint8Array,
+    fileName?: string
+  ): Promise<void> {
+    await this.initializeOfficialContent();
+    await dbService.saveOfficialPdf(lectureId, fileData, fileName);
+  }
+
+  public async getOfficialPdf(
+    lectureId: string
+  ): Promise<{ fileData: Blob | ArrayBuffer | Uint8Array; fileName?: string } | null> {
+    await this.initializeOfficialContent();
+    return dbService.getOfficialPdf(lectureId);
+  }
+
+  public async getOfficialPdfBlobUrl(lectureId: string): Promise<string | null> {
+    await this.initializeOfficialContent();
+    return dbService.getOfficialPdfBlobUrl(lectureId);
   }
 
   public async getQuestionsForLecture(
@@ -77,6 +142,14 @@ class OfficialContentService {
   ): Promise<OfficialQuestion[]> {
     await this.initializeOfficialContent();
     return dbService.getOfficialQuestions(lectureId, versionType);
+  }
+
+  public async getQuestionsForLectures(
+    lectureIds: string[],
+    versionType?: QuestionVersionType | 'both'
+  ): Promise<OfficialQuestion[]> {
+    await this.initializeOfficialContent();
+    return dbService.getOfficialQuestionsForLectures(lectureIds, versionType);
   }
 
   public async saveOfficialQuestionsBatch(questions: OfficialQuestion[]): Promise<void> {
@@ -292,7 +365,7 @@ class OfficialContentService {
 
         users.push({
           id: p.id,
-          email: p.email || `${p.name?.toLowerCase().replace(/\s+/g, '') || 'user'}@student.med`,
+          email: (p as any).email || `${p.name?.toLowerCase().replace(/\s+/g, '') || 'user'}@student.med`,
           name: p.name || 'Medical Student',
           joinedAt: p.createdAt || Date.now(),
           questionsSolved: attempts.length,

@@ -16,6 +16,8 @@ import {
   AlertCircle,
   HelpCircle,
   BarChart2,
+  Lock,
+  EyeOff,
 } from 'lucide-react';
 import {
   OfficialLecture,
@@ -26,7 +28,7 @@ import {
 import { officialContentService } from '../../services/officialContentService';
 import { PDFViewerModal } from '../PDF/PDFViewerModal';
 import { LectureSlidePreview } from './LectureSlidePreview';
-import { OfficialSessionSetupModal } from './OfficialSessionSetupModal';
+import { StudySetupModal, StudySessionLaunchConfig } from '../Study/StudySetupModal';
 
 interface LectureOverviewViewProps {
   moduleSlug: string;
@@ -37,11 +39,13 @@ interface LectureOverviewViewProps {
   onNavigateToModule: (moduleSlug: string) => void;
   onStartStudyTrack: (
     lecture: OfficialLecture,
-    versionType: QuestionVersionType,
-    studyMode: StudyModeType
+    versionType: QuestionVersionType | 'both',
+    studyMode: StudyModeType,
+    config?: Partial<StudySessionLaunchConfig>
   ) => void;
   currentUserId?: string;
   userPreferredMode?: StudyModeType;
+  isAdmin?: boolean;
 }
 
 export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
@@ -54,12 +58,18 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
   onStartStudyTrack,
   currentUserId = 'guest_user',
   userPreferredMode,
+  isAdmin = false,
 }) => {
   const [lecture, setLecture] = useState<OfficialLecture | null>(null);
   const [metrics, setMetrics] = useState<UserLectureMetrics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
-  const [pendingSetupTrack, setPendingSetupTrack] = useState<QuestionVersionType | null>(null);
+  const [resolvedPdfUrl, setResolvedPdfUrl] = useState<string | null>(null);
+  const [livePracticeCount, setLivePracticeCount] = useState<number>(0);
+  const [liveExamCount, setLiveExamCount] = useState<number>(0);
+  const [pendingSetupTrack, setPendingSetupTrack] = useState<
+    'practice' | 'university_exam_style' | 'both' | null
+  >(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -76,6 +86,35 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
           setLecture(lec);
           const m = await officialContentService.getLectureMetrics(currentUserId, lec.id);
           setMetrics(m);
+
+          // 1. Resolve persistent PDF from IndexedDB or remote URL
+          let activePdf: string | null = null;
+          if (lec.pdfUrl && (lec.pdfUrl.startsWith('http') || lec.pdfUrl.startsWith('/'))) {
+            activePdf = lec.pdfUrl;
+          } else {
+            const idbBlob = await officialContentService.getOfficialPdfBlobUrl(lec.id);
+            if (idbBlob) {
+              activePdf = idbBlob;
+            } else if (lec.pdfUrl && !lec.pdfUrl.startsWith('idb://')) {
+              activePdf = lec.pdfUrl;
+            }
+          }
+          setResolvedPdfUrl(activePdf);
+
+          // 2. Query live questions from database to ensure 100% accuracy
+          const liveQs = await officialContentService.getQuestionsForLecture(lec.id);
+          const pCount = liveQs.filter((q) => q.versionType === 'practice').length;
+          const eCount = liveQs.filter((q) => q.versionType === 'university_exam_style').length;
+          setLivePracticeCount(pCount);
+          setLiveExamCount(eCount);
+
+          if (lec.practiceQuestionsCount !== pCount || lec.universityExamStyleQuestionsCount !== eCount) {
+            officialContentService.saveOfficialLecture({
+              ...lec,
+              practiceQuestionsCount: pCount,
+              universityExamStyleQuestionsCount: eCount,
+            }).catch(() => {});
+          }
         }
       } catch (err) {
         console.error('[LectureOverviewView] Error loading lecture:', err);
@@ -89,23 +128,26 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
     };
   }, [moduleSlug, subjectSlug, weekSlug, lectureSlug, currentUserId]);
 
+  const activePdfUrl = resolvedPdfUrl || lecture?.pdfUrl;
+
   const handleOpenInNewTab = () => {
-    if (!lecture?.pdfUrl) return;
+    const pdfTarget = activePdfUrl || lecture?.pdfUrl;
+    if (!pdfTarget) return;
 
     // 1. Direct same-origin or absolute URL with .pdf: Opens Chrome native PDF viewer tab directly
     if (
-      lecture.pdfUrl.startsWith('/') ||
-      lecture.pdfUrl.startsWith(window.location.origin) ||
-      (lecture.pdfUrl.startsWith('http') && lecture.pdfUrl.toLowerCase().endsWith('.pdf'))
+      pdfTarget.startsWith('/') ||
+      pdfTarget.startsWith(window.location.origin) ||
+      (pdfTarget.startsWith('http') && pdfTarget.toLowerCase().endsWith('.pdf'))
     ) {
-      window.open(lecture.pdfUrl, '_blank');
+      window.open(pdfTarget, '_blank');
       return;
     }
 
     // 2. Blob or external URL without .pdf: Top-level navigation to blob is blocked by Chrome,
     // which triggers an automatic download of the raw UUID.
     // Instead, open an HTML wrapper in the new tab with an iframe embedding the PDF!
-    const safeTitle = (lecture.title || 'Lecture_Slides')
+    const safeTitle = (lecture?.title || 'Lecture_Slides')
       .replace(/[^a-zA-Z0-9_\-\s]/g, '')
       .trim();
 
@@ -122,33 +164,32 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
   </style>
 </head>
 <body>
-  <iframe src="${lecture.pdfUrl}#toolbar=1" width="100%" height="100%"></iframe>
+  <iframe src="${pdfTarget}#toolbar=1" width="100%" height="100%"></iframe>
 </body>
 </html>`);
       newTab.document.close();
     } else {
-      window.open(lecture.pdfUrl, '_blank');
+      window.open(pdfTarget, '_blank');
     }
   };
 
   const handleDownloadPdf = () => {
-    if (!lecture?.pdfUrl) return;
+    const pdfTarget = activePdfUrl || lecture?.pdfUrl;
+    if (!pdfTarget) return;
 
-    const safeTitle = (lecture.title || 'Lecture_Slides')
+    const safeTitle = (lecture?.title || 'Lecture_Slides')
       .replace(/[^a-zA-Z0-9_\-\s]/g, '')
       .trim()
       .replace(/\s+/g, '_');
     const filename = safeTitle.toLowerCase().endsWith('.pdf') ? safeTitle : `${safeTitle}.pdf`;
 
-    // 1. Same-Origin or Blob: Execute synchronously within the active user gesture
-    // Chrome strictly requires synchronous user activation + same-origin URL for a.download to apply!
     if (
-      lecture.pdfUrl.startsWith('/') ||
-      lecture.pdfUrl.startsWith(window.location.origin) ||
-      lecture.pdfUrl.startsWith('blob:')
+      pdfTarget.startsWith('/') ||
+      pdfTarget.startsWith(window.location.origin) ||
+      pdfTarget.startsWith('blob:')
     ) {
       const a = document.createElement('a');
-      a.href = lecture.pdfUrl;
+      a.href = pdfTarget;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -156,8 +197,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
       return;
     }
 
-    // 2. Cross-Origin Fallback: fetch blob and download
-    fetch(lecture.pdfUrl)
+    fetch(pdfTarget)
       .then((res) => res.blob())
       .then((blob) => {
         const blobUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
@@ -172,7 +212,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
       .catch((err) => {
         console.warn('[LectureOverview] Programmatic download fallback:', err);
         const a = document.createElement('a');
-        a.href = lecture.pdfUrl || '';
+        a.href = pdfTarget || '';
         a.download = filename;
         a.target = '_blank';
         document.body.appendChild(a);
@@ -212,14 +252,117 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
     );
   }
 
+  const handlePublishNow = async () => {
+    if (!lecture) return;
+    try {
+      const updated = await officialContentService.updateLectureStatus(lecture.id, 'published');
+      if (updated) {
+        setLecture(updated);
+      }
+    } catch (err) {
+      console.error('[LectureOverviewView] Error publishing lecture:', err);
+    }
+  };
+
+  // If lecture is not published and viewer is NOT an admin: show clean locked staging notice
+  if (lecture.status !== 'published' && !isAdmin) {
+    const isDraft = lecture.status === 'draft';
+    return (
+      <div className="max-w-2xl mx-auto py-16 px-4 text-center space-y-5 animate-in fade-in">
+        <div
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto ${
+            isDraft ? 'bg-amber-500/10 text-amber-500' : 'bg-slate-500/10 text-slate-400'
+          }`}
+        >
+          {isDraft ? <Clock className="w-8 h-8" /> : <EyeOff className="w-8 h-8" />}
+        </div>
+        <div className="space-y-2">
+          <span
+            className={`text-xs font-mono font-bold uppercase tracking-widest ${
+              isDraft ? 'text-amber-500' : 'text-slate-400'
+            }`}
+          >
+            {isDraft ? 'Curriculum Staging' : 'Archived Content'}
+          </span>
+          <h2 className="text-2xl font-black text-primary">
+            {isDraft ? 'Lecture Under Curriculum Staging' : 'Lecture Archived'}
+          </h2>
+          <p className="text-sm text-secondary max-w-md mx-auto leading-relaxed">
+            {isDraft
+              ? `"${lecture.title}" is currently in authoring staging and has not been published to students yet. Practice questions and verified slide decks will unlock upon publication.`
+              : `"${lecture.title}" is currently soft-archived and not available for active student sessions.`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onNavigateBackToLibrary}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-canvas font-bold text-xs cursor-pointer shadow-sm hover:opacity-90 transition active:scale-95"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Return to Curriculum Library</span>
+        </button>
+      </div>
+    );
+  }
+
   // Derive dynamic next-action guidance banner state (4 cognitive states)
   const practiceSolved = metrics?.practiceSolvedCount || 0;
-  const practiceTotal = lecture.practiceQuestionsCount || 0;
+  const practiceTotal = livePracticeCount || lecture.practiceQuestionsCount || 0;
   const examSolved = metrics?.examSolvedCount || 0;
-  const examTotal = lecture.universityExamStyleQuestionsCount || 0;
+  const examTotal = liveExamCount || lecture.universityExamStyleQuestionsCount || 0;
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-6 space-y-6 animate-in fade-in duration-200">
+      {/* Admin Staging Ribbon for Unpublished Content */}
+      {lecture.status !== 'published' && (
+        <div
+          className={`p-4 rounded-2xl border flex flex-wrap items-center justify-between gap-3 shadow-xs animate-in slide-in-from-top-1 ${
+            lecture.status === 'draft'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-100'
+              : 'bg-slate-500/10 border-slate-500/30 text-slate-800 dark:text-slate-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                lecture.status === 'draft'
+                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                  : 'bg-slate-500/20 text-slate-500'
+              }`}
+            >
+              {lecture.status === 'draft' ? (
+                <Clock className="w-5 h-5" />
+              ) : (
+                <EyeOff className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs uppercase tracking-wider">
+                  {lecture.status === 'draft'
+                    ? 'Admin Staging Mode • DRAFT (Hidden from Students)'
+                    : 'Admin Staging Mode • HIDDEN / ARCHIVED'}
+                </span>
+              </div>
+              <p className="text-[11px] opacity-80">
+                {lecture.status === 'draft'
+                  ? 'Standard students cannot view or study this lecture. Publish it now to make slides and questions available live.'
+                  : 'This lecture is currently soft-archived. Restore it to make it visible to students.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handlePublishNow}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-sm transition active:scale-95 shrink-0"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Publish Lecture to Students Now</span>
+          </button>
+        </div>
+      )}
+
       {/* Top Header Bar with Clean Back Button and Academic Metadata */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-subtle">
         <div className="flex items-center gap-3">
@@ -342,7 +485,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
 
             {/* Real Slide Deck First Page Preview Canvas */}
             <LectureSlidePreview
-              pdfUrl={lecture.pdfUrl}
+              pdfUrl={activePdfUrl || lecture.pdfUrl}
               title={lecture.title}
               pageCount={lecture.pdfPageCount}
               onClick={() => setIsPdfModalOpen(true)}
@@ -360,7 +503,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
               <span>Open Slides Reader ({lecture.pdfPageCount || 14} Slides)</span>
             </button>
 
-            {lecture.pdfUrl && (
+            {(activePdfUrl || lecture.pdfUrl) && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -493,34 +636,32 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
       </div>
 
       {/* PDF Modal Player */}
-      {isPdfModalOpen && lecture.pdfUrl && (
+      {isPdfModalOpen && (activePdfUrl || lecture.pdfUrl) && (
         <PDFViewerModal
           isOpen={isPdfModalOpen}
           onClose={() => setIsPdfModalOpen(false)}
-          pdfUrl={lecture.pdfUrl}
+          pdfUrl={activePdfUrl || lecture.pdfUrl}
           title={lecture.title}
           moduleName={lecture.moduleSlug.replace(/-/g, ' ')}
           subjectName={lecture.subjectSlug.replace(/-/g, ' ')}
         />
       )}
 
-      {/* Official Session Setup Modal (Step between track selection & session launch) */}
+      {/* Unified Study Session Setup Modal (Step between track selection & session launch) */}
       {pendingSetupTrack && lecture && (
-        <OfficialSessionSetupModal
+        <StudySetupModal
           isOpen={true}
           onClose={() => setPendingSetupTrack(null)}
-          lecture={lecture}
-          versionType={pendingSetupTrack}
-          questionCount={
-            pendingSetupTrack === 'practice'
-              ? lecture.practiceQuestionsCount || 0
-              : lecture.universityExamStyleQuestionsCount || 0
-          }
+          initialLectureId={lecture.id}
+          initialTrack={pendingSetupTrack}
+          initialStudyMode={pendingSetupTrack === 'university_exam_style' ? 'exam' : 'learning'}
           userPreferredMode={userPreferredMode}
-          onStartSession={(studyMode) => {
-            const track = pendingSetupTrack;
+          isAdmin={isAdmin}
+          onStartSession={(cfg) => {
+            const track = cfg.track || pendingSetupTrack || 'both';
+            const studyMode = cfg.studyMode || (pendingSetupTrack === 'university_exam_style' ? 'exam' : 'learning');
             setPendingSetupTrack(null);
-            onStartStudyTrack(lecture, track, studyMode);
+            onStartStudyTrack(lecture, track, studyMode, cfg);
           }}
         />
       )}

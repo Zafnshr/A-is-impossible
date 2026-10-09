@@ -155,6 +155,10 @@ export interface SessionCompletionSummary {
   completedAt: number;
   questionIds: string[];
   incorrectQuestionIds: string[];
+  studyMode?: 'learning' | 'exam';
+  userAnswers?: Record<string, any>;
+  sessionQuestions?: Question[];
+  flaggedIds?: string[];
 }
 
 export interface StudySessionRecord {

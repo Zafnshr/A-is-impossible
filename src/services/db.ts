@@ -20,7 +20,7 @@ import {
 } from '../types';
 
 const DB_NAME = 'APlusIsImpossible_DB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 class IndexedDBStorage {
   private db: IDBDatabase | null = null;
@@ -39,6 +39,7 @@ class IndexedDBStorage {
     trash: new Map(),
     official_lectures: new Map(),
     official_questions: new Map(),
+    official_pdf_storage: new Map(),
     user_lecture_metrics: new Map(),
     user_pdf_uploads: new Map(),
   };
@@ -170,10 +171,42 @@ class IndexedDBStorage {
             const pdfStore = db.createObjectStore('user_pdf_uploads', { keyPath: 'id' });
             pdfStore.createIndex('by_userId', 'userId', { unique: false });
           }
+
+          // Official PDF Slide Decks storage (persistent across reloads and accounts)
+          if (!db.objectStoreNames.contains('official_pdf_storage')) {
+            db.createObjectStore('official_pdf_storage', { keyPath: 'lectureId' });
+          }
         };
 
         request.onsuccess = () => {
           this.db = request.result;
+
+          // Self-healing guard: verify all official stores exist in the open database
+          const requiredStores = [
+            'official_lectures',
+            'official_questions',
+            'official_pdf_storage',
+            'user_lecture_metrics',
+          ];
+          const hasMissingStore = requiredStores.some((s) => !this.db!.objectStoreNames.contains(s));
+          if (hasMissingStore) {
+            console.warn('[db] Database is missing required official stores. Triggering self-healing upgrade...');
+            const nextVersion = this.db.version + 1;
+            this.db.close();
+            this.db = null;
+            const upgradeReq = indexedDB.open(DB_NAME, nextVersion);
+            upgradeReq.onupgradeneeded = request.onupgradeneeded;
+            upgradeReq.onsuccess = () => {
+              this.db = upgradeReq.result;
+              resolve(this.db);
+            };
+            upgradeReq.onerror = () => {
+              console.warn('[db] Self-healing upgrade error:', upgradeReq.error);
+              resolve(null);
+            };
+            return;
+          }
+
           resolve(this.db);
         };
 
@@ -512,6 +545,14 @@ class IndexedDBStorage {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
+  }
+
+  async deleteAttempt(attemptId: string): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.attempts.delete(attemptId);
+      return;
+    }
+    await this.transaction('attempts', 'readwrite', (store) => store.delete(attemptId));
   }
 
   // --- Active Session ---
@@ -1179,38 +1220,177 @@ class IndexedDBStorage {
     });
   }
 
-  public async getOfficialQuestions(
+  // --- Official PDF File Storage ---
+  private activePdfBlobUrls = new Map<string, string>();
+
+  public async saveOfficialPdf(
     lectureId: string,
+    fileData: Blob | ArrayBuffer | Uint8Array,
+    fileName?: string
+  ): Promise<void> {
+    const record = {
+      lectureId,
+      fileData,
+      fileName: fileName || `${lectureId}.pdf`,
+      savedAt: Date.now(),
+    };
+
+    if (this.activePdfBlobUrls.has(lectureId)) {
+      try {
+        URL.revokeObjectURL(this.activePdfBlobUrls.get(lectureId)!);
+      } catch {}
+      this.activePdfBlobUrls.delete(lectureId);
+    }
+
+    if (this.isMemoryMode) {
+      this.memoryStores.official_pdf_storage.set(lectureId, record);
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_pdf_storage.set(lectureId, record);
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('official_pdf_storage', 'readwrite');
+        const store = tx.objectStore('official_pdf_storage');
+        const req = store.put(record);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      } catch (err) {
+        console.warn('[db] saveOfficialPdf fallback to memory:', err);
+        this.memoryStores.official_pdf_storage.set(lectureId, record);
+        resolve();
+      }
+    });
+  }
+
+  public async getOfficialPdf(
+    lectureId: string
+  ): Promise<{ fileData: Blob | ArrayBuffer | Uint8Array; fileName?: string } | null> {
+    if (this.isMemoryMode) {
+      return this.memoryStores.official_pdf_storage.get(lectureId) || null;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      return this.memoryStores.official_pdf_storage.get(lectureId) || null;
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction('official_pdf_storage', 'readonly');
+        const store = tx.objectStore('official_pdf_storage');
+        const req = store.get(lectureId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (err) {
+        console.warn('[db] Error reading official PDF from store:', err);
+        resolve(null);
+      }
+    });
+  }
+
+  public async getOfficialPdfBlobUrl(lectureId: string): Promise<string | null> {
+    if (this.activePdfBlobUrls.has(lectureId)) {
+      return this.activePdfBlobUrls.get(lectureId)!;
+    }
+
+    const record = await this.getOfficialPdf(lectureId);
+    if (!record || !record.fileData) return null;
+
+    let blob: Blob;
+    if (record.fileData instanceof Blob) {
+      blob = record.fileData;
+    } else {
+      blob = new Blob([record.fileData as BlobPart], { type: 'application/pdf' });
+    }
+
+    const blobUrl = URL.createObjectURL(blob);
+    this.activePdfBlobUrls.set(lectureId, blobUrl);
+    return blobUrl;
+  }
+
+  public async getOfficialQuestions(
+    lectureId?: string,
     versionType?: QuestionVersionType
   ): Promise<OfficialQuestion[]> {
     if (this.isMemoryMode) {
       const all = Array.from(this.memoryStores.official_questions.values());
       return all.filter(
-        (q) => q.lectureId === lectureId && (!versionType || q.versionType === versionType)
+        (q) => (!lectureId || q.lectureId === lectureId) && (!versionType || q.versionType === versionType)
       );
     }
     const db = await this.getDB();
     if (!db) {
       const all = Array.from(this.memoryStores.official_questions.values());
       return all.filter(
-        (q) => q.lectureId === lectureId && (!versionType || q.versionType === versionType)
+        (q) => (!lectureId || q.lectureId === lectureId) && (!versionType || q.versionType === versionType)
       );
     }
 
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('official_questions', 'readonly');
-      const store = tx.objectStore('official_questions');
-      const index = store.index('by_lectureId');
-      const req = index.getAll(lectureId);
-      req.onsuccess = () => {
-        const results: OfficialQuestion[] = req.result || [];
-        if (versionType) {
-          resolve(results.filter((q) => q.versionType === versionType));
-        } else {
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction('official_questions', 'readonly');
+        const store = tx.objectStore('official_questions');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          let results: OfficialQuestion[] = req.result || [];
+          if (lectureId) {
+            results = results.filter((q) => q.lectureId === lectureId);
+          }
+          if (versionType) {
+            results = results.filter((q) => q.versionType === versionType);
+          }
           resolve(results);
-        }
-      };
-      req.onerror = () => reject(req.error);
+        };
+        req.onerror = () => resolve([]);
+      } catch (err) {
+        console.warn('[db] getOfficialQuestions error:', err);
+        resolve([]);
+      }
+    });
+  }
+
+  public async getOfficialQuestionsForLectures(
+    lectureIds: string[],
+    versionType?: QuestionVersionType | 'both'
+  ): Promise<OfficialQuestion[]> {
+    if (this.isMemoryMode) {
+      const all = Array.from(this.memoryStores.official_questions.values());
+      const idSet = new Set(lectureIds);
+      return all.filter(
+        (q) => idSet.has(q.lectureId) && (!versionType || versionType === 'both' || q.versionType === versionType)
+      );
+    }
+    const db = await this.getDB();
+    if (!db) {
+      const all = Array.from(this.memoryStores.official_questions.values());
+      const idSet = new Set(lectureIds);
+      return all.filter(
+        (q) => idSet.has(q.lectureId) && (!versionType || versionType === 'both' || q.versionType === versionType)
+      );
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction('official_questions', 'readonly');
+        const store = tx.objectStore('official_questions');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const all: OfficialQuestion[] = req.result || [];
+          const idSet = new Set(lectureIds);
+          const filtered = all.filter(
+            (q) => idSet.has(q.lectureId) && (!versionType || versionType === 'both' || q.versionType === versionType)
+          );
+          resolve(filtered);
+        };
+        req.onerror = () => resolve([]);
+      } catch (err) {
+        console.warn('[db] getOfficialQuestionsForLectures error:', err);
+        resolve([]);
+      }
     });
   }
 
@@ -1235,9 +1415,32 @@ class IndexedDBStorage {
   }
 
   public async saveOfficialQuestionsBatch(questions: OfficialQuestion[]): Promise<void> {
-    for (const q of questions) {
-      await this.saveOfficialQuestion(q);
+    if (!questions || questions.length === 0) return;
+    if (this.isMemoryMode) {
+      questions.forEach((q) => this.memoryStores.official_questions.set(q.id, q));
+      return;
     }
+    const db = await this.getDB();
+    if (!db) {
+      questions.forEach((q) => this.memoryStores.official_questions.set(q.id, q));
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('official_questions', 'readwrite');
+        const store = tx.objectStore('official_questions');
+        for (const q of questions) {
+          store.put(q);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        console.error('[db] saveOfficialQuestionsBatch failed:', err);
+        reject(err);
+      }
+    });
   }
 
   public async deleteOfficialQuestion(questionId: string): Promise<void> {

@@ -41,6 +41,7 @@ export interface QuestionMapPanelProps {
   onClose?: () => void;
   onToggleCollapse?: () => void;
   isDockedCollapsed?: boolean;
+  onFinishExam?: () => void;
 }
 
 export type QuestionFilter = 'all' | 'unanswered' | 'incorrect' | 'flagged' | 'correct';
@@ -155,6 +156,7 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
   onClose,
   onToggleCollapse,
   isDockedCollapsed = false,
+  onFinishExam,
 }) => {
   // Navigation & Interactive states
   const [activeFilter, setActiveFilter] = useState<QuestionFilter>('all');
@@ -174,6 +176,8 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
     return set;
   }, [flaggedIds, userStatuses]);
 
+  const isExamMode = session.studyMode === 'exam';
+
   // Compute live session telemetry metrics
   const telemetry = useMemo(() => {
     let answered = 0;
@@ -181,10 +185,11 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
     let flagged = 0;
 
     questions.forEach((q) => {
-      const isSub = session.submittedQuestions[q.id];
+      const hasAns = session.userAnswers[q.id] !== undefined && session.userAnswers[q.id] !== null && session.userAnswers[q.id] !== '';
+      const isSub = isExamMode ? hasAns : !!session.submittedQuestions[q.id];
       if (isSub) {
         answered++;
-        if (evaluateQuestionCorrectness(q, session.userAnswers[q.id])) {
+        if (!isExamMode && evaluateQuestionCorrectness(q, session.userAnswers[q.id])) {
           correct++;
         }
       }
@@ -211,7 +216,7 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
       accuracyPct,
       masteryScore,
     };
-  }, [questions, session.submittedQuestions, session.userAnswers, effectiveFlaggedSet]);
+  }, [questions, session.submittedQuestions, session.userAnswers, effectiveFlaggedSet, isExamMode]);
 
   // Quick Navigation Finders
   const quickNav = useMemo(() => {
@@ -219,12 +224,13 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
     const unansweredIndices: number[] = [];
 
     questions.forEach((q, idx) => {
-      const isSub = session.submittedQuestions[q.id];
+      const hasAns = session.userAnswers[q.id] !== undefined && session.userAnswers[q.id] !== null && session.userAnswers[q.id] !== '';
+      const isSub = isExamMode ? hasAns : !!session.submittedQuestions[q.id];
       if (!isSub) {
         unansweredIndices.push(idx);
       } else {
-        const isCorr = evaluateQuestionCorrectness(q, session.userAnswers[q.id]);
-        if (!isCorr) {
+        const isCorr = !isExamMode && evaluateQuestionCorrectness(q, session.userAnswers[q.id]);
+        if (!isCorr && !isExamMode) {
           incorrectIndices.push(idx);
         }
       }
@@ -247,15 +253,13 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
       hasIncorrect: incorrectIndices.length > 0,
       hasUnanswered: unansweredIndices.length > 0,
     };
-  }, [questions, session.submittedQuestions, session.userAnswers, currentQIndex]);
-
-  // Filter and Sort Questions
-  const isExamMode = session.studyMode === 'exam';
+  }, [questions, session.submittedQuestions, session.userAnswers, currentQIndex, isExamMode]);
 
   const filteredAndSortedQuestions = useMemo(() => {
     // 1. Map to enriched metadata
     const items = questions.map((q, sessionIndex) => {
-      const isSubmitted = !!session.submittedQuestions[q.id];
+      const hasAns = session.userAnswers[q.id] !== undefined && session.userAnswers[q.id] !== null && session.userAnswers[q.id] !== '';
+      const isSubmitted = isExamMode ? hasAns : !!session.submittedQuestions[q.id];
       const isCorrect =
         !isExamMode && isSubmitted && evaluateQuestionCorrectness(q, session.userAnswers[q.id]);
       const isIncorrect = !isExamMode && isSubmitted && !isCorrect;
@@ -399,16 +403,33 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
 
         {/* Bottom Quick Tally */}
         <div className="flex flex-col items-center gap-2 font-mono text-[10px]">
-          <Tooltip content={`Correct: ${telemetry.correct}`}>
-            <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center">
-              {telemetry.correct}
-            </span>
-          </Tooltip>
-          <Tooltip content={`Incorrect: ${telemetry.incorrect}`}>
-            <span className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold flex items-center justify-center">
-              {telemetry.incorrect}
-            </span>
-          </Tooltip>
+          {isExamMode ? (
+            <>
+              <Tooltip content={`Answered: ${telemetry.answered}`}>
+                <span className="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center">
+                  {telemetry.answered}
+                </span>
+              </Tooltip>
+              <Tooltip content={`Remaining: ${telemetry.total - telemetry.answered}`}>
+                <span className="w-6 h-6 rounded-lg bg-subtle border border-subtle text-secondary font-bold flex items-center justify-center">
+                  {telemetry.total - telemetry.answered}
+                </span>
+              </Tooltip>
+            </>
+          ) : (
+            <>
+              <Tooltip content={`Correct: ${telemetry.correct}`}>
+                <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center">
+                  {telemetry.correct}
+                </span>
+              </Tooltip>
+              <Tooltip content={`Incorrect: ${telemetry.incorrect}`}>
+                <span className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold flex items-center justify-center">
+                  {telemetry.incorrect}
+                </span>
+              </Tooltip>
+            </>
+          )}
         </div>
       </aside>
     );
@@ -508,22 +529,31 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
 
           {/* Accuracy & Mastery Score Badges */}
           <div className="flex flex-col items-end gap-1 font-mono">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-              <Target className="w-3 h-3" />
-              <span className="text-[10px] font-bold">Accuracy: {telemetry.accuracyPct}%</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-subtle border border-subtle text-secondary text-[9px]">
-              <Award className="w-2.5 h-2.5 text-amber-500" />
-              <span>Mastery: {telemetry.masteryScore}%</span>
-            </div>
+            {isExamMode ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+                <Target className="w-3 h-3" />
+                <span className="text-[10px] font-bold">Exam Mode</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                  <Target className="w-3 h-3" />
+                  <span className="text-[10px] font-bold">Accuracy: {telemetry.accuracyPct}%</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-subtle border border-subtle text-secondary text-[9px]">
+                  <Award className="w-2.5 h-2.5 text-amber-500" />
+                  <span>Mastery: {telemetry.masteryScore}%</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {/* Interactive Metric Cards (Click any to filter!) */}
-        <div className="grid grid-cols-5 gap-1.5 font-mono">
-          {/* Answered */}
+        <div className={`grid ${isExamMode ? 'grid-cols-4' : 'grid-cols-5'} gap-1.5 font-mono`}>
+          {/* Answered / All */}
           <button
-            onClick={() => setActiveFilter(activeFilter === 'all' ? 'unanswered' : 'all')}
+            onClick={() => setActiveFilter('all')}
             className={`p-2 rounded-xl border text-center transition cursor-pointer ${
               activeFilter === 'all'
                 ? 'bg-subtle/90 border-slate-400/50 shadow-xs scale-102 ring-1 ring-slate-400/30'
@@ -534,33 +564,61 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
             <div className="text-xs font-black text-primary mt-0.5">{telemetry.total}</div>
           </button>
 
-          {/* Correct */}
-          <button
-            onClick={() => setActiveFilter(activeFilter === 'correct' ? 'all' : 'correct')}
-            className={`p-2 rounded-xl border text-center transition cursor-pointer ${
-              activeFilter === 'correct'
-                ? 'bg-emerald-500/25 border-emerald-500 text-emerald-700 dark:text-emerald-300 scale-102 ring-1 ring-emerald-500/40 shadow-xs'
-                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-            }`}
-          >
-            <div className="text-[8px] uppercase tracking-wider font-bold">Correct</div>
-            <div className="text-xs font-black mt-0.5 flex items-center justify-center gap-0.5">
-              <span>{telemetry.correct}</span>
-            </div>
-          </button>
+          {isExamMode ? (
+            <>
+              {/* Answered */}
+              <button
+                onClick={() => setActiveFilter('all')}
+                className="p-2 rounded-xl border text-center transition cursor-pointer bg-cyan-500/10 border-cyan-500/20 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20"
+              >
+                <div className="text-[8px] uppercase tracking-wider font-bold">Answered</div>
+                <div className="text-xs font-black mt-0.5">{telemetry.answered}</div>
+              </button>
 
-          {/* Incorrect */}
-          <button
-            onClick={() => setActiveFilter(activeFilter === 'incorrect' ? 'all' : 'incorrect')}
-            className={`p-2 rounded-xl border text-center transition cursor-pointer ${
-              activeFilter === 'incorrect'
-                ? 'bg-rose-500/25 border-rose-500 text-rose-700 dark:text-rose-300 scale-102 ring-1 ring-rose-500/40 shadow-xs'
-                : 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
-            }`}
-          >
-            <div className="text-[8px] uppercase tracking-wider font-bold">Wrong</div>
-            <div className="text-xs font-black mt-0.5">{telemetry.incorrect}</div>
-          </button>
+              {/* Remaining */}
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'unanswered' ? 'all' : 'unanswered')}
+                className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                  activeFilter === 'unanswered'
+                    ? 'bg-amber-500/25 border-amber-500 text-amber-700 dark:text-amber-300 scale-102 ring-1 ring-amber-500/40 shadow-xs'
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                }`}
+              >
+                <div className="text-[8px] uppercase tracking-wider font-bold">Remaining</div>
+                <div className="text-xs font-black mt-0.5">{telemetry.remaining}</div>
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Correct */}
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'correct' ? 'all' : 'correct')}
+                className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                  activeFilter === 'correct'
+                    ? 'bg-emerald-500/25 border-emerald-500 text-emerald-700 dark:text-emerald-300 scale-102 ring-1 ring-emerald-500/40 shadow-xs'
+                    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                }`}
+              >
+                <div className="text-[8px] uppercase tracking-wider font-bold">Correct</div>
+                <div className="text-xs font-black mt-0.5 flex items-center justify-center gap-0.5">
+                  <span>{telemetry.correct}</span>
+                </div>
+              </button>
+
+              {/* Incorrect */}
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'incorrect' ? 'all' : 'incorrect')}
+                className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                  activeFilter === 'incorrect'
+                    ? 'bg-rose-500/25 border-rose-500 text-rose-700 dark:text-rose-300 scale-102 ring-1 ring-rose-500/40 shadow-xs'
+                    : 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+                }`}
+              >
+                <div className="text-[8px] uppercase tracking-wider font-bold">Wrong</div>
+                <div className="text-xs font-black mt-0.5">{telemetry.incorrect}</div>
+              </button>
+            </>
+          )}
 
           {/* Flagged */}
           <button
@@ -572,22 +630,7 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
             }`}
           >
             <div className="text-[8px] uppercase tracking-wider font-bold">Flagged</div>
-            <div className="text-xs font-black mt-0.5 flex items-center justify-center gap-0.5">
-              <span>{telemetry.flagged}</span>
-            </div>
-          </button>
-
-          {/* Remaining */}
-          <button
-            onClick={() => setActiveFilter(activeFilter === 'unanswered' ? 'all' : 'unanswered')}
-            className={`p-2 rounded-xl border text-center transition cursor-pointer ${
-              activeFilter === 'unanswered'
-                ? 'bg-cyan-500/20 border-cyan-500 text-cyan-700 dark:text-cyan-300 scale-102 ring-1 ring-cyan-500/40 shadow-xs'
-                : 'bg-subtle/50 border-subtle hover:bg-subtle text-muted'
-            }`}
-          >
-            <div className="text-[8px] uppercase tracking-wider font-bold">Remain</div>
-            <div className="text-xs font-black mt-0.5">{telemetry.remaining}</div>
+            <div className="text-xs font-black mt-0.5">{telemetry.flagged}</div>
           </button>
         </div>
       </div>
@@ -896,6 +939,28 @@ export const QuestionMapPanel: React.FC<QuestionMapPanelProps> = ({
           })
         )}
       </div>
+
+      {/* 5b. EXAM MODE ACTION BAR */}
+      {isExamMode && onFinishExam && (
+        <div className="p-3 border-t border-indigo-500/20 bg-indigo-500/5 space-y-2 shrink-0">
+          <div className="flex items-center justify-between text-[11px] font-mono">
+            <span className="text-secondary">Exam Progress:</span>
+            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+              {Object.keys(session.userAnswers).filter(
+                (k) => session.userAnswers[k] !== undefined && session.userAnswers[k] !== null
+              ).length} of {questions.length} answered
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onFinishExam}
+            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-95 cursor-pointer"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Finish & Submit Exam</span>
+          </button>
+        </div>
+      )}
 
       {/* 6. MINIMAL STATUS LEGEND FOOTER */}
       <footer className="px-3.5 py-2.5 border-t border-subtle bg-subtle/40 flex items-center justify-between text-[10px] font-mono text-secondary shrink-0">

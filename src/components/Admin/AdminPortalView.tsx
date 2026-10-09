@@ -30,6 +30,10 @@ import {
   RotateCcw,
   UserX,
   UserCheck,
+  Clock,
+  EyeOff,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 import {
@@ -105,6 +109,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
 
   // Curriculum Filter State
   const [selectedModuleFilter, setSelectedModuleFilter] = useState<string>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<ContentStatus | 'all'>('all');
+  const [selectedLectureIds, setSelectedLectureIds] = useState<string[]>([]);
   const [lectureSearchQuery, setLectureSearchQuery] = useState('');
 
   // Lecture Modal State
@@ -203,7 +209,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       description: '',
       pdfUrl: '',
       pdfPageCount: 0,
-      status: 'draft',
+      status: 'published',
       practiceQuestionsCount: 0,
       universityExamStyleQuestionsCount: 0,
       viewCount: 0,
@@ -230,6 +236,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
 
     const lectureRecord: OfficialLecture = {
       id: editingLecture.id || `lec_${Date.now()}`,
+      weekId: editingLecture.weekId || editingLecture.weekSlug || 'week-1',
       moduleSlug: editingLecture.moduleSlug || 'blood',
       subjectSlug: editingLecture.subjectSlug || 'physiology',
       weekSlug: editingLecture.weekSlug || 'week-1',
@@ -238,7 +245,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       description: editingLecture.description || '',
       pdfUrl: editingLecture.pdfUrl || undefined,
       pdfPageCount: editingLecture.pdfPageCount || 0,
-      status: (editingLecture.status as ContentStatus) || 'draft',
+      status: (editingLecture.status as ContentStatus) || 'published',
+      displayOrder: editingLecture.displayOrder || 1,
       practiceQuestionsCount: editingLecture.practiceQuestionsCount || 0,
       universityExamStyleQuestionsCount: editingLecture.universityExamStyleQuestionsCount || 0,
       viewCount: editingLecture.viewCount || 0,
@@ -277,19 +285,73 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       return;
     }
     await officialContentService.deleteOfficialLecture(lecture.id);
+    setSelectedLectureIds((prev) => prev.filter((id) => id !== lecture.id));
     showToast(`Lecture deleted.`);
     await loadData();
   };
 
-  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleToggleSelectLecture = (id: string) => {
+    setSelectedLectureIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    if (selectedLectureIds.length === filteredLectures.length && filteredLectures.length > 0) {
+      setSelectedLectureIds([]);
+    } else {
+      setSelectedLectureIds(filteredLectures.map((l) => l.id));
+    }
+  };
+
+  const handleBatchStatusChange = async (newStatus: ContentStatus) => {
+    if (selectedLectureIds.length === 0) return;
+    const count = await officialContentService.batchUpdateLectureStatus(selectedLectureIds, newStatus);
+    showToast(`Updated ${count} lectures to ${newStatus.toUpperCase()}`);
+    setSelectedLectureIds([]);
+    await loadData();
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedLectureIds.length === 0) return;
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete ${selectedLectureIds.length} lectures and all their questions?`
+      )
+    ) {
+      return;
+    }
+    for (const id of selectedLectureIds) {
+      await officialContentService.deleteOfficialLecture(id);
+    }
+    showToast(`Deleted ${selectedLectureIds.length} lectures.`);
+    setSelectedLectureIds([]);
+    await loadData();
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const blobUrl = URL.createObjectURL(file);
-    setEditingLecture((prev) => ({
-      ...prev,
-      pdfUrl: blobUrl,
-      pdfPageCount: prev?.pdfPageCount || 20,
-    }));
+
+    try {
+      const targetId = editingLecture?.id || `lec_${Date.now()}`;
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Persist PDF binary into IndexedDB official_pdf_storage so all accounts can view it
+      await officialContentService.saveOfficialPdf(targetId, arrayBuffer, file.name);
+
+      setEditingLecture((prev) => ({
+        ...prev,
+        id: targetId,
+        pdfUrl: `idb://${targetId}`,
+        pdfPageCount: prev?.pdfPageCount || 20,
+        pdfFileSizeBytes: file.size,
+      }));
+      showToast(`PDF "${file.name}" saved persistently.`);
+    } catch (err: any) {
+      console.error('[Admin] Error saving PDF file:', err);
+      showToast('Failed to save PDF file.');
+    }
   };
 
   // --- Commit Parsed Questions to Lecture ---
@@ -313,29 +375,39 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         lectureId: ingestLectureId,
         versionType: ingestVersionType,
         stem: q.stem,
-        options: q.options.map((opt) => ({
-          optionLetter: opt.letter,
+        options: q.options.map((opt, oIdx) => ({
+          id: `opt_${Date.now()}_${idx}_${oIdx}`,
+          optionLetter: opt.letter as any,
           content: opt.content,
           isCorrect: opt.isCorrect,
+          displayOrder: oIdx + 1,
         })),
+        displayOrder: idx + 1,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }));
 
       await officialContentService.saveOfficialQuestionsBatch(batchToSave);
 
-      // Update lecture counter
+      // Query actual live questions from the database to guarantee exact synchronization
+      const liveQs = await officialContentService.getQuestionsForLecture(ingestLectureId);
+      const practiceCount = liveQs.filter((q) => q.versionType === 'practice').length;
+      const examCount = liveQs.filter((q) => q.versionType === 'university_exam_style').length;
+
       if (targetLecture) {
+        let shouldPublish = false;
+        if (targetLecture.status === 'draft') {
+          shouldPublish = window.confirm(
+            `Target lecture "${targetLecture.title}" is currently in DRAFT mode (hidden from students).\n\nWould you like to PUBLISH it now so students can immediately access these questions?`
+          );
+        }
+
         const updatedLecture: OfficialLecture = {
           ...targetLecture,
-          practiceQuestionsCount:
-            ingestVersionType === 'practice'
-              ? (targetLecture.practiceQuestionsCount || 0) + batchToSave.length
-              : targetLecture.practiceQuestionsCount,
-          universityExamStyleQuestionsCount:
-            ingestVersionType === 'university_exam_style'
-              ? (targetLecture.universityExamStyleQuestionsCount || 0) + batchToSave.length
-              : targetLecture.universityExamStyleQuestionsCount,
+          status: shouldPublish ? 'published' : targetLecture.status,
+          publishedAt: shouldPublish ? Date.now() : targetLecture.publishedAt,
+          practiceQuestionsCount: practiceCount,
+          universityExamStyleQuestionsCount: examCount,
           updatedAt: Date.now(),
         };
         await officialContentService.saveOfficialLecture(updatedLecture);
@@ -406,14 +478,24 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     return lectures.filter((lec) => {
       const matchesModule =
         selectedModuleFilter === 'all' || lec.moduleSlug === selectedModuleFilter;
+      const matchesStatus =
+        selectedStatusFilter === 'all' || lec.status === selectedStatusFilter;
       const matchesSearch =
         !lectureSearchQuery.trim() ||
         lec.title.toLowerCase().includes(lectureSearchQuery.toLowerCase()) ||
         lec.subjectSlug.toLowerCase().includes(lectureSearchQuery.toLowerCase()) ||
         lec.weekSlug.toLowerCase().includes(lectureSearchQuery.toLowerCase());
-      return matchesModule && matchesSearch;
+      return matchesModule && matchesStatus && matchesSearch;
     });
-  }, [lectures, selectedModuleFilter, lectureSearchQuery]);
+  }, [lectures, selectedModuleFilter, selectedStatusFilter, lectureSearchQuery]);
+
+  const statusCounts = useMemo(() => {
+    const total = lectures.length;
+    const published = lectures.filter((l) => l.status === 'published').length;
+    const draft = lectures.filter((l) => l.status === 'draft').length;
+    const hidden = lectures.filter((l) => l.status === 'hidden').length;
+    return { total, published, draft, hidden };
+  }, [lectures]);
 
   // If user is not authorized or not signed in with whitelisted email
   if (!isAuthorized) {
@@ -545,8 +627,141 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       {/* =========================================================================
           TAB 1: CURRICULUM & LECTURES
          ========================================================================= */}
+      {/* =========================================================================
+          TAB 1: CURRICULUM & LECTURES (LIFECYCLE MANAGEMENT)
+         ========================================================================= */}
       {activeTab === 'curriculum' && (
         <div className="space-y-6 animate-in fade-in">
+          {/* Status KPI Filter Cards: All, Published, Draft, Hidden */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {/* Card 1: All */}
+            <button
+              type="button"
+              onClick={() => setSelectedStatusFilter('all')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                selectedStatusFilter === 'all'
+                  ? 'bg-primary/5 border-primary ring-2 ring-primary/20 shadow-sm'
+                  : 'bg-surface border-subtle hover:border-muted hover:bg-subtle/20'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-muted uppercase tracking-wider">All Items</span>
+                <Layers className="w-4 h-4 text-muted" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-primary font-mono">{statusCounts.total}</span>
+                <span className="text-[10px] text-muted">lectures</span>
+              </div>
+              <p className="mt-1 text-[11px] text-muted truncate">Complete curriculum bank</p>
+            </button>
+
+            {/* Card 2: Published */}
+            <button
+              type="button"
+              onClick={() => setSelectedStatusFilter('published')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                selectedStatusFilter === 'published'
+                  ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
+                  : 'bg-surface border-subtle hover:border-emerald-500/50 hover:bg-emerald-500/5'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  Published
+                </span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  {statusCounts.published}
+                </span>
+                <span className="text-[10px] text-muted">live</span>
+              </div>
+              <p className="mt-1 text-[11px] text-emerald-700/80 dark:text-emerald-300/80 truncate">
+                Active & visible to students
+              </p>
+            </button>
+
+            {/* Card 3: Draft */}
+            <button
+              type="button"
+              onClick={() => setSelectedStatusFilter('draft')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                selectedStatusFilter === 'draft'
+                  ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 shadow-sm'
+                  : 'bg-surface border-subtle hover:border-amber-500/50 hover:bg-amber-500/5'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                  Draft / Staging
+                </span>
+                <Clock className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
+                  {statusCounts.draft}
+                </span>
+                <span className="text-[10px] text-muted">staged</span>
+              </div>
+              <p className="mt-1 text-[11px] text-amber-700/80 dark:text-amber-300/80 truncate">
+                Hidden sandbox for authoring
+              </p>
+            </button>
+
+            {/* Card 4: Hidden */}
+            <button
+              type="button"
+              onClick={() => setSelectedStatusFilter('hidden')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                selectedStatusFilter === 'hidden'
+                  ? 'bg-slate-500/10 border-slate-500 ring-2 ring-slate-500/20 shadow-sm'
+                  : 'bg-surface border-subtle hover:border-slate-500/50 hover:bg-slate-500/5'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Hidden / Archived
+                </span>
+                <EyeOff className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-slate-500 font-mono">
+                  {statusCounts.hidden}
+                </span>
+                <span className="text-[10px] text-muted">soft-hidden</span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500 truncate">
+                Disabled without deleting data
+              </p>
+            </button>
+          </div>
+
+          {/* Lifecycle Architecture Information Bar */}
+          <div className="p-4 rounded-2xl bg-surface border border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-bold text-primary">Curriculum Lifecycle Architecture</span>
+                <p className="text-muted text-[11px]">
+                  <strong>Published</strong> items appear in student organ systems, week accordions, and study generators.
+                  <strong>Draft</strong> items are invisible to students until verified. <strong>Hidden</strong> items preserve question banks safely.
+                </p>
+              </div>
+            </div>
+            {selectedStatusFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setSelectedStatusFilter('all')}
+                className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer shrink-0 self-start sm:self-auto"
+              >
+                Clear Status Filter ({statusCounts.total} total)
+              </button>
+            )}
+          </div>
+
           {/* Controls Bar: Module Filter + Search + Add Lecture */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2.5 flex-1">
@@ -588,33 +803,117 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
             </button>
           </div>
 
+          {/* Batch Actions Bar (Visible when items are selected) */}
+          {selectedLectureIds.length > 0 && (
+            <div className="p-3 px-4 rounded-2xl bg-primary text-canvas flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-2.5">
+                <CheckSquare className="w-4 h-4 text-cyan-300" />
+                <span className="text-xs font-bold">
+                  {selectedLectureIds.length} {selectedLectureIds.length === 1 ? 'lecture' : 'lectures'} selected
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleBatchStatusChange('published')}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Publish All</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBatchStatusChange('draft')}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Move to Draft</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBatchStatusChange('hidden')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>Hide All</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBatchDelete}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Selected</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedLectureIds([])}
+                  className="px-2.5 py-1.5 rounded-lg bg-canvas/20 hover:bg-canvas/30 text-canvas font-medium text-xs cursor-pointer transition"
+                >
+                  Deselect
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Lectures Table */}
           <div className="rounded-3xl bg-surface border border-subtle overflow-hidden shadow-xs">
             {filteredLectures.length === 0 ? (
               <div className="p-12 text-center space-y-3">
                 <BookOpen className="w-12 h-12 text-muted mx-auto stroke-1" />
-                <h3 className="text-sm font-bold text-primary">No Curriculum Lectures Registered</h3>
+                <h3 className="text-sm font-bold text-primary">No Curriculum Lectures Match</h3>
                 <p className="text-xs text-muted max-w-md mx-auto">
-                  The curriculum starts empty. Create your first lecture or ingest practice questions
-                  to populate the student portal.
+                  {selectedStatusFilter !== 'all'
+                    ? `No lectures with status "${selectedStatusFilter.toUpperCase()}" found.`
+                    : 'The curriculum starts empty. Create your first lecture or ingest practice questions to populate the student portal.'}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => handleOpenCreateLecture()}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Create First Lecture</span>
-                </button>
+                {selectedStatusFilter !== 'all' ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatusFilter('all')}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm"
+                  >
+                    <span>View All Lectures</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateLecture()}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Create First Lecture</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-subtle text-muted bg-subtle/30">
+                      <th className="py-3 px-3 w-10 text-center">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllFiltered}
+                          title="Select / Deselect All Filtered"
+                          className="p-1 rounded text-muted hover:text-primary transition cursor-pointer"
+                        >
+                          {selectedLectureIds.length > 0 &&
+                          selectedLectureIds.length === filteredLectures.length ? (
+                            <CheckSquare className="w-4 h-4 text-cyan-500" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                      </th>
                       <th className="py-3 px-4 font-semibold">Lecture Title</th>
                       <th className="py-3 px-4 font-semibold">Hierarchy Path</th>
-                      <th className="py-3 px-4 font-semibold">Status</th>
+                      <th className="py-3 px-4 font-semibold min-w-[200px]">Lifecycle Status & Quick Actions</th>
                       <th className="py-3 px-4 font-semibold">Practice Qs</th>
                       <th className="py-3 px-4 font-semibold">Exam Qs</th>
                       <th className="py-3 px-4 font-semibold">PDF Slides</th>
@@ -622,88 +921,154 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-subtle">
-                    {filteredLectures.map((lec) => (
-                      <tr key={lec.id} className="hover:bg-subtle/30 transition-colors">
-                        <td className="py-3 px-4 font-bold text-primary min-w-[200px]">
-                          {lec.title}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-muted capitalize text-[11px]">
-                          {lec.moduleSlug} &gt; {lec.subjectSlug} &gt; {lec.weekSlug}
-                        </td>
-                        <td className="py-3 px-4">
-                          <select
-                            aria-label={`Change status for ${lec.title}`}
-                            value={lec.status}
-                            onChange={(e) =>
-                              handleUpdateLectureStatus(lec.id, e.target.value as ContentStatus)
-                            }
-                            className={`px-2 py-0.5 rounded-md font-bold text-[10px] cursor-pointer border ${
-                              lec.status === 'published'
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                : lec.status === 'hidden'
-                                ? 'bg-slate-500/10 text-slate-500 border-slate-500/20'
-                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                            }`}
-                          >
-                            <option value="draft">Draft</option>
-                            <option value="published">Published</option>
-                            <option value="hidden">Hidden</option>
-                          </select>
-                        </td>
-                        <td className="py-3 px-4 font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                          {lec.practiceQuestionsCount || 0}
-                        </td>
-                        <td className="py-3 px-4 font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                          {lec.universityExamStyleQuestionsCount || 0}
-                        </td>
-                        <td className="py-3 px-4">
-                          {lec.pdfUrl ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-bold text-[10px]">
-                              <FileText className="w-3 h-3" />
-                              <span>{lec.pdfPageCount || 20} p</span>
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-subtle text-muted text-[10px]">
-                              Pending
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                    {filteredLectures.map((lec) => {
+                      const isSelected = selectedLectureIds.includes(lec.id);
+                      return (
+                        <tr
+                          key={lec.id}
+                          className={`hover:bg-subtle/30 transition-colors ${
+                            isSelected ? 'bg-cyan-500/5' : ''
+                          }`}
+                        >
+                          <td className="py-3 px-3 text-center">
                             <button
                               type="button"
-                              onClick={() => {
-                                setIngestLectureId(lec.id);
-                                setActiveTab('ingestion');
-                              }}
-                              title="Ingest Questions into this lecture"
-                              className="p-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 transition cursor-pointer"
+                              onClick={() => handleToggleSelectLecture(lec.id)}
+                              className="p-1 rounded text-muted hover:text-primary cursor-pointer"
                             >
-                              <Plus className="w-3.5 h-3.5" />
+                              {isSelected ? (
+                                <CheckSquare className="w-4 h-4 text-cyan-500" />
+                              ) : (
+                                <Square className="w-4 h-4" />
+                              )}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingLecture(lec);
-                                setIsLectureModalOpen(true);
-                              }}
-                              title="Edit lecture"
-                              className="p-1.5 rounded-lg bg-subtle hover:bg-subtle/80 text-secondary transition cursor-pointer"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteLecture(lec)}
-                              title="Delete lecture"
-                              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-primary min-w-[200px]">
+                            {lec.title}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-muted capitalize text-[11px]">
+                            {lec.moduleSlug} &gt; {lec.subjectSlug} &gt; {lec.weekSlug}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              {/* Status Badge */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[10px] border ${
+                                  lec.status === 'published'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                    : lec.status === 'hidden'
+                                    ? 'bg-slate-500/10 text-slate-500 border-slate-500/20'
+                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                }`}
+                              >
+                                {lec.status === 'published' && <CheckCircle2 className="w-3 h-3" />}
+                                {lec.status === 'draft' && <Clock className="w-3 h-3" />}
+                                {lec.status === 'hidden' && <EyeOff className="w-3 h-3" />}
+                                <span className="uppercase">{lec.status}</span>
+                              </span>
+
+                              {/* 1-Click Quick Transition Button */}
+                              {lec.status === 'draft' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateLectureStatus(lec.id, 'published')}
+                                  title="Publish this lecture immediately for students"
+                                  className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer shadow-xs transition"
+                                >
+                                  Publish Now
+                                </button>
+                              )}
+                              {lec.status === 'published' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateLectureStatus(lec.id, 'draft')}
+                                  title="Move to draft staging (hide from students)"
+                                  className="px-2 py-0.5 rounded-md bg-amber-600/10 hover:bg-amber-600/20 text-amber-600 font-bold text-[10px] border border-amber-600/30 cursor-pointer transition"
+                                >
+                                  To Draft
+                                </button>
+                              )}
+                              {lec.status === 'hidden' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateLectureStatus(lec.id, 'published')}
+                                  title="Restore lecture to published status"
+                                  className="px-2 py-0.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[10px] cursor-pointer shadow-xs transition"
+                                >
+                                  Restore Live
+                                </button>
+                              )}
+
+                              {/* Explicit Dropdown Menu */}
+                              <select
+                                aria-label={`Change status for ${lec.title}`}
+                                value={lec.status}
+                                onChange={(e) =>
+                                  handleUpdateLectureStatus(lec.id, e.target.value as ContentStatus)
+                                }
+                                className="px-1.5 py-0.5 rounded bg-subtle border border-subtle text-[10px] text-muted cursor-pointer focus:outline-none"
+                              >
+                                <option value="draft">Draft</option>
+                                <option value="published">Published</option>
+                                <option value="hidden">Hidden</option>
+                              </select>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                            {lec.practiceQuestionsCount || 0}
+                          </td>
+                          <td className="py-3 px-4 font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                            {lec.universityExamStyleQuestionsCount || 0}
+                          </td>
+                          <td className="py-3 px-4">
+                            {lec.pdfUrl ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-bold text-[10px]">
+                                <FileText className="w-3 h-3" />
+                                <span>{lec.pdfPageCount || 20} p</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-subtle text-muted text-[10px]">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIngestLectureId(lec.id);
+                                  setActiveTab('ingestion');
+                                }}
+                                title="Ingest Questions into this lecture"
+                                className="p-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 transition cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingLecture(lec);
+                                  setIsLectureModalOpen(true);
+                                }}
+                                title="Edit lecture"
+                                className="p-1.5 rounded-lg bg-subtle hover:bg-subtle/80 text-secondary transition cursor-pointer"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLecture(lec)}
+                                title="Delete lecture"
+                                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

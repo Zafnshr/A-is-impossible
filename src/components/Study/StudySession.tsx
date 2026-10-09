@@ -38,7 +38,6 @@ import { dbService } from '../../services/db';
 import { Tooltip } from '../Tooltip';
 import { QuestionMapPanel, evaluateQuestionCorrectness } from './QuestionMapPanel';
 import { guaranteedShuffle } from '../../services/sessionGenerator';
-import { OrderDebugModal } from './OrderDebugModal';
 
 interface StudySessionProps {
   session: StudySessionState;
@@ -99,7 +98,6 @@ export const StudySession: React.FC<StudySessionProps> = ({
     setFlaggedIds(s);
   }, [userStatuses]);
   const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
-  const [orderDebugOpen, setOrderDebugOpen] = useState(false);
 
   // Timer reference
   const timerRef = useRef<number | null>(null);
@@ -115,9 +113,21 @@ export const StudySession: React.FC<StudySessionProps> = ({
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number | null>(null);
   const [selectedOrderingPos, setSelectedOrderingPos] = useState<number>(0);
 
+  const isExamMode = session.studyMode === 'exam';
+
+  // Count distinct answered questions from userAnswers in exam mode
+  const answeredKeysCount = React.useMemo(() => {
+    return Object.keys(session.userAnswers).filter(
+      (k) => session.userAnswers[k] !== undefined && session.userAnswers[k] !== null && session.userAnswers[k] !== ''
+    ).length;
+  }, [session.userAnswers]);
+
   // Solved vs Remaining calculation
-  const solvedCount = Object.keys(session.submittedQuestions).length;
-  const remainingCount = questions.length - solvedCount;
+  const solvedCount = isExamMode ? answeredKeysCount : Object.keys(session.submittedQuestions).length;
+  const remainingCount = Math.max(0, questions.length - solvedCount);
+
+  // In-app modal state for early exam submission confirmation
+  const [isFinishExamConfirmOpen, setIsFinishExamConfirmOpen] = useState(false);
 
   // Memoized randomized target choices for matching questions (guaranteed non-1:1 order)
   const matchingTargetChoices = React.useMemo(() => {
@@ -200,7 +210,6 @@ export const StudySession: React.FC<StudySessionProps> = ({
     };
   }, [session.timerRunning]);
 
-  const isExamMode = session.studyMode === 'exam';
   const isSubmitted = currentQuestion ? !!session.submittedQuestions[currentQuestion.id] : false;
   const isRevealed = currentQuestion ? !!session.revealedQuestions[currentQuestion.id] : false;
 
@@ -276,8 +285,16 @@ export const StudySession: React.FC<StudySessionProps> = ({
         }
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (!isSubmitted) handleSubmitCurrent();
-        else handleNext();
+        if (isExamMode) {
+          if (currentQIndex === questions.length - 1) {
+            handleRequestFinishExam();
+          } else {
+            handleNext();
+          }
+        } else {
+          if (!isSubmitted) handleSubmitCurrent();
+          else handleNext();
+        }
       } else if (e.key.toLowerCase() === 'r') {
         // Retry Question shortcut
         e.preventDefault();
@@ -408,8 +425,12 @@ export const StudySession: React.FC<StudySessionProps> = ({
         currentIndex: currentQIndex + 1,
         lastSavedAt: Date.now(),
       });
-    } else if (currentQIndex === questions.length - 1 && isSubmitted) {
-      finishAndComputeSummary();
+    } else if (currentQIndex === questions.length - 1) {
+      if (isExamMode) {
+        handleRequestFinishExam();
+      } else if (isSubmitted) {
+        finishAndComputeSummary();
+      }
     }
   };
 
@@ -432,11 +453,17 @@ export const StudySession: React.FC<StudySessionProps> = ({
   };
 
   const handleSelectSingleOption = (optionIndex: number) => {
-    if (isSubmitted) return;
+    if (!isExamMode && isSubmitted) return;
     const cur = sessionRef.current;
     const updated = {
       ...cur,
       userAnswers: { ...cur.userAnswers, [currentQuestion.id]: optionIndex },
+      submittedQuestions: isExamMode
+        ? { ...cur.submittedQuestions, [currentQuestion.id]: true }
+        : cur.submittedQuestions,
+      revealedQuestions: isExamMode
+        ? { ...cur.revealedQuestions, [currentQuestion.id]: false }
+        : cur.revealedQuestions,
       lastSavedAt: Date.now(),
     };
     sessionRef.current = updated;
@@ -444,19 +471,25 @@ export const StudySession: React.FC<StudySessionProps> = ({
   };
 
   const handleToggleMultipleOption = (optionIndex: number) => {
-    if (isSubmitted) return;
+    if (!isExamMode && isSubmitted) return;
     const cur = sessionRef.current;
     const currentList: number[] = Array.isArray(cur.userAnswers[currentQuestion.id])
       ? [...cur.userAnswers[currentQuestion.id]]
       : [];
     const exists = currentList.includes(optionIndex);
-    const updated = exists
+    const updatedList = exists
       ? currentList.filter((i) => i !== optionIndex)
       : [...currentList, optionIndex].sort((a, b) => a - b);
 
     const updatedSession = {
       ...cur,
-      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updated },
+      userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updatedList },
+      submittedQuestions: isExamMode
+        ? { ...cur.submittedQuestions, [currentQuestion.id]: updatedList.length > 0 }
+        : cur.submittedQuestions,
+      revealedQuestions: isExamMode
+        ? { ...cur.revealedQuestions, [currentQuestion.id]: false }
+        : cur.revealedQuestions,
       lastSavedAt: Date.now(),
     };
     sessionRef.current = updatedSession;
@@ -464,13 +497,19 @@ export const StudySession: React.FC<StudySessionProps> = ({
   };
 
   const handleMatchingChange = (pairId: string, matchedRight: string) => {
-    if (isSubmitted) return;
+    if (!isExamMode && isSubmitted) return;
     const updated = { ...matchingSelections, [pairId]: matchedRight };
     setMatchingSelections(updated);
     const cur = sessionRef.current;
     const updatedSession = {
       ...cur,
       userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updated },
+      submittedQuestions: isExamMode
+        ? { ...cur.submittedQuestions, [currentQuestion.id]: true }
+        : cur.submittedQuestions,
+      revealedQuestions: isExamMode
+        ? { ...cur.revealedQuestions, [currentQuestion.id]: false }
+        : cur.revealedQuestions,
       lastSavedAt: Date.now(),
     };
     sessionRef.current = updatedSession;
@@ -478,7 +517,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
   };
 
   const handleMoveOrderItem = (fromIndex: number, toIndex: number) => {
-    if (isSubmitted) return;
+    if (!isExamMode && isSubmitted) return;
     if (toIndex < 0 || toIndex >= orderingList.length) return;
     const list = [...orderingList];
     const [moved] = list.splice(fromIndex, 1);
@@ -488,6 +527,12 @@ export const StudySession: React.FC<StudySessionProps> = ({
     const updatedSession = {
       ...cur,
       userAnswers: { ...cur.userAnswers, [currentQuestion.id]: list },
+      submittedQuestions: isExamMode
+        ? { ...cur.submittedQuestions, [currentQuestion.id]: true }
+        : cur.submittedQuestions,
+      revealedQuestions: isExamMode
+        ? { ...cur.revealedQuestions, [currentQuestion.id]: false }
+        : cur.revealedQuestions,
       lastSavedAt: Date.now(),
     };
     sessionRef.current = updatedSession;
@@ -495,13 +540,19 @@ export const StudySession: React.FC<StudySessionProps> = ({
   };
 
   const handleCaseAnswerChange = (subQuestionId: string, chosenOptionIndex: number) => {
-    if (isSubmitted) return;
+    if (!isExamMode && isSubmitted) return;
     const updated = { ...caseAnswers, [subQuestionId]: chosenOptionIndex };
     setCaseAnswers(updated);
     const cur = sessionRef.current;
     const updatedSession = {
       ...cur,
       userAnswers: { ...cur.userAnswers, [currentQuestion.id]: updated },
+      submittedQuestions: isExamMode
+        ? { ...cur.submittedQuestions, [currentQuestion.id]: true }
+        : cur.submittedQuestions,
+      revealedQuestions: isExamMode
+        ? { ...cur.revealedQuestions, [currentQuestion.id]: false }
+        : cur.revealedQuestions,
       lastSavedAt: Date.now(),
     };
     sessionRef.current = updatedSession;
@@ -601,6 +652,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
   };
 
   const handleOptionDoubleClick = async (optionIndex: number) => {
+    if (isExamMode) {
+      handleSelectSingleOption(optionIndex);
+      return;
+    }
     if (isSubmitted) return;
     const cur = sessionRef.current;
     const updatedAnswers = { ...cur.userAnswers, [currentQuestion.id]: optionIndex };
@@ -615,6 +670,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
   };
 
   const handleMultipleOptionDoubleClick = async (optionIndex: number) => {
+    if (isExamMode) {
+      handleToggleMultipleOption(optionIndex);
+      return;
+    }
     if (isSubmitted) return;
     const cur = sessionRef.current;
     const currentList: number[] = Array.isArray(cur.userAnswers[currentQuestion.id])
@@ -703,15 +762,122 @@ export const StudySession: React.FC<StudySessionProps> = ({
     setNoteOpen(false);
   };
 
-  const finishAndComputeSummary = () => {
+  const handleRequestFinishExam = () => {
+    const unansweredCount = questions.length - answeredKeysCount;
+    if (unansweredCount > 0) {
+      setIsFinishExamConfirmOpen(true);
+    } else {
+      executeFinishExam();
+    }
+  };
+
+  const handleJumpToFirstUnanswered = () => {
+    setIsFinishExamConfirmOpen(false);
+    const firstUnansweredIndex = questions.findIndex((q) => {
+      const ans = session.userAnswers[q.id];
+      return ans === undefined || ans === null || ans === '';
+    });
+    if (firstUnansweredIndex >= 0) {
+      handleJump(firstUnansweredIndex);
+    }
+  };
+
+  const executeFinishExam = async () => {
+    setIsFinishExamConfirmOpen(false);
+
     let correctCount = 0;
     let incorrectCount = 0;
     const incorrectQIds: string[] = [];
 
-    questions.forEach((q) => {
-      const isSub = session.submittedQuestions[q.id];
-      if (isSub) {
-        const ans = session.userAnswers[q.id];
+    const updatedSubmitted: Record<string, boolean> = { ...session.submittedQuestions };
+
+    for (const q of questions) {
+      const ans = session.userAnswers[q.id];
+      const hasAnswer = ans !== undefined && ans !== null && ans !== '';
+
+      if (hasAnswer) {
+        updatedSubmitted[q.id] = true;
+        const correct = evaluateQuestionCorrectness(q, ans);
+        if (correct) {
+          correctCount++;
+        } else {
+          incorrectCount++;
+          incorrectQIds.push(q.id);
+        }
+
+        // Persist attempts for answered question in Exam Mode
+        await dbService.saveAttempt({
+          id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          profileId: session.profileId,
+          questionId: q.id,
+          deckId: q.deckId,
+          year: currentDeck?.year || 'Year 2',
+          module: currentDeck?.module || 'CVS',
+          subject: currentDeck?.subject || 'Physiology',
+          lectureName: currentDeck?.lectureName || 'Lecture',
+          selectedAnswer: ans,
+          isCorrect: correct,
+          timeSpentSeconds: Math.round(session.timerSeconds / Math.max(1, questions.length)) || 15,
+          timestamp: Date.now(),
+        });
+      } else {
+        // In exam mode, unanswered questions are added to incorrect/review list
+        incorrectQIds.push(q.id);
+      }
+    }
+
+    const evaluatedCount = correctCount + incorrectCount;
+    const unansweredCount = Math.max(0, questions.length - evaluatedCount);
+    // Score in Exam Mode is calculated out of the full exam total:
+    const scorePercentage = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+
+    const finalizedSession: StudySessionState = {
+      ...session,
+      submittedQuestions: updatedSubmitted,
+      isCompleted: true,
+      lastSavedAt: Date.now(),
+    };
+    sessionRef.current = finalizedSession;
+    onUpdateSession(finalizedSession);
+
+    const summary: SessionCompletionSummary = {
+      sessionId: session.sessionId,
+      deckTitle: currentDeck?.lectureName || 'Exam Session',
+      totalQuestions: questions.length,
+      solvedCount: evaluatedCount,
+      unansweredCount,
+      correctCount,
+      incorrectCount,
+      scorePercentage,
+      timeSpentSeconds: session.timerSeconds,
+      completedAt: Date.now(),
+      questionIds: questions.map((q) => q.id),
+      incorrectQuestionIds: incorrectQIds,
+      studyMode: 'exam',
+      userAnswers: { ...session.userAnswers },
+      sessionQuestions: questions,
+      flaggedIds: Array.from(flaggedIds),
+    };
+
+    onCompleteSessionWithSummary(summary);
+  };
+
+  const finishAndComputeSummary = async () => {
+    if (isExamMode) {
+      handleRequestFinishExam();
+      return;
+    }
+
+    let correctCount = 0;
+    let incorrectCount = 0;
+    const incorrectQIds: string[] = [];
+
+    for (const q of questions) {
+      const ans = session.userAnswers[q.id];
+      const hasAnswer = ans !== undefined && ans !== null && ans !== '';
+      const isSub = session.submittedQuestions[q.id] || hasAnswer;
+
+      if (isSub && hasAnswer) {
         let correct = false;
         if (q.type === 'single_mcq' || q.type === 'true_false') {
           correct = q.correctAnswers.includes(ans);
@@ -737,7 +903,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
           incorrectQIds.push(q.id);
         }
       }
-    });
+    }
 
     const evaluatedCount = correctCount + incorrectCount;
     const scorePercentage =
@@ -756,6 +922,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
       completedAt: Date.now(),
       questionIds: questions.map((q) => q.id),
       incorrectQuestionIds: incorrectQIds,
+      studyMode: isExamMode ? 'exam' : 'learning',
+      userAnswers: { ...session.userAnswers },
+      sessionQuestions: questions,
+      flaggedIds: Array.from(flaggedIds),
     };
 
     onCompleteSessionWithSummary(summary);
@@ -823,6 +993,19 @@ export const StudySession: React.FC<StudySessionProps> = ({
             </button>
           </div>
 
+          {/* Top Finish Exam Button (Exam Mode only) */}
+          {isExamMode && (
+            <button
+              type="button"
+              onClick={handleRequestFinishExam}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-bold shadow-sm transition active:scale-95 cursor-pointer"
+              title="Finish and submit exam"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Finish Exam</span>
+            </button>
+          )}
+
           {/* End Session Button */}
           <Tooltip content="End or pause study session">
             <button
@@ -872,15 +1055,6 @@ export const StudySession: React.FC<StudySessionProps> = ({
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-subtle border border-subtle text-secondary capitalize">
                 {currentQuestion.type.replace('_', ' ')}
               </span>
-              <Tooltip content="Inspect question order debug pipeline and transformation logs">
-                <button
-                  onClick={() => setOrderDebugOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[11px] font-mono font-semibold text-cyan-600 dark:text-cyan-400 transition active:scale-95"
-                >
-                  <Sliders className="w-3 h-3" />
-                  <span>Order Debug</span>
-                </button>
-              </Tooltip>
             </div>
 
             {/* Favorite, Flag, Notes */}
@@ -1014,7 +1188,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                     setFocusedOptionIndex(idx);
                   }}
                   onDoubleClick={() => handleOptionDoubleClick(idx)}
-                  disabled={isSubmitted}
+                  disabled={!isExamMode && isSubmitted}
                   className={`w-full text-left p-3 sm:p-3.5 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
                 >
                   <span className="w-6 h-6 rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 border border-subtle bg-surface text-secondary">
@@ -1062,7 +1236,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                     setFocusedOptionIndex(idx);
                   }}
                   onDoubleClick={() => handleMultipleOptionDoubleClick(idx)}
-                  disabled={isSubmitted}
+                  disabled={!isExamMode && isSubmitted}
                   className={`w-full text-left p-3 sm:p-3.5 rounded-xl border transition flex items-start gap-3 text-xs sm:text-sm font-medium cursor-pointer select-none ${style}`}
                 >
                   <span className="w-6 h-6 rounded-md text-xs font-mono font-bold flex items-center justify-center shrink-0 border border-subtle bg-surface text-secondary">
@@ -1135,7 +1309,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                   <select
                     value={matchingSelections[pair.id] || ''}
                     onChange={(e) => handleMatchingChange(pair.id, e.target.value)}
-                    disabled={isSubmitted}
+                    disabled={!isExamMode && isSubmitted}
                     className="p-2 bg-surface border border-subtle rounded-lg text-primary text-xs"
                   >
                     <option value="">Select matching target...</option>
@@ -1154,7 +1328,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
         {/* Ordering */}
         {currentQuestion.type === 'ordering' && (
           <div className="space-y-4 text-xs">
-            {isSubmitted || isRevealed ? (
+            {!isExamMode && (isSubmitted || isRevealed) ? (
               <div className="space-y-4">
                 {/* Your Submitted Order */}
                 <div className="space-y-2">
@@ -1346,7 +1520,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                         <button
                           key={oIdx}
                           onClick={() => handleCaseAnswerChange(sub.id, oIdx)}
-                          disabled={isSubmitted}
+                          disabled={!isExamMode && isSubmitted}
                           className={`w-full text-left p-2.5 rounded-lg border flex items-center justify-between transition ${style}`}
                         >
                           <div className="flex items-center gap-2">
@@ -1368,7 +1542,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
         )}
 
         {/* Immediate Reveal on Submit or Reveal Answer: Comprehensive Correct Answer Review */}
-        {(isSubmitted || isRevealed) && (
+        {!isExamMode && (isSubmitted || isRevealed) && (
           <div className="p-4 sm:p-5 rounded-2xl border border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/15 space-y-3.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
@@ -1568,7 +1742,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
             <button
               type="button"
               onClick={handleNext}
-              disabled={currentQIndex === questions.length - 1 && !isSubmitted}
+              disabled={currentQIndex === questions.length - 1 && (!isExamMode && !isSubmitted)}
               className="flex items-center justify-center gap-1 px-3 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 disabled:opacity-40 border border-subtle text-xs font-semibold text-primary transition min-tap-target cursor-pointer active:scale-95"
             >
               <span className="hidden xs:inline">Next</span>
@@ -1587,49 +1761,71 @@ export const StudySession: React.FC<StudySessionProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {!isSubmitted ? (
+            {isExamMode ? (
               <>
-                {!isExamMode && (
+                <button
+                  type="button"
+                  onClick={handleRequestFinishExam}
+                  className="px-3.5 py-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition min-tap-target cursor-pointer active:scale-95 flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Finish Exam</span>
+                </button>
+                {currentQIndex < questions.length - 1 ? (
                   <button
                     type="button"
-                    onClick={handleReveal}
-                    className="px-3.5 py-2.5 rounded-xl border border-subtle bg-subtle text-secondary hover:text-primary text-xs font-semibold transition min-tap-target cursor-pointer active:scale-95"
+                    onClick={handleNext}
+                    className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                   >
-                    {isRevealed ? 'Hide Answer' : 'Reveal Answer'}
+                    <span>Next</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRequestFinishExam}
+                    className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Submit & Finish Exam</span>
                   </button>
                 )}
+              </>
+            ) : !isSubmitted ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleReveal}
+                  className="px-3.5 py-2.5 rounded-xl border border-subtle bg-subtle text-secondary hover:text-primary text-xs font-semibold transition min-tap-target cursor-pointer active:scale-95"
+                >
+                  {isRevealed ? 'Hide Answer' : 'Reveal Answer'}
+                </button>
                 <button
                   type="button"
                   onClick={handleSubmitCurrent}
                   className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{isExamMode ? 'Confirm Answer' : 'Submit'}</span>
+                  <span>Submit</span>
                 </button>
               </>
             ) : (
               <>
-                {!isExamMode && (
-                  <button
-                    type="button"
-                    onClick={handleRetry}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-semibold text-xs transition border border-subtle min-tap-target cursor-pointer active:scale-95"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Retry (R)</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-subtle hover:bg-subtle/80 text-primary font-semibold text-xs transition border border-subtle min-tap-target cursor-pointer active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Retry (R)</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleNext}
                   className="flex items-center justify-center gap-1.5 px-5 sm:px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 min-tap-target cursor-pointer"
                 >
                   <span>
-                    {currentQIndex === questions.length - 1
-                      ? isExamMode
-                        ? 'Finish Exam'
-                        : 'Finish'
-                      : 'Next'}
+                    {currentQIndex === questions.length - 1 ? 'Finish' : 'Next'}
                   </span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1658,6 +1854,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
             isDockedCollapsed={!isQuestionMapOpen}
             onToggleCollapse={() => setIsQuestionMapOpen(!isQuestionMapOpen)}
             onClose={() => setIsQuestionMapOpen(false)}
+            onFinishExam={handleRequestFinishExam}
           />
         </div>
       </div>
@@ -1689,6 +1886,10 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 }}
                 isOpen={true}
                 onClose={() => setIsMobileSheetOpen(false)}
+                onFinishExam={() => {
+                  setIsMobileSheetOpen(false);
+                  handleRequestFinishExam();
+                }}
               />
             </div>
           </div>
@@ -1762,13 +1963,76 @@ export const StudySession: React.FC<StudySessionProps> = ({
         </div>
       )}
 
-      {/* Question Order Debug View Modal */}
-      <OrderDebugModal
-        isOpen={orderDebugOpen}
-        onClose={() => setOrderDebugOpen(false)}
-        debugInfo={session.orderDebugInfo}
-        sessionTitle={session.sessionTitle}
-      />
+      {/* Exam Mode: Early Finish / Remaining Questions Confirmation Modal */}
+      {isFinishExamConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-md bg-surface border border-subtle rounded-3xl p-6 sm:p-7 space-y-5 shadow-2xl animate-scale-in text-center sm:text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-500 shrink-0">
+                <AlertTriangle className="w-6 h-6 text-indigo-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-primary">Finish & Submit Exam?</h3>
+                <p className="text-xs text-secondary">
+                  {questions.length - answeredKeysCount > 0
+                    ? `You have ${questions.length - answeredKeysCount} unanswered question(s) remaining.`
+                    : 'All questions have been answered.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Telemetry statistics summary box */}
+            <div className="p-4 rounded-2xl bg-subtle border border-subtle text-xs space-y-2.5">
+              <div className="flex justify-between items-center">
+                <span className="text-secondary">Answered Questions:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {answeredKeysCount} / {questions.length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-secondary">Unanswered / Skipped:</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                  {questions.length - answeredKeysCount}
+                </span>
+              </div>
+              <div className="text-[11px] text-muted pt-2 border-t border-subtle leading-relaxed">
+                Notice: Unanswered questions will receive 0 marks in your final score. You can submit now or jump back to answer remaining questions.
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-2 pt-1 text-xs">
+              <button
+                type="button"
+                onClick={executeFinishExam}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-95 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Submit & Finish Exam Now</span>
+              </button>
+
+              {questions.length - answeredKeysCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleJumpToFirstUnanswered}
+                  className="w-full py-2.5 px-4 rounded-xl bg-subtle hover:bg-subtle/80 border border-subtle text-cyan-600 dark:text-cyan-400 font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>Review First Unanswered Question</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsFinishExamConfirmOpen(false)}
+                className="w-full py-2 rounded-xl text-secondary hover:text-primary font-medium transition cursor-pointer"
+              >
+                Continue Answering Exam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

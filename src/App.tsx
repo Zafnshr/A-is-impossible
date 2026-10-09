@@ -33,8 +33,9 @@ import { LectureOverviewView } from './components/Lecture/LectureOverviewView';
 import { AdminPortalView } from './components/Admin/AdminPortalView';
 import { DeckDetailView } from './components/Decks/DeckDetailView';
 import { StudySession } from './components/Study/StudySession';
-import { StudySetupModal } from './components/Study/StudySetupModal';
+import { StudySetupModal, StudySessionLaunchConfig } from './components/Study/StudySetupModal';
 import { SessionCompletionModal } from './components/Study/SessionCompletionModal';
+import { ExamReviewView } from './components/Study/ExamReviewView';
 import { QuestionEditor } from './components/Editor/QuestionEditor';
 import { ImportWizard } from './components/Import/ImportWizard';
 import { CollectionsView } from './components/Collections/CollectionsView';
@@ -119,6 +120,8 @@ export default function App() {
   const [activeOfficialModuleSlug, setActiveOfficialModuleSlug] = useState<string | null>('blood');
   const [activeSession, setActiveSession] = useState<StudySessionState | null>(null);
   const [completionSummary, setCompletionSummary] = useState<SessionCompletionSummary | null>(null);
+  const [activeExamReview, setActiveExamReview] = useState<SessionCompletionSummary | null>(null);
+  const [officialLectures, setOfficialLectures] = useState<OfficialLecture[]>([]);
 
   // Modals & Flows
   const [studySetupOpen, setStudySetupOpen] = useState(false);
@@ -202,21 +205,29 @@ export default function App() {
       setAttempts(rebuilt.attempts);
       setSessionHistory(rebuilt.sessionHistory);
 
+      const loadedLecs = await officialContentService.getOfficialLectures();
+      setOfficialLectures(loadedLecs || []);
+
       const loadedTrash = await dbService.getTrashItems(WORKSPACE_ID);
       setTrashItems(loadedTrash);
 
       const savedSession = await dbService.getActiveSession(WORKSPACE_ID);
       if (savedSession) {
-        // Self-healing: verify that the referenced deck and questions still exist
+        // Self-healing: verify that the referenced deck/lecture and questions still exist
         const sessionDecksExist =
           savedSession.deckIds &&
           savedSession.deckIds.length > 0 &&
-          savedSession.deckIds.some((dId) => rebuilt.decks.some((d: Deck) => d.id === dId));
+          savedSession.deckIds.some(
+            (dId) =>
+              rebuilt.decks.some((d: Deck) => d.id === dId) ||
+              (loadedLecs && loadedLecs.some((l: OfficialLecture) => l.id === dId))
+          );
 
         const sessionQuestionsExist =
           savedSession.questionIds &&
           savedSession.questionIds.length > 0 &&
-          savedSession.questionIds.some((qId) => rebuilt.questions.some((q: Question) => q.id === qId));
+          (Boolean(savedSession.sessionQuestions && savedSession.sessionQuestions.length > 0) ||
+            savedSession.questionIds.some((qId) => rebuilt.questions.some((q: Question) => q.id === qId)));
 
         if (!sessionDecksExist || !sessionQuestionsExist) {
           console.warn('[db] Cleared orphaned active session for deleted deck/questions');
@@ -533,7 +544,10 @@ export default function App() {
     await reloadData();
     await handleStartSession({
       deckIds: [deck.id],
+      officialLectureIds: [],
       mode: 'single_lecture',
+      track: 'both',
+      studyMode: 'learning',
       orderMode: 'sequential',
       shuffleOptions: {
         shuffleQuestions: false,
@@ -578,94 +592,49 @@ export default function App() {
 
   const handleStartOfficialStudyTrack = async (
     lecture: OfficialLecture,
-    versionType: QuestionVersionType,
-    studyMode: StudyModeType = 'learning'
+    versionType: QuestionVersionType | 'both',
+    studyMode: StudyModeType = 'learning',
+    config?: Partial<StudySessionLaunchConfig>
   ) => {
-    try {
-      const officialQs = await officialContentService.getQuestionsForLecture(
-        lecture.id,
-        versionType
-      );
-      if (!officialQs || officialQs.length === 0) {
-        alert(
-          `No ${
-            versionType === 'practice' ? 'Practice' : 'University Exam Style'
-          } questions registered yet for this lecture.`
-        );
-        return;
-      }
-
-      const mappedQuestions: Question[] = officialQs.map((oq, index) => {
-        const correctIndices = oq.options
-          .map((opt, i) => (opt.isCorrect ? i : -1))
-          .filter((i) => i >= 0);
-        return {
-          id: oq.id,
-          deckId: lecture.id,
-          type: 'single_mcq',
-          question: oq.stem,
-          options: oq.options.map((opt) => opt.content),
-          correctAnswers: correctIndices.length > 0 ? correctIndices : [0],
-          originalOrderIndex: index,
-          createdAt: oq.createdAt,
-          updatedAt: oq.updatedAt,
-        };
-      });
-
-      const versionLabel =
-        versionType === 'practice' ? 'Practice Questions' : 'University Exam Style Questions';
-      const title = `${lecture.title} — ${versionLabel}`;
-
-      const newSession: StudySessionState = {
-        profileId: WORKSPACE_ID,
-        sessionId: `session_official_${Date.now()}`,
-        deckIds: [lecture.id],
-        sessionTitle: title,
-        mode: 'single_lecture',
-        orderMode: 'sequential',
-        shuffleOptions: {
-          shuffleQuestions: false,
-          shuffleAnswers: false,
-          shuffleLectures: false,
-        },
-        questionIds: mappedQuestions.map((q) => q.id),
-        sessionQuestions: mappedQuestions,
-        currentIndex: 0,
-        userAnswers: {},
-        submittedQuestions: {},
-        revealedQuestions: {},
-        studyMode,
-        versionType,
-        officialLectureId: lecture.id,
-        timerType: 'stopwatch',
-        timerSeconds: 0,
-        countdownInitialSeconds: 600,
-        timerRunning: true,
-        lastSavedAt: Date.now(),
-        startedAt: Date.now(),
-      };
-
-      setQuestions((prev) => {
-        const existingIds = new Set(prev.map((q) => q.id));
-        const newQs = mappedQuestions.filter((q) => !existingIds.has(q.id));
-        return [...prev, ...newQs];
-      });
-
-      await dbService.saveActiveSession(newSession);
-      setActiveSession(newSession);
-      setActiveTab('study');
-      triggerAutoSave();
-    } catch (err: any) {
-      console.error('[OfficialStudyTrack] Error launching study session:', err);
-      alert('Unable to launch official questions session.');
-    }
+    const launchConfig: StudySessionLaunchConfig = {
+      deckIds: config?.deckIds || [],
+      officialLectureIds: config?.officialLectureIds?.length ? config.officialLectureIds : [lecture.id],
+      mode: config?.mode || 'single_lecture',
+      track: versionType,
+      studyMode: studyMode || config?.studyMode || 'learning',
+      orderMode: config?.orderMode || 'sequential',
+      shuffleOptions: config?.shuffleOptions || {
+        shuffleQuestions: false,
+        shuffleAnswers: false,
+        shuffleLectures: false,
+      },
+      timerType: config?.timerType || 'stopwatch',
+      countdownMinutes: config?.countdownMinutes || 25,
+    };
+    await handleStartSession(launchConfig);
   };
 
   const decksMap = useMemo(() => {
     const map: Record<string, Deck> = {};
     decks.forEach((d) => (map[d.id] = d));
+    officialLectures.forEach((lec) => {
+      if (!map[lec.id]) {
+        map[lec.id] = {
+          id: lec.id,
+          title: lec.title,
+          lectureName: lec.title,
+          year: 'Year 2',
+          module: lec.moduleSlug.replace(/-/g, ' '),
+          subject: lec.subjectSlug.replace(/-/g, ' '),
+          questionCount:
+            (lec.practiceQuestionsCount || 0) + (lec.universityExamStyleQuestionsCount || 0),
+          createdAt: lec.createdAt,
+          updatedAt: lec.updatedAt,
+        };
+      }
+    });
     return map;
-  }, [decks]);
+  }, [decks, officialLectures]);
 
   const triggerAutoSave = useCallback(() => {
     setSaveStatus('saving');
@@ -697,62 +666,156 @@ export default function App() {
   };
 
   // --- Session Management ---
-  const handleStartSession = async (config: {
-    deckIds: string[];
-    mode: 'single_lecture' | 'multiple_lectures' | 'entire_subject' | 'entire_module' | 'entire_year';
-    orderMode: 'sequential' | 'shuffled' | 'custom';
-    shuffleOptions: {
-      shuffleQuestions: boolean;
-      shuffleAnswers: boolean;
-      shuffleLectures: boolean;
-    };
-    timerType: 'stopwatch' | 'countdown';
-    countdownMinutes: number;
-  }) => {
-    const { questions: targetQuestions, debugInfo } = generateStudyQuestions(
-      config,
-      questions,
-      decksMap
-    );
+  const handleStartSession = async (config: StudySessionLaunchConfig) => {
+    try {
+      // 1. Gather all official questions if official lectures are part of scope
+      let officialMappedQuestions: Question[] = [];
+      const officialIds = config.officialLectureIds || [];
+      if (officialIds.length > 0) {
+        const oQs = await officialContentService.getQuestionsForLectures(
+          officialIds,
+          config.track === 'both' ? undefined : config.track
+        );
+        officialMappedQuestions = oQs.map((oq, index) => {
+          const correctIndices = oq.options
+            .map((opt, i) => (opt.isCorrect ? i : -1))
+            .filter((i) => i >= 0);
+          return {
+            id: oq.id,
+            deckId: oq.lectureId,
+            type: 'single_mcq',
+            question: oq.stem,
+            options: oq.options.map((opt) => opt.content),
+            correctAnswers: correctIndices.length > 0 ? correctIndices : [0],
+            originalOrderIndex: index,
+            createdAt: oq.createdAt,
+            updatedAt: oq.updatedAt,
+          };
+        });
+      }
 
-    const firstDeck = decksMap[config.deckIds[0]];
-    const title =
-      config.deckIds.length === 1 && firstDeck
-        ? firstDeck.lectureName
-        : `Mixed Study Session (${config.deckIds.length} Decks)`;
+      // 2. Gather user deck questions if user decks are part of scope
+      let userDeckQuestions: Question[] = [];
+      const userDeckIds = config.deckIds || [];
+      if (userDeckIds.length > 0) {
+        userDeckQuestions = questions.filter((q) => userDeckIds.includes(q.deckId));
+      }
 
-    const newSession: StudySessionState = {
-      profileId: WORKSPACE_ID,
-      sessionId: `session_${Date.now()}`,
-      deckIds: config.deckIds,
-      sessionTitle: title,
-      mode: config.mode,
-      orderMode: config.orderMode,
-      shuffleOptions: config.shuffleOptions,
-      questionIds: targetQuestions.map((q) => q.id),
-      sessionQuestions: targetQuestions,
-      currentIndex: 0,
-      userAnswers: {},
-      submittedQuestions: {},
-      revealedQuestions: {},
-      timerType: config.timerType,
-      timerSeconds: 0,
-      countdownInitialSeconds: config.countdownMinutes * 60,
-      timerRunning: true,
-      lastSavedAt: Date.now(),
-      startedAt: Date.now(),
-      orderDebugInfo: debugInfo,
-    };
+      // 3. Fallback: check if any userDeckIds match officialLectures
+      if (officialMappedQuestions.length === 0 && userDeckQuestions.length === 0 && userDeckIds.length > 0) {
+        const possibleOfficialIds = userDeckIds.filter((id) =>
+          officialLectures.some((l) => l.id === id)
+        );
+        if (possibleOfficialIds.length > 0) {
+          const oQs = await officialContentService.getQuestionsForLectures(
+            possibleOfficialIds,
+            config.track === 'both' ? undefined : config.track
+          );
+          officialMappedQuestions = oQs.map((oq, index) => {
+            const correctIndices = oq.options
+              .map((opt, i) => (opt.isCorrect ? i : -1))
+              .filter((i) => i >= 0);
+            return {
+              id: oq.id,
+              deckId: oq.lectureId,
+              type: 'single_mcq',
+              question: oq.stem,
+              options: oq.options.map((opt) => opt.content),
+              correctAnswers: correctIndices.length > 0 ? correctIndices : [0],
+              originalOrderIndex: index,
+              createdAt: oq.createdAt,
+              updatedAt: oq.updatedAt,
+            };
+          });
+        }
+      }
 
-    // Update lastOpenedAt for each deck being studied
-    for (const dId of config.deckIds) {
-      await dbService.touchDeckLastOpened(dId);
+      // Combine all target questions
+      const combinedPool = [...officialMappedQuestions, ...userDeckQuestions];
+      if (combinedPool.length === 0) {
+        alert('No questions available in the selected scope.');
+        return;
+      }
+
+      // 4. Order and Shuffling Logic
+      const shouldShuffleQuestions =
+        config.orderMode === 'shuffled' || !!config.shuffleOptions?.shuffleQuestions;
+      const shouldShuffleAnswers = config.shuffleOptions?.shuffleAnswers !== false;
+
+      const orderedQuestions = [...combinedPool].sort((a, b) => {
+        const idxA = a.originalOrderIndex ?? Infinity;
+        const idxB = b.originalOrderIndex ?? Infinity;
+        return idxA - idxB;
+      });
+
+      let finalQuestions = shouldShuffleQuestions
+        ? guaranteedShuffle(orderedQuestions, (a, b) => a.id === b.id)
+        : [...orderedQuestions];
+
+      if (shouldShuffleAnswers) {
+        finalQuestions = finalQuestions.map(shuffleQuestionAnswers);
+      }
+
+      // Combined target IDs
+      const allTargetIds = Array.from(new Set([...officialIds, ...userDeckIds]));
+
+      // Title determination
+      let title = 'Study Session';
+      if (allTargetIds.length === 1) {
+        const id = allTargetIds[0];
+        const lec = officialLectures.find((l) => l.id === id);
+        const d = decksMap[id];
+        title = lec ? lec.title : d ? d.lectureName : 'Study Deck';
+      } else {
+        title = `Grouped Study Session (${allTargetIds.length} Decks / Lectures)`;
+      }
+
+      const newSession: StudySessionState = {
+        profileId: WORKSPACE_ID,
+        sessionId: `session_${Date.now()}`,
+        deckIds: allTargetIds,
+        sessionTitle: title,
+        mode: config.mode,
+        orderMode: config.orderMode,
+        shuffleOptions: config.shuffleOptions,
+        studyMode: config.studyMode || 'learning',
+        versionType: config.track === 'both' ? undefined : config.track,
+        questionIds: finalQuestions.map((q) => q.id),
+        sessionQuestions: finalQuestions,
+        currentIndex: 0,
+        userAnswers: {},
+        submittedQuestions: {},
+        revealedQuestions: {},
+        timerType: config.timerType || 'stopwatch',
+        timerSeconds: 0,
+        countdownInitialSeconds: (config.countdownMinutes || 25) * 60,
+        timerRunning: true,
+        lastSavedAt: Date.now(),
+        startedAt: Date.now(),
+      };
+
+      // Keep questions state in sync with any newly mapped official questions
+      if (officialMappedQuestions.length > 0) {
+        setQuestions((prev) => {
+          const existingIds = new Set(prev.map((q) => q.id));
+          const newQs = officialMappedQuestions.filter((q) => !existingIds.has(q.id));
+          return [...prev, ...newQs];
+        });
+      }
+
+      // Touch last opened for user decks
+      for (const dId of userDeckIds) {
+        await dbService.touchDeckLastOpened(dId);
+      }
+
+      await dbService.saveActiveSession(newSession);
+      setActiveSession(newSession);
+      setActiveTab('study');
+      triggerAutoSave();
+    } catch (err: any) {
+      console.error('[handleStartSession] Error launching session:', err);
+      alert('Unable to launch study session.');
     }
-
-    await dbService.saveActiveSession(newSession);
-    setActiveSession(newSession);
-    setActiveTab('study');
-    triggerAutoSave();
   };
 
   const handleUpdateSession = async (updated: StudySessionState) => {
@@ -788,7 +851,8 @@ export default function App() {
         let dCorrect = 0;
         let dAnswered = 0;
         deckQuestions.forEach((q) => {
-          if (activeSession.submittedQuestions[q.id]) {
+          const hasAns = activeSession.userAnswers[q.id] !== undefined && activeSession.userAnswers[q.id] !== null && activeSession.userAnswers[q.id] !== '';
+          if (activeSession.submittedQuestions[q.id] || hasAns) {
             dAnswered++;
             const ans = activeSession.userAnswers[q.id];
             if (q.type === 'single_mcq' || q.type === 'true_false') {
@@ -846,10 +910,11 @@ export default function App() {
         mode: activeSession.mode,
         collectionType: activeSession.collectionFilter,
         questionResults: sessionQuestions.map((q) => {
-          const isSubmitted = !!activeSession.submittedQuestions[q.id];
+          const hasAns = activeSession.userAnswers[q.id] !== undefined && activeSession.userAnswers[q.id] !== null && activeSession.userAnswers[q.id] !== '';
+          const isSubmitted = !!activeSession.submittedQuestions[q.id] || hasAns;
           const userAns = activeSession.userAnswers[q.id];
           let isCorrect = false;
-          if (isSubmitted) {
+          if (isSubmitted && hasAns) {
             if (q.type === 'single_mcq' || q.type === 'true_false') {
               isCorrect = q.correctAnswers.includes(userAns);
             } else if (q.type === 'multiple_mcq') {
@@ -1202,7 +1267,7 @@ export default function App() {
     });
 
     const shouldShuffleQuestions = !!settings.defaultShuffleOptions?.shuffleQuestions;
-    const shouldShuffleAnswers = !!settings.defaultShuffleOptions?.shuffleAnswers;
+    const shouldShuffleAnswers = settings.defaultShuffleOptions?.shuffleAnswers !== false;
 
     let finalQuestions = shouldShuffleQuestions
       ? guaranteedShuffle(orderedQuestions, (a, b) => a.id === b.id)
@@ -1439,6 +1504,7 @@ export default function App() {
                     onSwitchToMyContent={() => setActiveTab('library')}
                     initialModuleSlug={activeOfficialModuleSlug}
                     onModuleChange={setActiveOfficialModuleSlug}
+                    isAdmin={isAdmin}
                   />
                 </div>
               </div>
@@ -1482,6 +1548,7 @@ export default function App() {
                 onStartStudyTrack={handleStartOfficialStudyTrack}
                 currentUserId={currentUser?.id || 'guest_user'}
                 userPreferredMode={settings?.preferredStudyMode}
+                isAdmin={isAdmin}
               />
             </ErrorBoundary>
           )}
@@ -1576,6 +1643,32 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </ErrorBoundary>
+          )}
+
+          {/* TAB: EXAM REVIEW (Continuous scroll paper review of all questions) */}
+          {activeTab === 'exam_review' && activeExamReview && (
+            <ErrorBoundary fallbackTitle="Exam Review Error" onReset={reloadData}>
+              <ExamReviewView
+                summary={activeExamReview}
+                onBack={() => {
+                  setActiveExamReview(null);
+                  setActiveTab('dashboard');
+                }}
+                onRetake={() => {
+                  const dId = initialStudyDeckId || activeExamReview.sessionQuestions?.[0]?.deckId;
+                  setActiveExamReview(null);
+                  if (dId) handleStartStudyDeck(dId);
+                }}
+                onOpenDeckView={(deckId) => {
+                  const d = decksMap[deckId];
+                  if (d) {
+                    setActiveExamReview(null);
+                    handleOpenDeckDetail(d);
+                  }
+                }}
+                decksMap={decksMap}
+              />
             </ErrorBoundary>
           )}
 
@@ -1712,19 +1805,29 @@ export default function App() {
       {/* Study Setup Modal */}
       <StudySetupModal
         decks={decks}
+        officialLectures={officialLectures}
         isOpen={studySetupOpen}
         onClose={() => setStudySetupOpen(false)}
         onStartSession={handleStartSession}
         initialDeckId={initialStudyDeckId}
         defaultShuffleOptions={settings.defaultShuffleOptions}
+        isAdmin={isAdmin}
       />
 
       {/* Session Completion Page */}
       <SessionCompletionModal
         summary={completionSummary}
+        onReviewFullExamPaper={() => {
+          if (completionSummary) {
+            setActiveExamReview(completionSummary);
+            setActiveTab('exam_review');
+            setCompletionSummary(null);
+          }
+        }}
         onReviewAll={() => {
           if (completionSummary) {
-            handleStartPracticeCollection('favorites', completionSummary.questionIds);
+            setActiveExamReview(completionSummary);
+            setActiveTab('exam_review');
             setCompletionSummary(null);
           }
         }}

@@ -18,6 +18,7 @@ interface LibraryRootProps {
   onOpenWorkflowGuide?: () => void;
   initialSection?: LibrarySection;
   onOpenImportPrompt?: () => void;
+  isAdmin?: boolean;
 }
 
 export const LibraryRoot: React.FC<LibraryRootProps> = ({
@@ -32,6 +33,7 @@ export const LibraryRoot: React.FC<LibraryRootProps> = ({
   onLoadSampleDeck,
   onOpenWorkflowGuide,
   initialSection = 'official',
+  isAdmin = false,
 }) => {
   const [activeSection, setActiveSection] = useState<LibrarySection>(initialSection);
 
@@ -44,6 +46,7 @@ export const LibraryRoot: React.FC<LibraryRootProps> = ({
             <OfficialLibraryView
               onSelectLecture={onSelectLecture}
               onSwitchToMyContent={() => setActiveSection('my_content')}
+              isAdmin={isAdmin}
             />
           </div>
         ) : (

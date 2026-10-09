@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   Flame,
   FolderTree,
+  EyeOff,
 } from 'lucide-react';
 import { OfficialLecture, ContentStatus } from '../../types';
 import { officialContentService } from '../../services/officialContentService';
@@ -35,6 +36,7 @@ interface OfficialLibraryViewProps {
   onSwitchToMyContent?: () => void;
   initialModuleSlug?: string | null;
   onModuleChange?: (moduleSlug: string | null) => void;
+  isAdmin?: boolean;
 }
 
 // Module configuration with clinical icons and theme hues
@@ -147,9 +149,11 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
   onSwitchToMyContent,
   initialModuleSlug,
   onModuleChange,
+  isAdmin = false,
 }) => {
   const [lectures, setLectures] = useState<OfficialLecture[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminShowDrafts, setAdminShowDrafts] = useState<boolean>(false);
   const [selectedModuleSlug, setSelectedModuleSlug] = useState<string | null>(initialModuleSlug || null);
   const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>('physiology');
 
@@ -205,9 +209,44 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
     }));
   }, []);
 
+  // Base pool of visible lectures:
+  // For standard students: STRICTLY published only.
+  // For admins: toggleable between published-only and full staging preview (including drafts/hidden).
+  const visibleLectures = useMemo(() => {
+    if (isAdmin && adminShowDrafts) {
+      return lectures;
+    }
+    return lectures.filter((l) => l.status === 'published');
+  }, [lectures, isAdmin, adminShowDrafts]);
+
+  const handleQuickStatusChange = async (
+    e: React.MouseEvent,
+    lectureId: string,
+    newStatus: ContentStatus
+  ) => {
+    e.stopPropagation();
+    try {
+      await officialContentService.updateLectureStatus(lectureId, newStatus);
+      setLectures((prev) =>
+        prev.map((l) =>
+          l.id === lectureId
+            ? {
+                ...l,
+                status: newStatus,
+                publishedAt: newStatus === 'published' ? (l.publishedAt || Date.now()) : l.publishedAt,
+                updatedAt: Date.now(),
+              }
+            : l
+        )
+      );
+    } catch (err) {
+      console.error('[OfficialLibraryView] Quick status change error:', err);
+    }
+  };
+
   // Filter lectures for the active module, subject, and optional search
   const filteredLectures = useMemo(() => {
-    return lectures.filter((lec) => {
+    return visibleLectures.filter((lec) => {
       if (selectedModuleSlug && lec.moduleSlug !== selectedModuleSlug) {
         return false;
       }
@@ -222,7 +261,7 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
       }
       return true;
     });
-  }, [lectures, selectedModuleSlug, selectedSubjectSlug, searchQuery]);
+  }, [visibleLectures, selectedModuleSlug, selectedSubjectSlug, searchQuery]);
 
   // Group lectures by week
   const lecturesByWeek = useMemo(() => {
@@ -248,6 +287,33 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
+      {/* Admin Staging Preview Ribbon */}
+      {isAdmin && (
+        <div className="p-3.5 px-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs animate-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+            <div>
+              <span className="font-bold text-amber-800 dark:text-amber-200">
+                Admin Curriculum Preview Active
+              </span>
+              <span className="text-amber-700/80 dark:text-amber-300/80 ml-2 text-[11px]">
+                ({lectures.filter((l) => l.status === 'published').length} published · {lectures.filter((l) => l.status === 'draft').length} drafts · {lectures.filter((l) => l.status === 'hidden').length} hidden)
+              </span>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer font-bold text-amber-900 dark:text-amber-100 select-none bg-amber-500/15 hover:bg-amber-500/25 px-3 py-1.5 rounded-xl transition">
+            <input
+              type="checkbox"
+              checked={adminShowDrafts}
+              onChange={(e) => setAdminShowDrafts(e.target.checked)}
+              className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+            />
+            <span>Show Staged Drafts & Archived Content</span>
+          </label>
+        </div>
+      )}
+
       {/* Top Navigation Row (Only renders breadcrumbs when inside a module) */}
       {selectedModuleSlug ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -362,8 +428,8 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {YEAR_2_MODULES.map((mod) => {
               const Icon = mod.icon;
-              // Calculate module lecture count from loaded lectures
-              const moduleLectures = lectures.filter((l) => l.moduleSlug === mod.slug);
+              // Calculate module lecture count from visible lectures (published only for students)
+              const moduleLectures = visibleLectures.filter((l) => l.moduleSlug === mod.slug);
               const lectureCount = moduleLectures.length;
               const practiceCount = moduleLectures.reduce((acc, l) => acc + (l.practiceQuestionsCount || 0), 0);
               const examCount = moduleLectures.reduce((acc, l) => acc + (l.universityExamStyleQuestionsCount || 0), 0);
@@ -557,6 +623,41 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
                                   {lec.viewCount || 0} views
                                 </span>
                               </div>
+
+                              {/* Status Indicator for Staged or Hidden Content */}
+                              {lec.status !== 'published' && (
+                                <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-subtle/70 border border-subtle">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                                      lec.status === 'draft'
+                                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                        : 'bg-slate-500/10 text-slate-500 border border-slate-500/20'
+                                    }`}
+                                  >
+                                    {lec.status === 'draft' ? (
+                                      <>
+                                        <Clock className="w-3 h-3" />
+                                        <span>STAGED DRAFT</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <EyeOff className="w-3 h-3" />
+                                        <span>ARCHIVED</span>
+                                      </>
+                                    )}
+                                  </span>
+
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleQuickStatusChange(e, lec.id, 'published')}
+                                      className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer shadow-xs transition"
+                                    >
+                                      Publish Live
+                                    </button>
+                                  )}
+                                </div>
+                              )}
 
                               {/* Title */}
                               <h4 className="text-sm sm:text-base font-bold text-primary group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors leading-snug">

@@ -14,6 +14,6 @@ export const createDefaultSettings = (profileId: string = 'workspace'): UserSett
   countdownDurationMinutes: 30,
   defaultShuffleOptions: {
     shuffleQuestions: false,
-    shuffleAnswers: false,
+    shuffleAnswers: true,
   },
 });
