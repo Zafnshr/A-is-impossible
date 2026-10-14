@@ -27,11 +27,14 @@ import { Navbar } from './components/Navbar';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { DashboardView } from './components/Dashboard/DashboardView';
 import { LibraryExplorer } from './components/Decks/LibraryExplorer';
+import { MyContentView } from './components/Library/MyContentView';
 import { LibraryRoot } from './components/Library/LibraryRoot';
 import { OfficialLibraryView } from './components/Library/OfficialLibraryView';
 import { LectureOverviewView } from './components/Lecture/LectureOverviewView';
 import { AdminPortalView } from './components/Admin/AdminPortalView';
 import { DeckDetailView } from './components/Decks/DeckDetailView';
+import { GemChooserModal } from './components/Gem/GemChooserModal';
+import { parseUrlPath, formatUrlPath, safePushUrl, safeReplaceUrl } from './services/routeHelper';
 import { StudySession } from './components/Study/StudySession';
 import { StudySetupModal, StudySessionLaunchConfig } from './components/Study/StudySetupModal';
 import { SessionCompletionModal } from './components/Study/SessionCompletionModal';
@@ -108,20 +111,63 @@ export default function App() {
   const [sessionHistory, setSessionHistory] = useState<StudySessionRecord[]>([]);
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
 
-  // Navigation & Sessions
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  // Navigation & Sessions with True Browser URL Routing
+  const initialRoute = useMemo(() => {
+    if (typeof window === 'undefined') return { tab: 'dashboard' as ActiveTab };
+    return parseUrlPath(window.location.pathname);
+  }, []);
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialRoute.tab);
   const [selectedDeckForDetail, setSelectedDeckForDetail] = useState<Deck | null>(null);
+  const [pendingDeckId, setPendingDeckId] = useState<string | null>(initialRoute.deckId || null);
   const [activeLectureParams, setActiveLectureParams] = useState<{
     moduleSlug: string;
     subjectSlug: string;
     weekSlug: string;
     lectureSlug: string;
-  } | null>(null);
-  const [activeOfficialModuleSlug, setActiveOfficialModuleSlug] = useState<string | null>(null);
+  } | null>(initialRoute.lectureParams || null);
+  const [activeOfficialModuleSlug, setActiveOfficialModuleSlug] = useState<string | null>(
+    initialRoute.officialModuleSlug || null
+  );
+  const [librarySection, setLibrarySection] = useState<'official' | 'my_content'>('official');
+  const [myContentSubTab, setMyContentSubTab] = useState<'decks' | 'pdfs'>(
+    initialRoute.myContentSubTab || 'decks'
+  );
   const [activeSession, setActiveSession] = useState<StudySessionState | null>(null);
   const [completionSummary, setCompletionSummary] = useState<SessionCompletionSummary | null>(null);
   const [activeExamReview, setActiveExamReview] = useState<SessionCompletionSummary | null>(null);
   const [officialLectures, setOfficialLectures] = useState<OfficialLecture[]>([]);
+  const [isGemChooserOpen, setIsGemChooserOpen] = useState<boolean>(false);
+
+  // Distraction-Free Fullscreen Study Mode
+  const [isStudyFullscreen, setIsStudyFullscreen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (window.innerWidth < 768) return true;
+    return localStorage.getItem('a_plus_study_fullscreen_pref') === 'true';
+  });
+
+  const toggleStudyFullscreen = useCallback(() => {
+    setIsStudyFullscreen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('a_plus_study_fullscreen_pref', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'study' && activeSession) {
+      if (window.innerWidth < 768) {
+        setIsStudyFullscreen(true);
+      } else {
+        const saved = localStorage.getItem('a_plus_study_fullscreen_pref');
+        setIsStudyFullscreen(saved === 'true');
+      }
+    } else {
+      setIsStudyFullscreen(false);
+    }
+  }, [activeTab, !!activeSession]);
 
   // Modals & Flows
   const [studySetupOpen, setStudySetupOpen] = useState(false);
@@ -247,6 +293,22 @@ export default function App() {
         setActiveSession(null);
       }
 
+      // Resolve pending deck for detail view if URL was /my-content/deck/:deckId
+      if (pendingDeckId && rebuilt.decks) {
+        const found = rebuilt.decks.find((d: Deck) => d.id === pendingDeckId);
+        if (found) {
+          setSelectedDeckForDetail(found);
+          setPendingDeckId(null);
+        }
+      }
+
+      // Mark session as booted so browser refreshes bypass long intro screens
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem('a_plus_session_booted', 'true');
+        } catch {}
+      }
+
       setIsReady(true);
       setSaveStatus('saved');
       setLastSavedAt(Date.now());
@@ -254,10 +316,17 @@ export default function App() {
       console.error('IndexedDB loading error:', err);
       setIsReady(true);
     }
-  }, []);
+  }, [pendingDeckId]);
 
   useEffect(() => {
     cleanUrlHash();
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p === '/official' || p === '/my-content' || p.startsWith('/official/')) {
+        const norm = p.replace('/official', '/library').replace('/my-content', '/library');
+        safeReplaceUrl(norm);
+      }
+    }
     reloadData();
   }, [reloadData]);
 
@@ -333,6 +402,69 @@ export default function App() {
     };
     window.addEventListener('keydown', handleGlobalKeys);
     return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, []);
+
+  // Bidirectional History API URL synchronization
+  useEffect(() => {
+    if (!isReady) return;
+    const targetUrl = formatUrlPath({
+      tab: activeTab,
+      officialModuleSlug: activeOfficialModuleSlug,
+      lectureParams: activeLectureParams,
+      deckId: selectedDeckForDetail?.id || pendingDeckId,
+      myContentSubTab,
+      editorDeckId,
+    });
+    safePushUrl(targetUrl);
+  }, [
+    isReady,
+    activeTab,
+    activeOfficialModuleSlug,
+    activeLectureParams,
+    selectedDeckForDetail,
+    pendingDeckId,
+    myContentSubTab,
+    editorDeckId,
+  ]);
+
+  // Handle browser Back / Forward buttons (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined') return;
+      const parsed = parseUrlPath(window.location.pathname);
+      setActiveTab(parsed.tab);
+      if (parsed.officialModuleSlug !== undefined) {
+        setActiveOfficialModuleSlug(parsed.officialModuleSlug);
+      }
+      if (parsed.lectureParams !== undefined) {
+        setActiveLectureParams(parsed.lectureParams);
+      }
+      if (parsed.myContentSubTab) {
+        setMyContentSubTab(parsed.myContentSubTab);
+      }
+      if (parsed.deckId) {
+        setPendingDeckId(parsed.deckId);
+        const match = decks.find((d) => d.id === parsed.deckId);
+        if (match) setSelectedDeckForDetail(match);
+      } else if (parsed.tab !== 'deck_detail') {
+        setSelectedDeckForDetail(null);
+      }
+      if (parsed.editorDeckId !== undefined) {
+        setEditorDeckId(parsed.editorDeckId);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [decks]);
+
+  // Normalize '/' to '/dashboard'
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.protocol !== 'file:') {
+      if (window.location.pathname === '/') {
+        safeReplaceUrl('/dashboard');
+      }
+    }
   }, []);
 
   const isSyncingMutexRef = useRef(false);
@@ -576,7 +708,7 @@ export default function App() {
   };
 
   const handleOpenGem = () => {
-    openOfficialQuestionGenerator();
+    setIsGemChooserOpen(true);
   };
 
   const handleSelectOfficialLecture = (
@@ -1239,7 +1371,7 @@ export default function App() {
 
   // --- Collections Practice Handler ---
   const handleStartPracticeCollection = (
-    type: 'favorites' | 'flagged' | 'incorrect',
+    type: 'favorites' | 'disliked' | 'incorrect' | 'flagged',
     overrideQIds?: string[]
   ) => {
     let targetQIds: string[] = overrideQIds || [];
@@ -1247,6 +1379,8 @@ export default function App() {
     if (!overrideQIds || overrideQIds.length === 0) {
       if (type === 'favorites') {
         targetQIds = userStatuses.filter((s) => s.isFavorite).map((s) => s.questionId);
+      } else if (type === 'disliked') {
+        targetQIds = userStatuses.filter((s) => s.isDisliked).map((s) => s.questionId);
       } else if (type === 'flagged') {
         targetQIds = userStatuses.filter((s) => s.isFlagged).map((s) => s.questionId);
       } else if (type === 'incorrect') {
@@ -1255,7 +1389,7 @@ export default function App() {
     }
 
     if (targetQIds.length === 0) {
-      alert(`No ${type} questions available to practice.`);
+      console.warn(`[Collections] No ${type} questions available to practice.`);
       return;
     }
 
@@ -1281,7 +1415,7 @@ export default function App() {
     const title =
       finalQuestions.length === 1
         ? `Practice Question: ${decksMap[finalQuestions[0].deckId]?.lectureName || 'Lecture'}`
-        : `Practice: ${type.charAt(0).toUpperCase() + type.slice(1)} (${finalQuestions.length} Questions)`;
+        : `Practice: ${type === 'disliked' ? 'Disliked Questions' : type.charAt(0).toUpperCase() + type.slice(1)} (${finalQuestions.length} Questions)`;
 
     const collectionDebugInfo: OrderDebugInfo = {
       selectedMode: shouldShuffleQuestions ? 'shuffled' : 'sequential',
@@ -1343,7 +1477,7 @@ export default function App() {
       countdownInitialSeconds: 1800,
       timerRunning: true,
       lastSavedAt: Date.now(),
-      collectionFilter: type,
+      collectionFilter: type as any,
       startedAt: Date.now(),
       orderDebugInfo: collectionDebugInfo,
     };
@@ -1357,14 +1491,15 @@ export default function App() {
 
   const handleRemoveFromCollection = async (
     questionId: string,
-    collectionType: 'favorites' | 'flagged' | 'incorrect'
+    collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged'
   ) => {
     let existing = await dbService.getQuestionStatus(WORKSPACE_ID, questionId);
-    const fieldMap = {
+    const fieldMap: Record<string, keyof QuestionUserStatus> = {
       favorites: 'isFavorite',
+      disliked: 'isDisliked',
       flagged: 'isFlagged',
       incorrect: 'isIncorrect',
-    } as const;
+    };
 
     if (!existing) {
       existing = {
@@ -1378,11 +1513,23 @@ export default function App() {
       };
     }
 
-    const updated = {
+    const fieldToReset = fieldMap[collectionType] || 'isFavorite';
+    const updated: QuestionUserStatus = {
       ...existing,
-      [fieldMap[collectionType]]: false,
+      [fieldToReset]: false,
+      ...(collectionType === 'disliked' ? { dislikeReason: undefined, dislikeNotes: undefined } : {}),
     };
     await dbService.saveQuestionStatus(updated);
+
+    if (collectionType === 'disliked') {
+      try {
+        officialContentService.recordQuestionFeedback(currentUser?.id || 'guest_user', questionId, '', {
+          isFavorite: updated.isFavorite,
+          isDisliked: false,
+        });
+      } catch {}
+    }
+
     setUserStatuses((prev) =>
       prev.map((s) => (s.questionId === questionId ? updated : s))
     );
@@ -1427,49 +1574,64 @@ export default function App() {
     return `${m.toString().padStart(2, '0')}:${rem.toString().padStart(2, '0')}`;
   }, [activeSession]);
 
+  const isStudyActiveFullscreen = activeTab === 'study' && !!activeSession && isStudyFullscreen;
+
   return (
     <>
       {/* Main Workspace Layout (Mounted once isReady is true, pre-rendering behind intro overlay) */}
       {isReady && (
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-canvas">
-      {/* Top Navbar with Top-Bar Search (NOT sidebar) */}
-      <Navbar
-        settings={settings}
-        saveStatus={saveStatus}
-        lastSavedAt={lastSavedAt}
-        activeTimerText={activeTimerText}
-        isTimerRunning={activeSession?.timerRunning}
-        currentUser={currentUser}
-        isSyncing={isSyncing}
-        syncIssues={syncIssues}
-        isAdmin={isAdmin}
-        onOpenAdminPortal={() => setActiveTab('admin_portal')}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
-        onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
-        onOpenHelp={() => setActiveTab('help')}
-        onStartTour={handleRestartTour}
-        onUpdateSettings={handleUpdateSettings}
-      />
+            {/* Top Navbar with Top-Bar Search - smooth collapse in Fullscreen Focus Mode */}
+            <div
+              className={`transition-[height,opacity] duration-250 ease-out overflow-hidden shrink-0 ${
+                isStudyActiveFullscreen
+                  ? 'h-0 opacity-0 pointer-events-none'
+                  : 'h-15 opacity-100'
+              }`}
+            >
+              <Navbar
+                settings={settings}
+                saveStatus={saveStatus}
+                lastSavedAt={lastSavedAt}
+                activeTimerText={activeTimerText}
+                isTimerRunning={activeSession?.timerRunning}
+                currentUser={currentUser}
+                isSyncing={isSyncing}
+                syncIssues={syncIssues}
+                isAdmin={isAdmin}
+                onOpenAdminPortal={() => setActiveTab('admin_portal')}
+                onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                onOpenGlobalSearch={() => setGlobalSearchOpen(true)}
+                onOpenHelp={() => setActiveTab('help')}
+                onStartTour={handleRestartTour}
+                onUpdateSettings={handleUpdateSettings}
+              />
+            </div>
 
-      {/* Main Workspace Layout with Fixed Sidebar & Independent Scroll Area */}
-      <div className="flex-1 flex h-[calc(100vh-3.75rem)] overflow-hidden">
-        {/* Persistent Anchored Sidebar */}
-        <Sidebar
-          activeTab={activeTab}
-          onTabChange={(tab) => {
-            setActiveTab(tab);
-          }}
-          hasActiveSession={!!activeSession}
-          onDiscardActiveSession={handleDiscardSessionForDeck}
-          totalCollectionsCount={userStatuses.filter((s) => s.isFavorite || s.isFlagged || s.isIncorrect).length}
-          trashCount={trashItems.length}
-          onOpenImportPrompt={() => handleCreateDeckPrompt()}
-          onOpenGem={handleOpenGem}
-          isAdmin={isAdmin}
-        />
+            {/* Main Workspace Layout with Fixed Sidebar & Independent Scroll Area */}
+            <div className="flex-1 flex min-h-0 overflow-hidden relative">
+              {/* Persistent Anchored Sidebar - smoothly translates out in Fullscreen Focus */}
+              <Sidebar
+                activeTab={activeTab}
+                onTabChange={(tab) => {
+                  setActiveTab(tab);
+                }}
+                hasActiveSession={!!activeSession}
+                onDiscardActiveSession={handleDiscardSessionForDeck}
+                totalCollectionsCount={userStatuses.filter((s) => s.isFavorite || s.isDisliked || s.isIncorrect).length}
+                trashCount={trashItems.length}
+                onOpenImportPrompt={() => handleCreateDeckPrompt()}
+                onOpenGem={handleOpenGem}
+                isAdmin={isAdmin}
+                isStudyFullscreen={isStudyActiveFullscreen}
+              />
 
-        {/* Dynamic Workspace Content with Independent Scrolling (study locks to viewport: no page scroll) */}
-        <main className={`flex-1 h-full ${activeTab === 'study' ? 'overflow-hidden pb-2 md:pb-0' : 'overflow-y-auto pb-20 md:pb-0'}`}>
+              {/* Dynamic Workspace Content with Independent Scrolling (study locks to viewport: no page scroll) */}
+              <main
+                className={`flex-1 min-w-0 ${
+                  activeTab === 'study' ? 'overflow-hidden pb-2 md:pb-0' : 'overflow-y-auto pb-20 md:pb-0'
+                }`}
+              >
           {/* Keyed wrapper: re-mounts + softly transitions on every tab switch.
               Purely presentational — no navigation / workflow / logic change.
               h-full carries viewport height to views that lock to it (study). */}
@@ -1494,28 +1656,11 @@ export default function App() {
             </ErrorBoundary>
           )}
 
-          {/* TAB: OFFICIAL CONTENT (Accredited Preclinical Curriculum & Slide Decks) */}
-          {activeTab === 'official_library' && (
-            <ErrorBoundary fallbackTitle="Official Content Error" onReset={reloadData}>
-              <div className="flex-1 overflow-y-auto">
-                <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
-                  <OfficialLibraryView
-                    onSelectLecture={handleSelectOfficialLecture}
-                    onSwitchToMyContent={() => setActiveTab('library')}
-                    initialModuleSlug={activeOfficialModuleSlug}
-                    onModuleChange={setActiveOfficialModuleSlug}
-                    isAdmin={isAdmin}
-                    officialLectures={officialLectures}
-                  />
-                </div>
-              </div>
-            </ErrorBoundary>
-          )}
-
-          {/* TAB: MY CONTENT (Personal Decks, Flashcards & Workspace) */}
-          {activeTab === 'library' && (
-            <ErrorBoundary fallbackTitle="Library Explorer Error" onReset={reloadData}>
-              <LibraryExplorer
+          {/* TAB: ACADEMIC LIBRARY (Unified Official Curriculum & Personal Decks) */}
+          {(activeTab === 'library' || activeTab === 'official_library') && (
+            <ErrorBoundary fallbackTitle="Academic Library Error" onReset={reloadData}>
+              <LibraryRoot
+                onSelectLecture={handleSelectOfficialLecture}
                 decks={decks}
                 questions={questions}
                 onOpenDeckDetail={handleOpenDeckDetail}
@@ -1525,7 +1670,15 @@ export default function App() {
                 onDeleteDeck={handleDeleteDeck}
                 initialLocation={libraryLocation}
                 onOpenWorkflowGuide={() => setIsWorkflowGuideOpen(true)}
-                onNavigateToOfficialContent={() => setActiveTab('official_library')}
+                initialSection={librarySection}
+                onSectionChange={setLibrarySection}
+                initialModuleSlug={activeOfficialModuleSlug}
+                onModuleChange={(slug) => {
+                  setActiveOfficialModuleSlug(slug);
+                  safePushUrl(slug ? `/library/${slug}` : '/library');
+                }}
+                isAdmin={isAdmin}
+                officialLectures={officialLectures}
               />
             </ErrorBoundary>
           )}
@@ -1540,11 +1693,13 @@ export default function App() {
                 lectureSlug={activeLectureParams.lectureSlug}
                 onNavigateBackToLibrary={() => {
                   setActiveOfficialModuleSlug(null);
-                  setActiveTab('official_library');
+                  setActiveTab('library');
+                  setLibrarySection('official');
                 }}
                 onNavigateToModule={(modSlug) => {
                   setActiveOfficialModuleSlug(modSlug);
-                  setActiveTab('official_library');
+                  setActiveTab('library');
+                  setLibrarySection('official');
                 }}
                 onStartStudyTrack={handleStartOfficialStudyTrack}
                 currentUserId={currentUser?.id || 'guest_user'}
@@ -1619,6 +1774,8 @@ export default function App() {
                   decksMap={decksMap}
                   settings={settings}
                   userStatuses={userStatuses}
+                  isFullscreen={isStudyFullscreen}
+                  onToggleFullscreen={toggleStudyFullscreen}
                   onUpdateQuestionStatus={handleUpdateQuestionStatus}
                   onUpdateSession={handleUpdateSession}
                   onCompleteSessionWithSummary={handleCompleteSessionWithSummary}
@@ -1689,8 +1846,14 @@ export default function App() {
                   if (d) handleOpenDeckDetail(d);
                 }}
                 onOpenOriginalLocation={handleOpenQuestionInDeck}
-                onBrowseLibrary={() => setActiveTab('library')}
-                onBrowseOfficialCurriculum={() => setActiveTab('official_library')}
+                onBrowseLibrary={() => {
+                  setActiveTab('library');
+                  setLibrarySection('my_content');
+                }}
+                onBrowseOfficialCurriculum={() => {
+                  setActiveTab('library');
+                  setLibrarySection('official');
+                }}
               />
             </ErrorBoundary>
           )}
@@ -1801,8 +1964,20 @@ export default function App() {
         decks={decks}
         questions={questions}
         statuses={userStatuses}
+        officialLectures={officialLectures}
         onOpenQuestionInDeck={handleOpenQuestionInDeck}
         onOpenDeckDetail={handleOpenDeckDetail}
+        onSelectOfficialLecture={handleSelectOfficialLecture}
+      />
+
+      {/* Dual Gemini Gem Chooser Modal */}
+      <GemChooserModal
+        isOpen={isGemChooserOpen}
+        onClose={() => setIsGemChooserOpen(false)}
+        onOpenSettings={() => {
+          setIsGemChooserOpen(false);
+          setActiveTab('settings');
+        }}
       />
 
       {/* Study Setup Modal */}

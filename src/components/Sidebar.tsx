@@ -50,6 +50,7 @@ interface SidebarProps {
   onOpenImportPrompt: () => void;
   onOpenGem?: () => void;
   isAdmin?: boolean;
+  isStudyFullscreen?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -62,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenImportPrompt,
   onOpenGem,
   isAdmin = false,
+  isStudyFullscreen = false,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
@@ -80,6 +82,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Sliding active indicator: a single physical pill glides to the active
   // item instead of each button flashing its own background.
   useLayoutEffect(() => {
+    if (isStudyFullscreen) {
+      setPill((p) => (p.visible ? { ...p, visible: false } : p));
+      return;
+    }
     const nav = navRef.current;
     if (!nav) return;
     const active = nav.querySelector('[aria-current="page"]') as HTMLElement | null;
@@ -88,11 +94,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return;
     }
     setPill({ top: active.offsetTop, height: active.offsetHeight, visible: true });
-  }, [activeTab, isCollapsed]);
+  }, [activeTab, isCollapsed, isStudyFullscreen]);
 
   // Mobile dock marker: horizontal twin of the desktop pill. Recomputes on
   // tab/session change and on resize (rotation-safe).
   useLayoutEffect(() => {
+    if (isStudyFullscreen) {
+      setDockPill((p) => (p.visible ? { ...p, visible: false } : p));
+      return;
+    }
     const updateDockPill = () => {
       const nav = dockRef.current;
       if (!nav) return;
@@ -111,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     updateDockPill();
     window.addEventListener('resize', updateDockPill);
     return () => window.removeEventListener('resize', updateDockPill);
-  }, [activeTab, hasActiveSession]);
+  }, [activeTab, hasActiveSession, isStudyFullscreen]);
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => {
@@ -131,24 +141,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       tooltip: 'Home dashboard with study progress and consistency',
     },
     {
-      id: 'official_library' as ActiveTab,
-      label: 'Official Curriculum',
+      id: 'library' as ActiveTab,
+      label: 'Academic Library',
       icon: Sparkles,
-      tooltip: 'Year 2 Preclinical Curriculum: Organ System Modules & Slides',
+      tooltip: 'Curriculum Modules, Lectures & Personal Decks',
       badge: 'Year 2',
       badgeColor: 'text-cyan-500 font-bold',
-    },
-    {
-      id: 'library' as ActiveTab,
-      label: 'My Content',
-      icon: FolderTree,
-      tooltip: 'Personal Decks, Flashcards & External Imports',
     },
     {
       id: 'collections' as ActiveTab,
       label: 'Collections',
       icon: Bookmark,
-      tooltip: 'Unified collections: Favorites, Flagged, and Incorrect Qs',
+      tooltip: 'Unified collections: Favorites, Disliked, and Incorrect Qs',
       badge: totalCollectionsCount > 0 ? `${totalCollectionsCount}` : undefined,
       badgeColor: 'text-amber-500 font-bold',
     },
@@ -202,8 +206,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Desktop Persistent, Anchored Sidebar with GPU-Accelerated Smooth Transition */}
       <aside
-        className={`hidden md:flex flex-col h-full border-r border-subtle bg-surface shrink-0 select-none justify-between transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] relative z-20 overflow-hidden ${
-          isCollapsed ? 'w-[68px]' : 'w-[250px]'
+        className={`hidden md:flex flex-col h-full border-r border-subtle bg-surface shrink-0 select-none justify-between transition-[width,opacity] duration-250 ease-out relative z-20 overflow-hidden ${
+          isStudyFullscreen
+            ? 'w-0 opacity-0 pointer-events-none border-r-0'
+            : isCollapsed
+            ? 'w-[68px] opacity-100'
+            : 'w-[250px] opacity-100'
         }`}
       >
         <div className="flex flex-col h-full justify-between p-3 overflow-hidden">
@@ -253,7 +261,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
               {sidebarItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
+                const isActive =
+                  item.id === 'official_library' || item.id === 'library'
+                    ? ['official_library', 'library', 'lecture_overview', 'deck_detail'].includes(activeTab)
+                    : activeTab === item.id;
                 return (
                   <Tooltip
                     key={item.id}
@@ -423,7 +434,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Native App Dock (Visible on phones, with safe-area and 48px tap targets) */}
       <nav
         ref={dockRef}
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-subtle px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around shadow-2xl select-none"
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-subtle px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around shadow-2xl select-none transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isStudyFullscreen ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+        }`}
         aria-label="Mobile Dock Navigation"
       >
         {dockPill.visible && (
@@ -448,34 +461,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-[10px]">Home</span>
         </button>
 
-        {/* Official Curriculum */}
+        {/* Academic Library */}
         <button
           type="button"
-          data-dock-active={activeTab === 'official_library' || activeTab === 'lecture_overview' ? 'true' : 'false'}
-          onClick={() => onTabChange('official_library')}
+          data-dock-active={['official_library', 'library', 'lecture_overview', 'deck_detail'].includes(activeTab) ? 'true' : 'false'}
+          onClick={() => onTabChange('library')}
           className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition min-tap-target ${
-            activeTab === 'official_library' || activeTab === 'lecture_overview'
+            ['official_library', 'library', 'lecture_overview', 'deck_detail'].includes(activeTab)
               ? 'text-cyan-600 dark:text-cyan-400 font-bold'
               : 'text-muted hover:text-primary'
           }`}
         >
           <Sparkles className="w-4 h-4 mb-0.5" />
-          <span className="text-[10px]">Curriculum</span>
-        </button>
-
-        {/* Library */}
-        <button
-          type="button"
-          data-dock-active={activeTab === 'library' || activeTab === 'deck_detail' ? 'true' : 'false'}
-          onClick={() => onTabChange('library')}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition min-tap-target ${
-            activeTab === 'library' || activeTab === 'deck_detail'
-              ? 'text-cyan-600 dark:text-cyan-400 font-bold'
-              : 'text-muted hover:text-primary'
-          }`}
-        >
-          <FolderTree className="w-4 h-4 mb-0.5" />
-          <span className="text-[10px]">My Decks</span>
+          <span className="text-[10px]">Library</span>
         </button>
 
         {/* Active Study Session Tab (if session running) */}
@@ -566,15 +564,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Hubs Grid */}
             <div className="grid grid-cols-2 gap-2.5 text-xs">
-              {/* Official Curriculum (Prominent Top Card) */}
+              {/* Academic Library (Consolidated) */}
               <button
                 type="button"
                 onClick={() => {
-                  onTabChange('official_library');
+                  onTabChange('library');
                   setIsMobileMenuOpen(false);
                 }}
                 className={`p-3.5 rounded-2xl border flex items-center gap-3 text-left transition active:scale-95 col-span-2 cursor-pointer ${
-                  activeTab === 'official_library' || activeTab === 'lecture_overview'
+                  ['official_library', 'library', 'lecture_overview', 'deck_detail'].includes(activeTab)
                     ? 'bg-cyan-500/15 border-cyan-500 text-cyan-600 dark:text-cyan-400 shadow-xs'
                     : 'bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 hover:from-cyan-500/20 hover:to-indigo-500/20 border-cyan-500/30'
                 }`}
@@ -584,36 +582,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-primary flex items-center gap-2">
-                    <span>Official Curriculum</span>
+                    <span>Academic Library</span>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
                       Year 2
                     </span>
                   </div>
                   <div className="text-[11px] text-secondary truncate mt-0.5">
-                    Organ System Modules, lectures & university exam questions
+                    Curriculum Modules, lectures & personal decks
                   </div>
-                </div>
-              </button>
-
-              {/* My Personal Decks */}
-              <button
-                type="button"
-                onClick={() => {
-                  onTabChange('library');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`p-3 rounded-2xl border flex items-center gap-3 text-left transition active:scale-95 cursor-pointer ${
-                  activeTab === 'library' || activeTab === 'deck_detail'
-                    ? 'bg-indigo-500/15 border-indigo-500 text-primary'
-                    : 'bg-subtle/80 hover:bg-subtle border-subtle'
-                }`}
-              >
-                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500 shrink-0">
-                  <FolderTree className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-primary">My Decks</div>
-                  <div className="text-[10px] text-muted">Personal library</div>
                 </div>
               </button>
 

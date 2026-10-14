@@ -511,9 +511,16 @@ export const WorkflowGuideModal: React.FC<WorkflowGuideModalProps> = ({
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-surface border border-subtle flex items-center justify-between">
-                  <span className="text-xs font-medium text-primary">Star / Flag Question</span>
+                  <span className="text-xs font-medium text-primary">Favorite (Star) Question</span>
                   <span className="font-mono text-xs font-bold text-amber-500 bg-subtle px-2 py-1 rounded">
                     F
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-surface border border-subtle flex items-center justify-between">
+                  <span className="text-xs font-medium text-primary">Dislike (Report) Question</span>
+                  <span className="font-mono text-xs font-bold text-rose-500 bg-subtle px-2 py-1 rounded">
+                    D
                   </span>
                 </div>
 

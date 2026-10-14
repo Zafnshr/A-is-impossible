@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   FolderPlus,
+  FolderTree,
   UploadCloud,
   FileText,
   FileUp,
@@ -28,9 +29,13 @@ interface MyContentViewProps {
   onCreateDeckPrompt: (year?: string, module?: string, subject?: string) => void;
   onRenameDeck?: (deckId: string, newLectureName: string) => void;
   onDeleteDeck?: (deckId: string) => void;
+  initialLocation?: { year?: string; module?: string; subject?: string } | null;
   onOpenWorkflowGuide?: () => void;
   onOpenImportPrompt?: () => void;
   onSwitchToOfficial?: () => void;
+  onLoadSampleDeck?: () => void;
+  onNavigateToOfficialContent?: () => void;
+  initialSubTab?: 'decks' | 'pdfs';
 }
 
 export const MyContentView: React.FC<MyContentViewProps> = ({
@@ -41,15 +46,27 @@ export const MyContentView: React.FC<MyContentViewProps> = ({
   onCreateDeckPrompt,
   onRenameDeck,
   onDeleteDeck,
+  initialLocation,
   onOpenWorkflowGuide,
   onOpenImportPrompt,
   onSwitchToOfficial,
+  onLoadSampleDeck,
+  onNavigateToOfficialContent,
+  initialSubTab = 'decks',
 }) => {
-  const [subTab, setSubTab] = useState<'decks' | 'pdfs'>('decks');
+  const [subTab, setSubTab] = useState<'decks' | 'pdfs'>(initialSubTab);
   const [userPdfs, setUserPdfs] = useState<UserPdfUpload[]>([]);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
   const [activePdfUrl, setActivePdfUrl] = useState<{ url: string; title: string } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync subTab if initialSubTab prop changes
+  useEffect(() => {
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // Load personal PDFs from IndexedDB for the current user (or guest)
   const loadPdfs = async () => {
@@ -71,9 +88,10 @@ export const MyContentView: React.FC<MyContentViewProps> = ({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadError(null);
 
     if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
-      alert('Please select a valid PDF file.');
+      setUploadError('Please select a valid PDF file.');
       return;
     }
 
@@ -95,7 +113,7 @@ export const MyContentView: React.FC<MyContentViewProps> = ({
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err: any) {
       console.error('[MyContentView] Error uploading PDF:', err);
-      alert('Unable to process PDF file. Please try again.');
+      setUploadError('Unable to process PDF file. Please try again.');
     }
   };
 
@@ -110,85 +128,31 @@ export const MyContentView: React.FC<MyContentViewProps> = ({
         onChange={handleFileUpload}
       />
 
-      {/* Header Banner */}
-      <div className="p-6 sm:p-7 rounded-3xl bg-surface border border-subtle flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
-        <div className="space-y-1.5 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold border border-indigo-500/20">
-            <Layers className="w-3.5 h-3.5" />
-            <span>Personal Learning Workspace</span>
-          </div>
-          <h1 className="text-2xl font-black text-primary tracking-tight">
-            My Content & Sandbox
-          </h1>
-          <p className="text-xs text-muted leading-relaxed">
-            Create custom flashcard decks, import external files from Anki or CSV, and view your personal
-            lecture slide PDFs. Stored safely in your local workspace.
-          </p>
-        </div>
 
-        {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {onOpenImportPrompt && (
+      {/* Primary Top Tab Switcher: Official Curriculum vs Personal Decks vs Personal PDFs */}
+      <div className="flex items-center justify-between gap-3 border-b border-subtle pb-4">
+        <div className="flex items-center gap-1 p-1 bg-subtle border border-subtle rounded-2xl w-fit">
+          {(onNavigateToOfficialContent || onSwitchToOfficial) && (
             <button
               type="button"
-              onClick={onOpenImportPrompt}
-              className="px-3.5 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary text-xs font-bold border border-subtle transition-all cursor-pointer flex items-center gap-2 shadow-xs"
+              onClick={onNavigateToOfficialContent || onSwitchToOfficial}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition cursor-pointer"
             >
-              <UploadCloud className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Import Anki / CSV</span>
+              <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
+              <span>Official Curriculum</span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                Year 2
+              </span>
             </button>
           )}
-
           <button
             type="button"
-            onClick={() => onCreateDeckPrompt()}
-            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shadow-sm"
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-surface text-cyan-600 dark:text-cyan-400 shadow-xs border border-subtle cursor-default"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Create Deck</span>
+            <FolderTree className="w-3.5 h-3.5 text-muted" />
+            <span>My Personal Decks ({decks.length})</span>
           </button>
         </div>
-      </div>
-
-      {/* Subtab Navigation: Personal Decks vs Personal PDFs */}
-      <div className="flex items-center justify-between border-b border-subtle pb-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSubTab('decks')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              subTab === 'decks'
-                ? 'bg-primary text-canvas shadow-xs'
-                : 'text-secondary hover:text-primary bg-subtle/50 hover:bg-subtle'
-            }`}
-          >
-            <span>Personal Decks ({decks.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSubTab('pdfs')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              subTab === 'pdfs'
-                ? 'bg-primary text-canvas shadow-xs'
-                : 'text-secondary hover:text-primary bg-subtle/50 hover:bg-subtle'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Personal PDFs ({userPdfs.length})</span>
-          </button>
-        </div>
-
-        {onSwitchToOfficial && (
-          <button
-            type="button"
-            onClick={onSwitchToOfficial}
-            className="text-xs text-cyan-600 dark:text-cyan-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            <span>Switch to Official Curriculum</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
 
       {/* Pane Content */}
@@ -201,11 +165,26 @@ export const MyContentView: React.FC<MyContentViewProps> = ({
           onCreateDeckPrompt={onCreateDeckPrompt}
           onRenameDeck={onRenameDeck}
           onDeleteDeck={onDeleteDeck}
+          initialLocation={initialLocation}
           onOpenWorkflowGuide={onOpenWorkflowGuide}
+          onLoadSampleDeck={onLoadSampleDeck}
+          onNavigateToOfficialContent={undefined}
         />
       ) : (
         /* Personal PDFs Explorer */
         <div className="space-y-6">
+          {uploadError && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400 flex items-center justify-between">
+              <span>{uploadError}</span>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                className="hover:underline font-bold text-[11px]"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-primary">Uploaded Lecture Slides & Notes</h3>

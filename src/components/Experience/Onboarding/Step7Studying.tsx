@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, Flag, CheckCircle2, XCircle, Sparkles, Check } from 'lucide-react';
+import { Star, ThumbsDown, CheckCircle2, XCircle, Sparkles, Check } from 'lucide-react';
 import { ChapterProps, Objective, Beacon, EASE, CinematicHeader } from './ui';
 import { playBlip, playSuccessChime } from '../cinematicSound';
 
@@ -12,7 +12,7 @@ export const Step7Studying: React.FC<ChapterProps> = ({
 }) => {
   const [selectedOption, setSelectedOption] = useState<number | null>(isComplete ? 0 : null);
   const [starred, setStarred] = useState<boolean>(false);
-  const [flagged, setFlagged] = useState<boolean>(false);
+  const [disliked, setDisliked] = useState<boolean>(false);
 
   const isAnswered = selectedOption !== null;
 
@@ -32,9 +32,9 @@ export const Step7Studying: React.FC<ChapterProps> = ({
     setStarred(!starred);
   };
 
-  const handleToggleFlag = () => {
+  const handleToggleDislike = () => {
     playBlip(450);
-    setFlagged(!flagged);
+    setDisliked(!disliked);
   };
 
   const options = [
@@ -63,7 +63,7 @@ export const Step7Studying: React.FC<ChapterProps> = ({
 
       <div className="w-full max-w-lg mt-5">
         <div className="p-5 rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur-xl shadow-xl space-y-3.5">
-          {/* Top Bar with Star and Flag */}
+          {/* Top Bar with Star and Dislike */}
           <div className="flex items-center justify-between pb-2 border-b border-white/10 text-xs">
             <span className="text-slate-400 font-medium">Question 1 of 5</span>
             <div className="flex items-center gap-1.5">
@@ -81,15 +81,15 @@ export const Step7Studying: React.FC<ChapterProps> = ({
               </button>
               <button
                 type="button"
-                onClick={handleToggleFlag}
+                onClick={handleToggleDislike}
                 className={`p-1.5 rounded-lg border transition cursor-pointer ${
-                  flagged
+                  disliked
                     ? 'border-rose-400 bg-rose-500/20 text-rose-300'
                     : 'border-white/10 text-slate-400 hover:text-white'
                 }`}
-                title="Flag question"
+                title="Dislike question"
               >
-                <Flag className={`w-3.5 h-3.5 ${flagged ? 'fill-current' : ''}`} />
+                <ThumbsDown className={`w-3.5 h-3.5 ${disliked ? 'fill-current' : ''}`} />
               </button>
             </div>
           </div>

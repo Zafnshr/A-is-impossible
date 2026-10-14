@@ -26,7 +26,14 @@ import { createDefaultSettings } from '../../services/defaultSettings';
 import { Tooltip } from '../Tooltip';
 import { dbService } from '../../services/db';
 import { DataManagementModal, DangerActionType } from './DataManagementModal';
-import { getGemUrl, setGemUrl, openGemInBrowser } from '../../services/gemLink';
+import {
+  getPracticeGemUrl,
+  setPracticeGemUrl,
+  getExamStyleGemUrl,
+  setExamStyleGemUrl,
+  openPracticeGem,
+  openExamStyleGem,
+} from '../../services/gemLink';
 
 interface SettingsViewProps {
   settings?: UserSettings;
@@ -43,7 +50,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [dangerModalOpen, setDangerModalOpen] = useState(false);
   const [selectedDangerAction, setSelectedDangerAction] = useState<DangerActionType | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [gemUrlInput, setGemUrlInput] = useState<string>(getGemUrl());
+  const [practiceGemUrlInput, setPracticeGemUrlInput] = useState<string>(getPracticeGemUrl());
+  const [examGemUrlInput, setExamGemUrlInput] = useState<string>(getExamStyleGemUrl());
 
   // Safe fallback to prevent any undefined crash
   const safeSettings: UserSettings = settings || createDefaultSettings('workspace');
@@ -294,7 +302,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               { key: 'Right Arrow (→)', action: 'Next Question' },
               { key: 'Enter (↵)', action: 'Submit Answer' },
               { key: 'F', action: 'Favorite Question' },
-              { key: 'R', action: 'Flag Question' },
+              { key: 'D', action: 'Dislike Question' },
+              { key: 'R', action: 'Retry Question' },
               { key: 'Spacebar', action: 'Reveal Correct Answer' },
               { key: 'Ctrl + K / ⌘K', action: 'Global Search' },
               { key: 'Ctrl + Z', action: 'Undo Question Edit' },
@@ -313,42 +322,81 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* 5. Medical Question Gem Link */}
-        <div className="p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
-                <WandSparkles className="w-4 h-4 text-cyan-500" /> Medical Question Gem Link
-              </h2>
-              <p className="text-xs text-secondary mt-0.5">
-                Target URL for your custom Gemini Gem. Clicking &apos;Open Gem&apos; anywhere in the app will redirect to this link.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => openGemInBrowser(gemUrlInput)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 flex items-center gap-2 transition cursor-pointer self-start sm:self-auto shadow-sm"
-            >
-              <span>Open Gem</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
+        {/* 5. Dual Gemini Gem Links */}
+        <div className="p-6 rounded-2xl bg-surface border border-subtle shadow-card space-y-5">
+          <div className="border-b border-subtle pb-3">
+            <h2 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2">
+              <WandSparkles className="w-4 h-4 text-cyan-500" /> AI Question Generator Gems
+            </h2>
+            <p className="text-xs text-secondary mt-0.5">
+              Configure URLs for your custom Gemini Gems. The Question Generator button will prompt you to choose between Practice and Exam-Style generation.
+            </p>
           </div>
 
-          <div className="space-y-1.5">
+          {/* Practice Questions Gem */}
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="font-bold text-xs text-primary flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-500" /> Practice Questions Gem
+                </span>
+                <p className="text-[11px] text-muted">
+                  Generates all 6 question formats for preclinical lecture recall and formative practice.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openPracticeGem()}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto shadow-xs"
+              >
+                <span>Test Link</span>
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            </div>
             <input
               type="url"
-              value={gemUrlInput}
+              value={practiceGemUrlInput}
               onChange={(e) => {
                 const val = e.target.value;
-                setGemUrlInput(val);
-                setGemUrl(val);
+                setPracticeGemUrlInput(val);
+                setPracticeGemUrl(val);
               }}
-              placeholder="https://gemini.google.com/gems/..."
-              className="w-full p-3 bg-subtle border border-subtle rounded-xl text-xs text-primary font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              placeholder="https://gemini.google.com/gem/..."
+              className="w-full p-2.5 bg-subtle border border-subtle rounded-xl text-xs text-primary font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
-            <p className="text-[11px] text-muted">
-              Paste the link of your custom Gemini Gem here. Changes are saved automatically.
-            </p>
+          </div>
+
+          {/* University Exam Style Gem */}
+          <div className="space-y-2 pt-2 border-t border-subtle">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="font-bold text-xs text-primary flex items-center gap-1.5">
+                  <WandSparkles className="w-3.5 h-3.5 text-indigo-500" /> University Exam Style Gem
+                </span>
+                <p className="text-[11px] text-muted">
+                  Generates clinical vignette scenarios and single-answer MCQs styled after Egyptian university exams.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openExamStyleGem()}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto shadow-xs"
+              >
+                <span>Test Link</span>
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            </div>
+            <input
+              type="url"
+              value={examGemUrlInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                setExamGemUrlInput(val);
+                setExamStyleGemUrl(val);
+              }}
+              placeholder="https://gemini.google.com/gem/..."
+              className="w-full p-2.5 bg-subtle border border-subtle rounded-xl text-xs text-primary font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
         </div>
 

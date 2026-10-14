@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Play,
   RotateCcw,
@@ -8,13 +8,16 @@ import {
   Flame,
   FolderTree,
   Star,
-  Flag,
+  ThumbsDown,
   XCircle,
   ArrowRight,
   BookOpen,
   Calendar,
   Layers,
   Sparkles,
+  Bell,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Deck,
@@ -23,10 +26,12 @@ import {
   QuestionUserStatus,
   Question,
   StudySessionRecord,
+  OfficialAnnouncement,
 } from '../../types';
 import { Tooltip } from '../Tooltip';
 import { CountUp } from '../CountUp';
 import { rebuildEngine } from '../../services/rebuildEngine';
+import { officialContentService } from '../../services/officialContentService';
 
 interface DashboardViewProps {
   decks: Deck[];
@@ -58,6 +63,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onCreateDeckPrompt,
 }) => {
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState<OfficialAnnouncement[]>([]);
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('a_plus_dismissed_announcements_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    officialContentService.getActiveAnnouncements().then((data) => {
+      setAnnouncements(data);
+    }).catch(() => {});
+  }, []);
+
+  const handleDismissAnnouncement = (id: string) => {
+    setDismissedAnnouncements((prev) => {
+      const next = [...prev, id];
+      try {
+        localStorage.setItem('a_plus_dismissed_announcements_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleRestoreAnnouncements = () => {
+    try {
+      localStorage.removeItem('a_plus_dismissed_announcements_v1');
+    } catch {}
+    setDismissedAnnouncements([]);
+  };
+
+  const activeUndismissed = useMemo(() => {
+    return announcements.filter((a) => !dismissedAnnouncements.includes(a.id));
+  }, [announcements, dismissedAnnouncements]);
+
+  const dismissedCount = useMemo(() => {
+    return announcements.filter((a) => dismissedAnnouncements.includes(a.id)).length;
+  }, [announcements, dismissedAnnouncements]);
 
   // Unified Resilient Statistics calculation across attempts, sessions, and statuses
   const derivedStats = useMemo(() => {
@@ -75,7 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   } = derivedStats;
 
   const favoriteCount = statuses.filter((s) => s.isFavorite).length;
-  const flaggedCount = statuses.filter((s) => s.isFlagged).length;
+  const dislikedCount = statuses.filter((s) => s.isDisliked).length;
   const incorrectCount = statuses.filter((s) => s.isIncorrect).length;
 
   // Recent decks sorted by lastOpenedAt or createdAt
@@ -85,11 +130,81 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8">
+      {/* Active Announcements Banner */}
+      {activeUndismissed.length > 0 && (
+        <section className="space-y-3">
+          {activeUndismissed.map((ann) => (
+            <div
+              key={ann.id}
+              className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-cyan-950/40 via-surface to-indigo-950/30 border border-cyan-500/30 shadow-card flex items-start justify-between gap-4 animate-view-enter"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 shrink-0 mt-0.5">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                      Announcement
+                    </span>
+                    <h3 className="text-sm sm:text-base font-black text-primary tracking-tight">
+                      {ann.title}
+                    </h3>
+                    <span className="text-[10px] font-mono text-muted">
+                      {new Date(ann.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-secondary leading-relaxed whitespace-pre-line">
+                    {ann.body}
+                  </p>
+                  {ann.targetUrl && (
+                    <div className="pt-1">
+                      <a
+                        href={ann.targetUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-600 dark:text-cyan-400 hover:underline"
+                      >
+                        <span>Open Details</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Tooltip content="Dismiss announcement">
+                <button
+                  type="button"
+                  onClick={() => handleDismissAnnouncement(ann.id)}
+                  className="p-1.5 rounded-xl text-muted hover:text-primary hover:bg-subtle transition shrink-0"
+                  aria-label="Dismiss announcement"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </Tooltip>
+            </div>
+          ))}
+        </section>
+      )}
+
       {/* 1. CONTINUE LEARNING (STRICT ORDER 1) */}
       <section className="space-y-3">
-        <h2 className="text-xs font-bold text-secondary uppercase tracking-wider">
-          1. Continue Learning
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold text-secondary uppercase tracking-wider">
+            1. Continue Learning
+          </h2>
+          {dismissedCount > 0 && (
+            <button
+              type="button"
+              onClick={handleRestoreAnnouncements}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 border border-subtle text-xs font-bold text-cyan-600 dark:text-cyan-400 transition"
+              title="Bring back dismissed announcements"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span>Show Announcements ({dismissedCount})</span>
+            </button>
+          )}
+        </div>
 
         {activeSession ? (
           /* Ongoing active session */
@@ -239,7 +354,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex items-center gap-2 shrink-0 relative z-10">
           <button
             type="button"
-            onClick={() => onNavigateTab('official_library')}
+            onClick={() => onNavigateTab('library')}
             className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
           >
             <span>Explore Official Curriculum</span>
@@ -434,10 +549,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"
           >
             <div className="flex items-center gap-2">
-              <Flag className="w-4 h-4 text-amber-500 fill-amber-500" />
-              <span className="text-xs font-semibold text-primary">Flagged</span>
+              <ThumbsDown className="w-4 h-4 text-rose-500 fill-rose-500/20" />
+              <span className="text-xs font-semibold text-primary">Disliked Questions</span>
             </div>
-            <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400">{flaggedCount}</span>
+            <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">{dislikedCount}</span>
           </button>
 
           <button

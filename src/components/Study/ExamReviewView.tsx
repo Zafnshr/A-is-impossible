@@ -6,7 +6,7 @@ import {
   AlertCircle,
   RotateCcw,
   Printer,
-  Flag,
+  ThumbsDown,
   Search,
   BookOpen,
   Check,
@@ -66,7 +66,7 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
   decksMap = {},
 }) => {
   const [activeFilter, setActiveFilter] = useState<
-    'all' | 'incorrect' | 'skipped' | 'correct' | 'flagged'
+    'all' | 'incorrect' | 'skipped' | 'correct' | 'disliked'
   >('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedExplanations, setExpandedExplanations] = useState<Record<string, boolean>>({});
@@ -80,9 +80,9 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
     return summary.userAnswers || {};
   }, [summary.userAnswers]);
 
-  const flaggedSet = useMemo(() => {
-    return new Set(summary.flaggedIds || []);
-  }, [summary.flaggedIds]);
+  const dislikedSet = useMemo(() => {
+    return new Set(summary.dislikedIds || summary.flaggedIds || []);
+  }, [summary.dislikedIds, summary.flaggedIds]);
 
   // Pre-calculate evaluation status for each question
   const questionsWithStatus = useMemo(() => {
@@ -96,7 +96,7 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
       const isCorrect = evaluateQuestionCorrectness(q, ans);
       const isSkipped = !hasAnswer;
       const isIncorrect = hasAnswer && !isCorrect;
-      const isFlagged = flaggedSet.has(q.id);
+      const isDisliked = dislikedSet.has(q.id);
 
       return {
         question: q,
@@ -107,22 +107,22 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
         isCorrect,
         isSkipped,
         isIncorrect,
-        isFlagged,
+        isDisliked,
       };
     });
-  }, [questions, userAnswers, flaggedSet]);
+  }, [questions, userAnswers, dislikedSet]);
 
   const counts = useMemo(() => {
     let correct = 0;
     let incorrect = 0;
     let skipped = 0;
-    let flagged = 0;
+    let disliked = 0;
 
     questionsWithStatus.forEach((item) => {
       if (item.isCorrect) correct++;
       else if (item.isSkipped) skipped++;
       else if (item.isIncorrect) incorrect++;
-      if (item.isFlagged) flagged++;
+      if (item.isDisliked) disliked++;
     });
 
     return {
@@ -130,7 +130,7 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
       correct,
       incorrect,
       skipped,
-      flagged,
+      disliked,
     };
   }, [questionsWithStatus, questions.length]);
 
@@ -141,7 +141,7 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
       if (activeFilter === 'incorrect' && !item.isIncorrect) return false;
       if (activeFilter === 'skipped' && !item.isSkipped) return false;
       if (activeFilter === 'correct' && !item.isCorrect) return false;
-      if (activeFilter === 'flagged' && !item.isFlagged) return false;
+      if (activeFilter === 'disliked' && !item.isDisliked) return false;
 
       // Search query
       if (searchQuery.trim()) {
@@ -394,19 +394,19 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
                 </span>
               </button>
 
-              {counts.flagged > 0 && (
+              {counts.disliked > 0 && (
                 <button
-                  onClick={() => setActiveFilter('flagged')}
+                  onClick={() => setActiveFilter('disliked')}
                   className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 ${
-                    activeFilter === 'flagged'
-                      ? 'bg-amber-500 text-white shadow-sm'
-                      : 'bg-subtle text-secondary hover:text-amber-400'
+                    activeFilter === 'disliked'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'bg-subtle text-secondary hover:text-rose-400'
                   }`}
                 >
-                  <Flag className="w-3.5 h-3.5 fill-current" />
-                  <span>Flagged</span>
+                  <ThumbsDown className="w-3.5 h-3.5 fill-current" />
+                  <span>Disliked</span>
                   <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/20 font-mono">
-                    {counts.flagged}
+                    {counts.disliked}
                   </span>
                 </button>
               )}
@@ -481,8 +481,8 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
                       }`}
                     >
                       {item.displayNumber}
-                      {item.isFlagged && (
-                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400"></span>
+                      {item.isDisliked && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500"></span>
                       )}
                     </button>
                   );
@@ -553,10 +553,10 @@ export const ExamReviewView: React.FC<ExamReviewViewProps> = ({
 
                   {/* Result Status Badge */}
                   <div className="flex items-center gap-2">
-                    {item.isFlagged && (
-                      <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-500 border border-amber-500/30">
-                        <Flag className="w-3.5 h-3.5 fill-current" />
-                        <span className="hidden sm:inline">Flagged</span>
+                    {item.isDisliked && (
+                      <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                        <ThumbsDown className="w-3.5 h-3.5 fill-current" />
+                        <span className="hidden sm:inline">Disliked</span>
                       </span>
                     )}
 

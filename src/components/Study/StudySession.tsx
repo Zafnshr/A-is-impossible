@@ -3,7 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Star,
-  Flag,
+  ThumbsDown,
   RotateCcw,
   Eye,
   CheckCircle2,
@@ -24,6 +24,9 @@ import {
   LogOut,
   AlertTriangle,
   Sliders,
+  Maximize2,
+  Minimize2,
+  X,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -33,8 +36,10 @@ import {
   UserSettings,
   Deck,
   SessionCompletionSummary,
+  DislikeReasonType,
 } from '../../types';
 import { dbService } from '../../services/db';
+import { officialContentService } from '../../services/officialContentService';
 import { Tooltip } from '../Tooltip';
 import { QuestionMapPanel, evaluateQuestionCorrectness } from './QuestionMapPanel';
 import { guaranteedShuffle } from '../../services/sessionGenerator';
@@ -45,6 +50,8 @@ interface StudySessionProps {
   decksMap: Record<string, Deck>;
   settings: UserSettings;
   userStatuses?: QuestionUserStatus[];
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   onUpdateQuestionStatus?: (status: QuestionUserStatus) => void;
   onUpdateSession: (updated: StudySessionState) => void;
   onCompleteSessionWithSummary: (summary: SessionCompletionSummary) => void;
@@ -59,6 +66,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
   decksMap,
   settings,
   userStatuses = [],
+  isFullscreen = false,
+  onToggleFullscreen,
   onUpdateQuestionStatus,
   onUpdateSession,
   onCompleteSessionWithSummary,
@@ -81,22 +90,53 @@ export const StudySession: React.FC<StudySessionProps> = ({
     return true;
   });
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
-  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => {
+  const [dislikedIds, setDislikedIds] = useState<Set<string>>(() => {
     const s = new Set<string>();
     userStatuses.forEach((us) => {
-      if (us.isFlagged) s.add(us.questionId);
+      if (us.isDisliked) s.add(us.questionId);
     });
     return s;
   });
 
-  // Sync flaggedIds when userStatuses prop updates
+  // Non-blocking dislike popover state
+  const [isDislikePopoverOpen, setIsDislikePopoverOpen] = useState(false);
+  const [dislikeNotesInput, setDislikeNotesInput] = useState('');
+  const dislikePopoverRef = useRef<HTMLDivElement>(null);
+
+  // Sync dislikedIds when userStatuses prop updates
   useEffect(() => {
     const s = new Set<string>();
     userStatuses.forEach((us) => {
-      if (us.isFlagged) s.add(us.questionId);
+      if (us.isDisliked) s.add(us.questionId);
     });
-    setFlaggedIds(s);
+    setDislikedIds(s);
   }, [userStatuses]);
+
+  // Close dislike popover on question navigation
+  useEffect(() => {
+    setIsDislikePopoverOpen(false);
+  }, [currentQIndex]);
+
+  // Sync dislike notes input with current status
+  useEffect(() => {
+    setDislikeNotesInput(qStatus?.dislikeNotes || '');
+  }, [qStatus?.dislikeNotes, qStatus?.questionId]);
+
+  // Click outside to dismiss dislike popover (keeping dislike saved)
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        isDislikePopoverOpen &&
+        dislikePopoverRef.current &&
+        !dislikePopoverRef.current.contains(e.target as Node)
+      ) {
+        setIsDislikePopoverOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDislikePopoverOpen]);
+
   const [endSessionModalOpen, setEndSessionModalOpen] = useState(false);
 
   // Timer reference
@@ -225,6 +265,24 @@ export const StudySession: React.FC<StudySessionProps> = ({
         return;
       }
 
+      if (e.key === 'Escape') {
+        if (isDislikePopoverOpen) {
+          e.preventDefault();
+          setIsDislikePopoverOpen(false);
+          return;
+        }
+        if (noteOpen) {
+          e.preventDefault();
+          setNoteOpen(false);
+          return;
+        }
+        if (isFullscreen && onToggleFullscreen) {
+          e.preventDefault();
+          onToggleFullscreen();
+          return;
+        }
+      }
+
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         handleNext();
@@ -298,14 +356,14 @@ export const StudySession: React.FC<StudySessionProps> = ({
         if (!isExamMode && (isSubmitted || isRevealed)) {
           handleRetry();
         }
-      } else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'g') {
-        // Flag / Mark question shortcut
-        e.preventDefault();
-        handleToggleFlag();
       } else if (e.key.toLowerCase() === 'f') {
         // Favorite question shortcut
         e.preventDefault();
         handleToggleFavorite();
+      } else if (e.key.toLowerCase() === 'd') {
+        // Dislike question shortcut
+        e.preventDefault();
+        handleToggleDislike();
       } else if (e.key === ' ' || e.key === 'Spacebar') {
         e.preventDefault();
         if (currentQuestion?.type === 'multiple_mcq' && (!isSubmitted || isExamMode)) {
@@ -358,7 +416,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
             }
           }
         }
-      } else if (['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].includes(e.key.toLowerCase())) {
+      } else if (['a', 'b', 'c', 'e', 'g', 'h'].includes(e.key.toLowerCase())) {
         const charCode = e.key.toLowerCase().charCodeAt(0) - 97; // 0 for 'a', 1 for 'b', etc.
         if (currentQuestion && (!isSubmitted || isExamMode)) {
           if (currentQuestion.type === 'single_mcq' || currentQuestion.type === 'true_false') {
@@ -761,18 +819,109 @@ export const StudySession: React.FC<StudySessionProps> = ({
     if (onUpdateQuestionStatus) onUpdateQuestionStatus(updated);
   };
 
-  const handleToggleFlag = async () => {
-    if (!qStatus) return;
-    const isNowFlagged = !qStatus.isFlagged;
-    const updated = { ...qStatus, isFlagged: isNowFlagged };
+  const handleToggleDislike = async () => {
+    if (!qStatus || !currentQuestion) return;
+    if (qStatus.isDisliked) {
+      // Toggle popover if already disliked
+      setIsDislikePopoverOpen((prev) => !prev);
+      return;
+    }
+    // 1-Tap Non-Blocking Dislike immediate save
+    const updated: QuestionUserStatus = {
+      ...qStatus,
+      isDisliked: true,
+      dislikeReason: qStatus.dislikeReason || 'other',
+      dislikeNotes: qStatus.dislikeNotes || '',
+    };
     setQStatus(updated);
-    setFlaggedIds((prev) => {
+    setDislikedIds((prev) => new Set(prev).add(currentQuestion.id));
+    await dbService.saveQuestionStatus(updated);
+    officialContentService.recordQuestionFeedback(
+      session.profileId || 'workspace',
+      currentQuestion.id,
+      currentQuestion.deckId || '',
+      {
+        isFavorite: updated.isFavorite,
+        isDisliked: true,
+        dislikeReason: updated.dislikeReason,
+        dislikeNotes: updated.dislikeNotes,
+      }
+    );
+    if (onUpdateQuestionStatus) onUpdateQuestionStatus(updated);
+    setIsDislikePopoverOpen(true);
+  };
+
+  const handleUpdateDislikeReason = async (reason: DislikeReasonType) => {
+    if (!qStatus || !currentQuestion) return;
+    const updated: QuestionUserStatus = {
+      ...qStatus,
+      isDisliked: true,
+      dislikeReason: reason,
+    };
+    setQStatus(updated);
+    await dbService.saveQuestionStatus(updated);
+    officialContentService.recordQuestionFeedback(
+      session.profileId || 'workspace',
+      currentQuestion.id,
+      currentQuestion.deckId || '',
+      {
+        isFavorite: updated.isFavorite,
+        isDisliked: true,
+        dislikeReason: reason,
+        dislikeNotes: updated.dislikeNotes,
+      }
+    );
+    if (onUpdateQuestionStatus) onUpdateQuestionStatus(updated);
+  };
+
+  const handleUpdateDislikeNotes = async (notes: string) => {
+    if (!qStatus || !currentQuestion) return;
+    const updated: QuestionUserStatus = {
+      ...qStatus,
+      isDisliked: true,
+      dislikeNotes: notes,
+    };
+    setQStatus(updated);
+    await dbService.saveQuestionStatus(updated);
+    officialContentService.recordQuestionFeedback(
+      session.profileId || 'workspace',
+      currentQuestion.id,
+      currentQuestion.deckId || '',
+      {
+        isFavorite: updated.isFavorite,
+        isDisliked: true,
+        dislikeReason: updated.dislikeReason,
+        dislikeNotes: notes,
+      }
+    );
+    if (onUpdateQuestionStatus) onUpdateQuestionStatus(updated);
+  };
+
+  const handleRemoveDislike = async () => {
+    if (!qStatus || !currentQuestion) return;
+    const updated: QuestionUserStatus = {
+      ...qStatus,
+      isDisliked: false,
+      dislikeReason: undefined,
+      dislikeNotes: undefined,
+    };
+    setQStatus(updated);
+    setDislikedIds((prev) => {
       const next = new Set(prev);
-      if (isNowFlagged) next.add(currentQuestion.id);
-      else next.delete(currentQuestion.id);
+      next.delete(currentQuestion.id);
       return next;
     });
+    setIsDislikePopoverOpen(false);
     await dbService.saveQuestionStatus(updated);
+    officialContentService.recordQuestionFeedback(
+      session.profileId || 'workspace',
+      currentQuestion.id,
+      currentQuestion.deckId || '',
+      {
+        isFavorite: updated.isFavorite,
+        isDisliked: false,
+      }
+    );
     if (onUpdateQuestionStatus) onUpdateQuestionStatus(updated);
   };
 
@@ -878,7 +1027,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
       studyMode: 'exam',
       userAnswers: { ...session.userAnswers },
       sessionQuestions: questions,
-      flaggedIds: Array.from(flaggedIds),
+      dislikedIds: Array.from(dislikedIds),
+      flaggedIds: Array.from(dislikedIds),
     };
 
     onCompleteSessionWithSummary(summary);
@@ -947,7 +1097,8 @@ export const StudySession: React.FC<StudySessionProps> = ({
       studyMode: isExamMode ? 'exam' : 'learning',
       userAnswers: { ...session.userAnswers },
       sessionQuestions: questions,
-      flaggedIds: Array.from(flaggedIds),
+      dislikedIds: Array.from(dislikedIds),
+      flaggedIds: Array.from(dislikedIds),
     };
 
     onCompleteSessionWithSummary(summary);
@@ -969,7 +1120,11 @@ export const StudySession: React.FC<StudySessionProps> = ({
   }, [questions, decksMap]);
 
   return (
-    <div className="h-full min-h-0 flex-1 flex flex-col max-w-7xl mx-auto w-full px-3 sm:px-6 pt-3 md:pt-4 pb-20 md:pb-4 space-y-3">
+    <div
+      className={`h-full min-h-0 flex-1 flex flex-col w-full ${
+        isFullscreen ? 'max-w-6xl px-4 sm:px-8 pt-4 pb-6 space-y-4' : 'max-w-7xl px-3 sm:px-6 pt-3 md:pt-4 pb-20 md:pb-4 space-y-3'
+      } mx-auto`}
+    >
       {/* Top Header Bar */}
       <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-subtle">
         <div className="flex items-center gap-2 text-xs">
@@ -1028,6 +1183,25 @@ export const StudySession: React.FC<StudySessionProps> = ({
             </button>
           )}
 
+          {/* Focus / Fullscreen Mode Toggle */}
+          {onToggleFullscreen && (
+            <Tooltip content={isFullscreen ? 'Exit Distraction-Free Mode (Esc)' : 'Distraction-Free Mode (Esc)'}>
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${
+                  isFullscreen
+                    ? 'bg-cyan-500/15 border-cyan-500 text-cyan-600 dark:text-cyan-400 font-bold'
+                    : 'bg-subtle hover:bg-subtle/80 border-subtle text-secondary hover:text-primary'
+                }`}
+                aria-label="Toggle Fullscreen Focus Mode"
+              >
+                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{isFullscreen ? 'Exit Focus' : 'Focus'}</span>
+              </button>
+            </Tooltip>
+          )}
+
           {/* End Session Button */}
           <Tooltip content="End or pause study session">
             <button
@@ -1079,42 +1253,124 @@ export const StudySession: React.FC<StudySessionProps> = ({
               </span>
             </div>
 
-            {/* Favorite, Flag, Notes */}
+            {/* Favorite, Dislike (1-Tap Non-Blocking), Notes */}
             <div className="flex items-center gap-1.5">
               <Tooltip content="Favorite Question (F)">
                 <button
+                  type="button"
                   onClick={handleToggleFavorite}
-                  className={`p-2 rounded-lg border text-xs transition ${
+                  className={`inline-flex items-center justify-center p-2 rounded-lg border text-xs transition cursor-pointer ${
                     qStatus?.isFavorite
                       ? 'bg-amber-500/20 border-amber-500 text-amber-500'
                       : 'bg-subtle border-subtle text-secondary hover:text-primary'
                   }`}
+                  aria-label="Favorite Question"
                 >
                   <Star className={`w-4 h-4 ${qStatus?.isFavorite ? 'fill-amber-500' : ''}`} />
                 </button>
               </Tooltip>
 
-              <Tooltip content="Flag Question (M)">
-                <button
-                  onClick={handleToggleFlag}
-                  className={`p-2 rounded-lg border text-xs transition ${
-                    qStatus?.isFlagged
-                      ? 'bg-amber-500/20 border-amber-500 text-amber-500'
-                      : 'bg-subtle border-subtle text-secondary hover:text-primary'
-                  }`}
-                >
-                  <Flag className={`w-4 h-4 ${qStatus?.isFlagged ? 'fill-amber-500' : ''}`} />
-                </button>
-              </Tooltip>
+              {/* 1-Tap Non-Blocking Dislike with Popover */}
+              <div className="relative inline-flex items-center">
+                <Tooltip content="Dislike Question (D)">
+                  <button
+                    type="button"
+                    onClick={handleToggleDislike}
+                    className={`inline-flex items-center justify-center p-2 rounded-lg border text-xs transition cursor-pointer ${
+                      qStatus?.isDisliked
+                        ? 'bg-rose-500/20 border-rose-500 text-rose-500'
+                        : 'bg-subtle border-subtle text-secondary hover:text-primary'
+                    }`}
+                    aria-label="Dislike Question"
+                  >
+                    <ThumbsDown className={`w-4 h-4 ${qStatus?.isDisliked ? 'fill-rose-500' : ''}`} />
+                  </button>
+                </Tooltip>
+
+                {isDislikePopoverOpen && (
+                  <div
+                    ref={dislikePopoverRef}
+                    className="absolute right-0 top-full mt-2 w-72 p-3 bg-surface border border-rose-500/30 rounded-2xl shadow-2xl z-50 space-y-2.5 animate-in fade-in slide-in-from-top-1 text-xs"
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-subtle">
+                      <span className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                        <ThumbsDown className="w-3.5 h-3.5 fill-rose-500" />
+                        <span>Disliked Question</span>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={handleRemoveDislike}
+                          className="text-[10px] text-muted hover:text-rose-500 font-semibold px-1.5 py-0.5 rounded cursor-pointer transition"
+                        >
+                          Remove
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsDislikePopoverOpen(false)}
+                          className="text-muted hover:text-primary p-0.5 rounded cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-muted tracking-wider">
+                        Reason (Optional)
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: 'wrong_answer' as DislikeReasonType, label: 'Wrong Answer' },
+                          { id: 'ambiguous' as DislikeReasonType, label: 'Confusing' },
+                          { id: 'duplicate' as DislikeReasonType, label: 'Duplicate' },
+                          { id: 'other' as DislikeReasonType, label: 'Other Issue' },
+                        ].map((chip) => (
+                          <button
+                            key={chip.id}
+                            type="button"
+                            onClick={() => handleUpdateDislikeReason(chip.id)}
+                            className={`px-2 py-1.5 rounded-lg text-[11px] font-semibold border text-center transition cursor-pointer ${
+                              qStatus?.dislikeReason === chip.id
+                                ? 'bg-rose-500/20 border-rose-500 text-rose-600 dark:text-rose-300 font-bold'
+                                : 'bg-subtle border-subtle text-secondary hover:text-primary'
+                            }`}
+                          >
+                            {chip.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-muted tracking-wider">
+                        Quick Note (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={dislikeNotesInput}
+                        onChange={(e) => {
+                          setDislikeNotesInput(e.target.value);
+                          handleUpdateDislikeNotes(e.target.value);
+                        }}
+                        placeholder="e.g. Option B is also true..."
+                        className="w-full px-2.5 py-1.5 bg-subtle border border-subtle rounded-lg text-xs text-primary focus:outline-none focus:ring-1 focus:ring-rose-500 placeholder:text-muted"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <Tooltip content="Personal High-Yield Note">
                 <button
+                  type="button"
                   onClick={() => setNoteOpen(!noteOpen)}
-                  className={`p-2 rounded-lg border text-xs transition ${
+                  className={`inline-flex items-center justify-center p-2 rounded-lg border text-xs transition cursor-pointer ${
                     noteOpen || (qStatus?.userNote && qStatus.userNote.trim().length > 0)
                       ? 'bg-cyan-500/20 border-cyan-500 text-cyan-600 dark:text-cyan-400'
                       : 'bg-subtle border-subtle text-secondary hover:text-primary'
                   }`}
+                  aria-label="Personal High-Yield Note"
                 >
                   <BookOpen className="w-4 h-4" />
                 </button>
@@ -1870,7 +2126,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
             session={session}
             currentQIndex={currentQIndex}
             userStatuses={userStatuses}
-            flaggedIds={flaggedIds}
+            dislikedIds={dislikedIds}
             onJump={handleJump}
             isOpen={true}
             isDockedCollapsed={!isQuestionMapOpen}
@@ -1901,7 +2157,7 @@ export const StudySession: React.FC<StudySessionProps> = ({
                 session={session}
                 currentQIndex={currentQIndex}
                 userStatuses={userStatuses}
-                flaggedIds={flaggedIds}
+                dislikedIds={dislikedIds}
                 onJump={(idx) => {
                   handleJump(idx);
                   setIsMobileSheetOpen(false);

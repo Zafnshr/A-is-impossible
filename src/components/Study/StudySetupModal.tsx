@@ -602,57 +602,10 @@ export const StudySetupModal: React.FC<StudySetupModalProps> = ({
           )}
         </div>
 
-        {/* 2. Question Pool Track (All / Practice / Exam Style) */}
+        {/* 2. Study Mode Selection (Learning Mode vs Exam Mode) */}
         <div className="space-y-2">
           <label className="text-xs font-bold text-secondary uppercase tracking-wider">
-            2. Choose Question Track
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedTrack('both')}
-              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                selectedTrack === 'both'
-                  ? 'border-cyan-500 bg-cyan-50/50 dark:bg-cyan-950/30 text-primary ring-1 ring-cyan-500 shadow-xs'
-                  : 'border-subtle bg-subtle text-secondary hover:text-primary hover:border-subtle/80'
-              }`}
-            >
-              <Layers className="w-4 h-4 text-cyan-500" />
-              <span className="text-xs font-bold">All Questions</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTrack('practice')}
-              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                selectedTrack === 'practice'
-                  ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-primary ring-1 ring-emerald-500 shadow-xs'
-                  : 'border-subtle bg-subtle text-secondary hover:text-primary hover:border-subtle/80'
-              }`}
-            >
-              <BookOpen className="w-4 h-4 text-emerald-500" />
-              <span className="text-xs font-bold">Practice Track</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTrack('university_exam_style')}
-              className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                selectedTrack === 'university_exam_style'
-                  ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-primary ring-1 ring-indigo-500 shadow-xs'
-                  : 'border-subtle bg-subtle text-secondary hover:text-primary hover:border-subtle/80'
-              }`}
-            >
-              <Award className="w-4 h-4 text-indigo-500" />
-              <span className="text-xs font-bold">Univ Exam Style</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 3. Study Mode Selection (Learning Mode vs Exam Mode) */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-secondary uppercase tracking-wider">
-            3. Choose Study Mode
+            2. Choose Study Mode
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Learning Mode */}

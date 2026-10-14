@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Bookmark,
   Star,
-  Flag,
+  ThumbsDown,
   XCircle,
   Play,
   Search,
@@ -23,6 +23,8 @@ import {
   CheckCircle2,
   X,
   Sparkles,
+  Download,
+  FileText,
 } from 'lucide-react';
 import {
   Question,
@@ -41,12 +43,12 @@ interface CollectionsViewProps {
   userStatuses: QuestionUserStatus[];
   attempts?: UserAttemptRecord[];
   onStartPracticeCollection: (
-    collectionType: 'favorites' | 'flagged' | 'incorrect',
+    collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged',
     filteredQuestionIds?: string[]
   ) => void;
   onRemoveFromCollection: (
     questionId: string,
-    collectionType: 'favorites' | 'flagged' | 'incorrect'
+    collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged'
   ) => void;
   onOpenDeckView: (deckId: string) => void;
   onOpenOriginalLocation?: (deckId: string, questionId: string) => void;
@@ -117,6 +119,92 @@ function formatQuestionForClipboard(q: Question, deck?: Deck): string {
   return text;
 }
 
+function generateDislikedMarkdownReport(
+  questions: Question[],
+  decksMap: Record<string, Deck>,
+  statusMap: Map<string, QuestionUserStatus>
+): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 5);
+
+  let report = `# A is Impossible — Disliked Questions QA Report\n`;
+  report += `Generated: ${dateStr} ${timeStr}\n`;
+  report += `Total Reported Questions: ${questions.length}\n\n`;
+  report += `> **Instructions for AI Prompt Engineer / Gemini Gem:**\n`;
+  report += `> Review the following disliked questions reported during medical study sessions. Analyze the stated dislike reasons and notes, identify the pattern of generation or formatting errors, and update the Question Generator System Prompt to prevent these mistakes.\n\n`;
+  report += `---\n\n`;
+
+  questions.forEach((q, idx) => {
+    const deck = decksMap[q.deckId];
+    const status = statusMap.get(q.id);
+    const moduleText = deck?.module || 'General';
+    const subjectText = deck?.subject || 'Preclinical';
+    const lectureText = deck?.lectureName || 'Lecture';
+    const isOfficial = q.id.startsWith('off_') || deck?.year?.includes('Official') || false;
+    const sourceTag = isOfficial ? 'Official Content' : 'My Content';
+
+    const reasonLabel =
+      status?.dislikeReason === 'wrong_answer'
+        ? 'Wrong Answer'
+        : status?.dislikeReason === 'ambiguous'
+        ? 'Confusing Wording / Ambiguous'
+        : status?.dislikeReason === 'duplicate'
+        ? 'Duplicate'
+        : 'Other';
+
+    report += `## ${idx + 1}. [${moduleText} • ${subjectText} • ${lectureText}] (Source: ${sourceTag})\n`;
+    report += `- **Question Type:** ${q.type}\n`;
+    report += `- **Reported Reason:** ${reasonLabel}\n`;
+    report += `- **User Note:** ${status?.dislikeNotes?.trim() || 'None provided'}\n\n`;
+
+    if (q.type === 'case_study' && q.caseVignette) {
+      report += `**Clinical Vignette:**\n${q.caseVignette}\n\n`;
+    }
+
+    report += `**Question Stem:**\n${q.question}\n\n`;
+
+    if (q.type === 'matching' && q.matchingPairs) {
+      report += `**Matching Pairs:**\n`;
+      q.matchingPairs.forEach((pair, pIdx) => {
+        report += `- ${pIdx + 1}. ${pair.left}  ➔  ${pair.right}\n`;
+      });
+      report += `\n`;
+    } else if (q.type === 'ordering' && q.options) {
+      report += `**Items:**\n`;
+      q.options.forEach((opt, oIdx) => {
+        report += `- ${oIdx + 1}. ${opt}\n`;
+      });
+      if (q.correctOrder) {
+        report += `\n**Correct Sequence:** ${q.correctOrder.map((i) => i + 1).join(', ')}\n\n`;
+      }
+    } else if (q.type === 'case_study' && q.subQuestions) {
+      q.subQuestions.forEach((sq, sqIdx) => {
+        report += `**Sub-Question ${sqIdx + 1}:** ${sq.question}\n`;
+        sq.options.forEach((opt, optIdx) => {
+          const letter = String.fromCharCode(65 + optIdx);
+          const marker = optIdx === sq.correctAnswer ? ' ✓ (Marked Correct)' : '';
+          report += `- ${letter}) ${opt}${marker}\n`;
+        });
+        report += `\n`;
+      });
+    } else {
+      report += `**Options:**\n`;
+      q.options.forEach((opt, optIdx) => {
+        const letter = String.fromCharCode(65 + optIdx);
+        const isCorrect = q.correctAnswers?.includes(optIdx);
+        const marker = isCorrect ? ' ✓ (Marked Correct)' : '';
+        report += `- ${letter}) ${opt}${marker}\n`;
+      });
+      report += `\n`;
+    }
+
+    report += `---\n\n`;
+  });
+
+  return report;
+}
+
 export const CollectionsView: React.FC<CollectionsViewProps> = ({
   questions,
   decksMap,
@@ -130,7 +218,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   onBrowseOfficialCurriculum,
 }) => {
   // Active collection tab
-  const [activeTab, setActiveTab] = useState<'favorites' | 'flagged' | 'incorrect'>('favorites');
+  const [activeTab, setActiveTab] = useState<'favorites' | 'disliked' | 'incorrect'>('favorites');
 
   // Search & filter states
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -145,6 +233,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
 
   // Copy feedback state
   const [copiedQuestionId, setCopiedQuestionId] = useState<string | null>(null);
+  const [copiedReport, setCopiedReport] = useState<boolean>(false);
 
   // Status mapping
   const statusMap = useMemo(() => {
@@ -158,9 +247,9 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
     return questions.filter((q) => {
       const status = statusMap.get(q.id);
       if (!status) return false;
-      if (activeTab === 'favorites') return status.isFavorite;
-      if (activeTab === 'flagged') return status.isFlagged;
-      if (activeTab === 'incorrect') return status.isIncorrect;
+      if (activeTab === 'favorites') return !!status.isFavorite;
+      if (activeTab === 'disliked') return !!status.isDisliked;
+      if (activeTab === 'incorrect') return !!status.isIncorrect;
       return false;
     });
   }, [questions, statusMap, activeTab]);
@@ -333,8 +422,29 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
 
   // Badge counts
   const favoritesCount = userStatuses.filter((s) => s.isFavorite).length;
-  const flaggedCount = userStatuses.filter((s) => s.isFlagged).length;
+  const dislikedCount = userStatuses.filter((s) => s.isDisliked).length;
   const incorrectCount = userStatuses.filter((s) => s.isIncorrect).length;
+
+  const handleCopyReport = async () => {
+    const text = generateDislikedMarkdownReport(filteredList, decksMap, statusMap);
+    await navigator.clipboard.writeText(text);
+    setCopiedReport(true);
+    setTimeout(() => {
+      setCopiedReport(false);
+    }, 2500);
+  };
+
+  const handleDownloadReport = () => {
+    const text = generateDislikedMarkdownReport(filteredList, decksMap, statusMap);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `disliked-questions-report-${dateStr}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
@@ -350,33 +460,72 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
           </p>
         </div>
 
-        {/* Global Practice CTA */}
-        {filteredList.length > 0 && (
-          <Tooltip
-            content={
-              hasActiveFilters
-                ? `Launch practice session with the ${filteredList.length} filtered questions`
-                : `Launch practice session with all ${filteredList.length} questions in this collection`
-            }
-          >
-            <button
-              onClick={() =>
-                onStartPracticeCollection(
-                  activeTab,
-                  filteredList.map((q) => q.id)
-                )
+        {/* Global Action Toolbar */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {activeTab === 'disliked' && filteredList.length > 0 && (
+            <>
+              <Tooltip content="Copy diagnostic report of filtered disliked questions for Gemini AI Prompt refinement">
+                <button
+                  onClick={handleCopyReport}
+                  className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-xs font-bold transition active:scale-95 ${
+                    copiedReport
+                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 border-subtle text-primary'
+                  }`}
+                >
+                  {copiedReport ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Copied Report (.md)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-cyan-500" />
+                      <span>Copy AI Report (.md)</span>
+                    </>
+                  )}
+                </button>
+              </Tooltip>
+
+              <Tooltip content="Download diagnostic markdown file (disliked-questions-report-YYYY-MM-DD.md)">
+                <button
+                  onClick={handleDownloadReport}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 border border-subtle text-xs font-bold text-primary transition active:scale-95"
+                >
+                  <Download className="w-3.5 h-3.5 text-cyan-500" />
+                  <span>Download Report (.md)</span>
+                </button>
+              </Tooltip>
+            </>
+          )}
+
+          {filteredList.length > 0 && (
+            <Tooltip
+              content={
+                hasActiveFilters
+                  ? `Launch practice session with the ${filteredList.length} filtered questions`
+                  : `Launch practice session with all ${filteredList.length} questions in this collection`
               }
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 shrink-0"
             >
-              <Play className="w-4 h-4 fill-white text-white" />
-              <span>
-                {hasActiveFilters
-                  ? `Practice Filtered Questions (${filteredList.length})`
-                  : `Practice Collection (${filteredList.length})`}
-              </span>
-            </button>
-          </Tooltip>
-        )}
+              <button
+                onClick={() =>
+                  onStartPracticeCollection(
+                    activeTab,
+                    filteredList.map((q) => q.id)
+                  )
+                }
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95 shrink-0"
+              >
+                <Play className="w-4 h-4 fill-white text-white" />
+                <span>
+                  {hasActiveFilters
+                    ? `Practice Filtered Questions (${filteredList.length})`
+                    : `Practice Collection (${filteredList.length})`}
+                </span>
+              </button>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {/* Segmented Collection Switcher */}
@@ -401,19 +550,19 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
 
         <button
           onClick={() => {
-            setActiveTab('flagged');
+            setActiveTab('disliked');
             handleClearFilters();
           }}
           className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-1.5 sm:px-3 rounded-xl text-xs font-bold transition min-w-0 ${
-            activeTab === 'flagged'
+            activeTab === 'disliked'
               ? 'bg-surface text-primary shadow-sm ring-1 ring-cyan-500/20'
               : 'text-secondary hover:text-primary'
           }`}
         >
-          <Flag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500/20 shrink-0" />
-          <span className="truncate">Flagged</span>
+          <ThumbsDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-500 fill-rose-500/20 shrink-0" />
+          <span className="truncate">Disliked Questions</span>
           <span className="text-[10px] font-mono px-1 sm:px-1.5 py-0.5 rounded bg-subtle text-primary border border-subtle shrink-0">
-            {flaggedCount}
+            {dislikedCount}
           </span>
         </button>
 
@@ -677,16 +826,16 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                   </p>
                 </>
               )}
-              {activeTab === 'flagged' && (
+              {activeTab === 'disliked' && (
                 <>
-                  <Flag className="w-10 h-10 text-amber-500 mx-auto" />
-                  <h3 className="text-sm font-bold text-primary">No Flagged Questions Yet</h3>
+                  <ThumbsDown className="w-10 h-10 text-rose-500 mx-auto" />
+                  <h3 className="text-sm font-bold text-primary">No Disliked Questions Yet</h3>
                   <p className="text-xs text-secondary max-w-sm mx-auto leading-relaxed">
-                    Tap the Flag icon (or press{' '}
+                    Tap the Thumbs Down icon (or press{' '}
                     <kbd className="px-1.5 py-0.5 rounded bg-subtle border border-subtle font-mono text-primary">
-                      R
+                      D
                     </kbd>
-                    ) on challenging questions or clinical doubts to flag them for focused revision.
+                    ) on any question during study sessions if you notice an issue, confusing phrasing, or wrong answer.
                   </p>
                 </>
               )}
@@ -748,6 +897,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
           filteredList.map((q, idx) => {
             const deck = decksMap[q.deckId];
             const status = statusMap.get(q.id);
+            const isOfficial = q.id.startsWith('off_') || deck?.year?.includes('Official') || false;
             const questionIndexInDeck = deck
               ? questions
                   .filter((item) => item.deckId === deck.id)
@@ -764,6 +914,13 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                 {/* Top Location Breadcrumbs Header */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-subtle text-[11px] font-mono">
                   <div className="flex flex-wrap items-center gap-1.5 text-secondary">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      isOfficial
+                        ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20'
+                        : 'bg-subtle text-secondary border border-subtle'
+                    }`}>
+                      {isOfficial ? 'OFFICIAL' : 'MY CONTENT'}
+                    </span>
                     <span className="text-primary font-semibold">{deck?.year || 'Year 2'}</span>
                     <span>›</span>
                     <span className="text-cyan-600 dark:text-cyan-400 font-bold">{deck?.module}</span>
@@ -800,6 +957,28 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                     {q.question}
                   </h3>
                 </div>
+
+                {/* Dislike Feedback (if present) */}
+                {status?.isDisliked && (status.dislikeReason || status.dislikeNotes) && (
+                  <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                    <ThumbsDown className="w-3.5 h-3.5 mt-0.5 shrink-0 text-rose-500" />
+                    <div className="space-y-0.5">
+                      <div className="font-bold">
+                        Reported Reason:{' '}
+                        {status.dislikeReason === 'wrong_answer'
+                          ? 'Wrong Answer'
+                          : status.dislikeReason === 'ambiguous'
+                          ? 'Confusing Wording / Ambiguous'
+                          : status.dislikeReason === 'duplicate'
+                          ? 'Duplicate Question'
+                          : 'Other'}
+                      </div>
+                      {status.dislikeNotes && (
+                        <div className="text-[11px] opacity-90">Note: "{status.dislikeNotes}"</div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Personal Notes (if present) */}
                 {status?.userNote && (

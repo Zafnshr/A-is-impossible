@@ -69,7 +69,7 @@
             document.documentElement.classList.add('theme-dark', 'dark');
             document.documentElement.classList.remove('theme-light');
             document.documentElement.setAttribute('data-theme', 'dark');
-            document.documentElement.style.backgroundColor = '#05070E';
+            document.documentElement.style.backgroundColor = '#090d16';
             document.documentElement.style.colorScheme = 'dark';
           }
         } catch (e) {
@@ -160,16 +160,20 @@
         // 5-second Watchdog: If nothing mounts to #root, render diagnostics
         watchdogTimer = setTimeout(function() {
           if (!isMounted) {
-            var rootEl = document.getElementById('root');
-            var hasChildren = rootEl && rootEl.childNodes && rootEl.childNodes.length > 0;
-            if (!hasChildren) {
-              var lastError = startupErrors.length > 0 ? startupErrors[startupErrors.length - 1].message : 'Mount Watchdog Timeout: React did not mount to #root container within 5 seconds.';
-              renderDiagnosticUI('Application Startup Delayed', lastError, 'Mount Watchdog', 'The application bundle loaded but the user interface was not rendered into the DOM.');
-            }
+            var lastError = startupErrors.length > 0 ? startupErrors[startupErrors.length - 1].message : 'Mount Watchdog Timeout: React did not mount to #root container within 5 seconds.';
+            renderDiagnosticUI('Application Startup Delayed', lastError, 'Mount Watchdog', 'The application bundle loaded but the user interface was not rendered into the DOM.');
           }
         }, 5000);
       })();
     </script>
+    <style>
+      html, body, #root {
+        background-color: #090d16;
+      }
+      html.theme-light, html.theme-light body, html.theme-light #root {
+        background-color: #f8fafc;
+      }
+    </style>
   </head>
   <body class="bg-canvas text-primary font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-600 dark:selection:text-cyan-200">
     <div id="root"></div>

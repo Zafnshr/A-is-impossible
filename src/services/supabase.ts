@@ -195,6 +195,9 @@ export function encodeStatusNotes(s: QuestionUserStatus): string {
     attemptsCount: s.attemptsCount || 0,
     lastAttemptAt: s.lastAttemptAt,
     lastAttemptCorrect: s.lastAttemptCorrect,
+    isDisliked: !!s.isDisliked,
+    dislikeReason: s.dislikeReason,
+    dislikeNotes: s.dislikeNotes,
   };
   const cleanNote = (s.userNote || '').replace(/<!--APLUS_STATUS_META:.*?-->\n?/gs, '');
   return `${STATUS_META_PREFIX}${JSON.stringify(meta)}${STATUS_META_SUFFIX}\n${cleanNote}`;
@@ -593,6 +596,9 @@ export const cloudSyncService = {
       const attemptsCount = ext.attemptsCount ?? decoded.meta?.attemptsCount ?? 0;
       const lastAttemptAt = ext.lastAttemptAt ?? decoded.meta?.lastAttemptAt;
       const lastAttemptCorrect = ext.lastAttemptCorrect ?? decoded.meta?.lastAttemptCorrect;
+      const isDisliked = decoded.meta?.isDisliked ?? false;
+      const dislikeReason = decoded.meta?.dislikeReason;
+      const dislikeNotes = decoded.meta?.dislikeNotes;
 
       const existingLocal = mergedStatusesMap.get(rs.question_id);
       if (!existingLocal) {
@@ -601,6 +607,9 @@ export const cloudSyncService = {
           profileId: 'workspace',
           isFavorite: !!rs.is_favorite,
           isFlagged: !!rs.is_flagged,
+          isDisliked,
+          dislikeReason,
+          dislikeNotes,
           isIncorrect: !!rs.is_incorrect,
           userNote: decoded.notes || '',
           attemptsCount,
@@ -608,9 +617,12 @@ export const cloudSyncService = {
           lastAttemptCorrect,
         });
       } else {
-        // Union for collections: If marked favorite or flagged on ANY device, keep it!
+        // Union for collections: If marked favorite, flagged, or disliked on ANY device, keep it!
         existingLocal.isFavorite = existingLocal.isFavorite || !!rs.is_favorite;
         existingLocal.isFlagged = existingLocal.isFlagged || !!rs.is_flagged;
+        existingLocal.isDisliked = existingLocal.isDisliked || isDisliked;
+        if (!existingLocal.dislikeReason && dislikeReason) existingLocal.dislikeReason = dislikeReason;
+        if (!existingLocal.dislikeNotes && dislikeNotes) existingLocal.dislikeNotes = dislikeNotes;
 
         // Notes: take the non-empty or longer note
         if (!existingLocal.userNote && decoded.notes) {

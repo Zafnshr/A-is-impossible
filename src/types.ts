@@ -64,7 +64,10 @@ export interface QuestionUserStatus {
   questionId: string;
   profileId: string;
   isFavorite: boolean;
-  isFlagged: boolean;
+  isFlagged: boolean; // Kept defaulted to false only for backward-compatible hydration of legacy rows
+  isDisliked?: boolean;
+  dislikeReason?: DislikeReasonType;
+  dislikeNotes?: string;
   isIncorrect: boolean;
   userNote: string;
   attemptsCount: number;
@@ -110,7 +113,7 @@ export interface StudySessionState {
   countdownInitialSeconds: number;
   timerRunning: boolean;
   lastSavedAt: number;
-  collectionFilter?: 'favorites' | 'flagged' | 'incorrect';
+  collectionFilter?: 'favorites' | 'disliked' | 'incorrect' | 'flagged';
   startedAt: number;
   isCompleted?: boolean;
   studyMode?: 'learning' | 'exam';
@@ -158,6 +161,7 @@ export interface SessionCompletionSummary {
   studyMode?: 'learning' | 'exam';
   userAnswers?: Record<string, any>;
   sessionQuestions?: Question[];
+  dislikedIds?: string[];
   flaggedIds?: string[];
 }
 
@@ -183,7 +187,7 @@ export interface StudySessionRecord {
   years: string[];
   questionTypes: string[];
   mode: string;
-  collectionType?: 'favorites' | 'flagged' | 'incorrect';
+  collectionType?: 'favorites' | 'disliked' | 'incorrect' | 'flagged';
   questionResults?: {
     questionId: string;
     deckId?: string;

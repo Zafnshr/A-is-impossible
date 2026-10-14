@@ -327,9 +327,9 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
         </div>
       )}
 
-      {/* Top Navigation Row (Only renders breadcrumbs when inside a module) */}
-      {selectedModuleSlug ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Secondary Subheader: Search Bar & Module Path */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {selectedModuleSlug ? (
           <div className="flex items-center gap-2 text-xs text-muted font-medium">
             <button
               type="button"
@@ -346,7 +346,7 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
                 <span className="text-primary font-bold">{activeModule.title}</span>
               </>
             )}
-            {selectedSubjectSlug && (
+            {selectedSubjectSlug && selectedSubjectSlug !== 'all' && (
               <>
                 <ChevronRight className="w-3.5 h-3.5 text-muted" />
                 <span className="text-primary font-bold capitalize">
@@ -355,69 +355,24 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
               </>
             )}
           </div>
-
-          <div className="flex items-center gap-2">
-            {onSwitchToMyContent && (
-              <button
-                type="button"
-                onClick={onSwitchToMyContent}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary text-xs font-semibold border border-subtle transition cursor-pointer shrink-0"
-              >
-                <FolderTree className="w-3.5 h-3.5 text-indigo-400" />
-                <span>My Content</span>
-              </button>
-            )}
-
-            <div className="relative w-48 sm:w-60">
-              <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search lectures..."
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-subtle border border-subtle text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
-              />
-            </div>
+        ) : (
+          <div className="text-xs text-muted font-medium">
+            <span className="text-secondary font-bold text-sm text-primary">Preclinical Organ System Modules</span>
           </div>
+        )}
+
+        <div className="relative w-full sm:w-64 ml-auto">
+          <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={selectedModuleSlug ? 'Search lectures...' : 'Search modules or lectures...'}
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-subtle border border-subtle text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
+          />
         </div>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Primary View Switcher: Official Curriculum vs Personal Decks */}
-          <div className="flex items-center gap-1 p-1 bg-subtle border border-subtle rounded-2xl shrink-0">
-            <button
-              type="button"
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-surface text-cyan-600 dark:text-cyan-400 shadow-xs border border-subtle cursor-default"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Official Curriculum</span>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
-                Year 2
-              </span>
-            </button>
-            {onSwitchToMyContent && (
-              <button
-                type="button"
-                onClick={onSwitchToMyContent}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition cursor-pointer"
-              >
-                <FolderTree className="w-3.5 h-3.5 text-muted" />
-                <span>My Decks</span>
-              </button>
-            )}
-          </div>
+      </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search modules or lectures..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-subtle border border-subtle text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
-            />
-          </div>
-        </div>
-      )}
 
       {/* VIEW 1: ORGAN SYSTEM MODULES GRID (When no module selected) */}
       {!selectedModuleSlug ? (
@@ -522,14 +477,6 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
                   <p className="text-xs text-muted mt-0.5 max-w-xl">{activeModule.description}</p>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedModuleSlug(null)}
-                className="px-3.5 py-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-xs font-semibold text-secondary hover:text-primary border border-subtle transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
-              >
-                <span>← All Modules</span>
-              </button>
             </div>
           )}
 

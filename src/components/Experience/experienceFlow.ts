@@ -40,11 +40,7 @@ export const experienceFlags = {
 
 /** The very first stage to show on page load. */
 export const resolveInitialStage = (): ExperienceStage => {
-  // Returning user who already picked Google/Guest → short branding only.
-  if (experienceFlags.hasVisited()) return 'quick';
-  // Brand new visitor → full cinematic.
-  if (!experienceFlags.introSeen()) return 'cinematic';
-  // Saw the cinematic before but didn't finish → short intro, then resume flow.
+  // Always show the fast, smooth studio loading screen on initial load and reload
   return 'quick';
 };
 
