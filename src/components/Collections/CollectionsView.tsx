@@ -22,6 +22,7 @@ import {
   HelpCircle,
   CheckCircle2,
   X,
+  Sparkles,
 } from 'lucide-react';
 import {
   Question,
@@ -50,6 +51,7 @@ interface CollectionsViewProps {
   onOpenDeckView: (deckId: string) => void;
   onOpenOriginalLocation?: (deckId: string, questionId: string) => void;
   onBrowseLibrary?: () => void;
+  onBrowseOfficialCurriculum?: () => void;
 }
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
@@ -125,6 +127,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   onOpenDeckView,
   onOpenOriginalLocation,
   onBrowseLibrary,
+  onBrowseOfficialCurriculum,
 }) => {
   // Active collection tab
   const [activeTab, setActiveTab] = useState<'favorites' | 'flagged' | 'incorrect'>('favorites');
@@ -697,18 +700,28 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                   </p>
                 </>
               )}
-              {onBrowseLibrary && (
-                <div className="pt-1">
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                {onBrowseOfficialCurriculum && (
+                  <button
+                    type="button"
+                    onClick={onBrowseOfficialCurriculum}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Explore Official Curriculum</span>
+                  </button>
+                )}
+                {onBrowseLibrary && (
                   <button
                     type="button"
                     onClick={onBrowseLibrary}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary border border-subtle font-bold text-xs transition active:scale-95 cursor-pointer"
                   >
                     <FolderTree className="w-3.5 h-3.5" />
-                    <span>Browse Library Decks</span>
+                    <span>Browse Personal Decks</span>
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ) : (
             // Filters returned no matching questions

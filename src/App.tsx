@@ -1690,6 +1690,7 @@ export default function App() {
                 }}
                 onOpenOriginalLocation={handleOpenQuestionInDeck}
                 onBrowseLibrary={() => setActiveTab('library')}
+                onBrowseOfficialCurriculum={() => setActiveTab('official_library')}
               />
             </ErrorBoundary>
           )}

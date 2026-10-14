@@ -132,7 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'official_library' as ActiveTab,
-      label: 'Official Content',
+      label: 'Official Curriculum',
       icon: Sparkles,
       tooltip: 'Year 2 Preclinical Curriculum: Organ System Modules & Slides',
       badge: 'Year 2',
@@ -438,7 +438,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           data-dock-active={activeTab === 'dashboard' ? 'true' : 'false'}
           onClick={() => onTabChange('dashboard')}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition min-tap-target ${
             activeTab === 'dashboard'
               ? 'text-cyan-600 dark:text-cyan-400 font-bold'
               : 'text-muted hover:text-primary'
@@ -448,19 +448,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-[10px]">Home</span>
         </button>
 
+        {/* Official Curriculum */}
+        <button
+          type="button"
+          data-dock-active={activeTab === 'official_library' || activeTab === 'lecture_overview' ? 'true' : 'false'}
+          onClick={() => onTabChange('official_library')}
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition min-tap-target ${
+            activeTab === 'official_library' || activeTab === 'lecture_overview'
+              ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+              : 'text-muted hover:text-primary'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 mb-0.5" />
+          <span className="text-[10px]">Curriculum</span>
+        </button>
+
         {/* Library */}
         <button
           type="button"
           data-dock-active={activeTab === 'library' || activeTab === 'deck_detail' ? 'true' : 'false'}
           onClick={() => onTabChange('library')}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition min-tap-target ${
             activeTab === 'library' || activeTab === 'deck_detail'
               ? 'text-cyan-600 dark:text-cyan-400 font-bold'
               : 'text-muted hover:text-primary'
           }`}
         >
           <FolderTree className="w-4 h-4 mb-0.5" />
-          <span className="text-[10px]">Library</span>
+          <span className="text-[10px]">My Decks</span>
         </button>
 
         {/* Active Study Session Tab (if session running) */}
@@ -469,7 +484,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             data-dock-active={activeTab === 'study' ? 'true' : 'false'}
             onClick={() => onTabChange('study')}
-            className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition min-tap-target relative ${
+            className={`flex-1 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition min-tap-target relative ${
               activeTab === 'study'
                 ? 'text-cyan-600 dark:text-cyan-400 font-bold'
                 : 'text-cyan-500'
@@ -488,7 +503,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           data-dock-active={activeTab === 'collections' ? 'true' : 'false'}
           onClick={() => onTabChange('collections')}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target relative ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition min-tap-target relative ${
             activeTab === 'collections'
               ? 'text-cyan-600 dark:text-cyan-400 font-bold'
               : 'text-muted hover:text-primary'
@@ -505,30 +520,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-[10px]">Saved</span>
         </button>
 
-        {/* Analytics (if no active session) */}
-        {!hasActiveSession && (
-          <button
-            type="button"
-            data-dock-active={activeTab === 'analytics' ? 'true' : 'false'}
-            onClick={() => onTabChange('analytics')}
-            className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
-              activeTab === 'analytics'
-                ? 'text-cyan-600 dark:text-cyan-400 font-bold'
-                : 'text-muted hover:text-primary'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4 mb-0.5" />
-            <span className="text-[10px]">Analytics</span>
-          </button>
-        )}
-
         {/* More Options Drawer Trigger */}
         <button
           type="button"
-          data-dock-active={['backup', 'trash', 'settings', 'help', 'editor', 'import'].includes(activeTab) ? 'true' : 'false'}
+          data-dock-active={['analytics', 'backup', 'trash', 'settings', 'help', 'editor', 'import', 'admin_portal'].includes(activeTab) ? 'true' : 'false'}
           onClick={() => setIsMobileMenuOpen(true)}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition min-tap-target ${
-            ['backup', 'trash', 'settings', 'help', 'editor', 'import'].includes(activeTab)
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition min-tap-target ${
+            ['analytics', 'backup', 'trash', 'settings', 'help', 'editor', 'import', 'admin_portal'].includes(activeTab)
               ? 'text-cyan-600 dark:text-cyan-400 font-bold'
               : 'text-muted hover:text-primary'
           }`}
@@ -546,7 +544,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={() => setIsMobileMenuOpen(false)}
         >
           <div
-            className="w-full max-h-[80vh] bg-surface rounded-t-3xl border-t border-subtle shadow-2xl p-5 space-y-4 animate-slide-up pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
+            className="w-full max-h-[85vh] overflow-y-auto bg-surface rounded-t-3xl border-t border-subtle shadow-2xl p-5 space-y-4 animate-slide-up pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Handle */}
@@ -560,7 +558,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-1 rounded-lg text-muted hover:text-primary"
+                className="p-1 rounded-lg text-muted hover:text-primary cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -568,6 +566,57 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Hubs Grid */}
             <div className="grid grid-cols-2 gap-2.5 text-xs">
+              {/* Official Curriculum (Prominent Top Card) */}
+              <button
+                type="button"
+                onClick={() => {
+                  onTabChange('official_library');
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`p-3.5 rounded-2xl border flex items-center gap-3 text-left transition active:scale-95 col-span-2 cursor-pointer ${
+                  activeTab === 'official_library' || activeTab === 'lecture_overview'
+                    ? 'bg-cyan-500/15 border-cyan-500 text-cyan-600 dark:text-cyan-400 shadow-xs'
+                    : 'bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 hover:from-cyan-500/20 hover:to-indigo-500/20 border-cyan-500/30'
+                }`}
+              >
+                <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-primary flex items-center gap-2">
+                    <span>Official Curriculum</span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                      Year 2
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-secondary truncate mt-0.5">
+                    Organ System Modules, lectures & university exam questions
+                  </div>
+                </div>
+              </button>
+
+              {/* My Personal Decks */}
+              <button
+                type="button"
+                onClick={() => {
+                  onTabChange('library');
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`p-3 rounded-2xl border flex items-center gap-3 text-left transition active:scale-95 cursor-pointer ${
+                  activeTab === 'library' || activeTab === 'deck_detail'
+                    ? 'bg-indigo-500/15 border-indigo-500 text-primary'
+                    : 'bg-subtle/80 hover:bg-subtle border-subtle'
+                }`}
+              >
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500 shrink-0">
+                  <FolderTree className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">My Decks</div>
+                  <div className="text-[10px] text-muted">Personal library</div>
+                </div>
+              </button>
+
               {/* Analytics */}
               <button
                 type="button"
@@ -575,9 +624,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onTabChange('analytics');
                   setIsMobileMenuOpen(false);
                 }}
-                className="p-3 rounded-2xl bg-subtle/80 hover:bg-subtle border border-subtle flex items-center gap-3 text-left transition active:scale-95"
+                className={`p-3 rounded-2xl border flex items-center gap-3 text-left transition active:scale-95 cursor-pointer ${
+                  activeTab === 'analytics'
+                    ? 'bg-cyan-500/15 border-cyan-500 text-primary'
+                    : 'bg-subtle/80 hover:bg-subtle border-subtle'
+                }`}
               >
-                <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shrink-0">
                   <BarChart3 className="w-4 h-4" />
                 </div>
                 <div>
@@ -675,6 +728,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="text-[10px] text-secondary">Word, TXT, JSON</div>
                 </div>
               </button>
+
+              {/* Admin Portal (If Whitelisted) */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTabChange('admin_portal');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="p-3 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 flex items-center gap-3 text-left transition active:scale-95 text-cyan-600 dark:text-cyan-400"
+                >
+                  <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-primary">Admin Portal</div>
+                    <div className="text-[10px] text-muted">Curriculum & MCQs</div>
+                  </div>
+                </button>
+              )}
 
               {/* Open Gem */}
               {onOpenGem && (

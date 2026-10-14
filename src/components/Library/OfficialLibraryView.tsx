@@ -381,36 +381,40 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-primary">Preclinical Curriculum</span>
-            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
-              Year 2
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Primary View Switcher: Official Curriculum vs Personal Decks */}
+          <div className="flex items-center gap-1 p-1 bg-subtle border border-subtle rounded-2xl shrink-0">
+            <button
+              type="button"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-surface text-cyan-600 dark:text-cyan-400 shadow-xs border border-subtle cursor-default"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
+              <span>Official Curriculum</span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                Year 2
+              </span>
+            </button>
             {onSwitchToMyContent && (
               <button
                 type="button"
                 onClick={onSwitchToMyContent}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary text-xs font-semibold border border-subtle transition cursor-pointer shrink-0"
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-secondary hover:text-primary transition cursor-pointer"
               >
-                <FolderTree className="w-3.5 h-3.5 text-indigo-400" />
-                <span>My Content</span>
+                <FolderTree className="w-3.5 h-3.5 text-muted" />
+                <span>My Decks</span>
               </button>
             )}
+          </div>
 
-            <div className="relative w-52 sm:w-64">
-              <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search modules or lectures..."
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-subtle border border-subtle text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
-              />
-            </div>
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search modules or lectures..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-subtle border border-subtle text-xs text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
+            />
           </div>
         </div>
       )}

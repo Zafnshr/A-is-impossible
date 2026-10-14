@@ -216,6 +216,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </section>
 
+      {/* OFFICIAL CURRICULUM HERO SHOWCASE */}
+      <section className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-cyan-950/25 via-surface to-indigo-950/20 border border-cyan-500/30 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden group">
+        <div className="space-y-1.5 relative z-10">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-cyan-600 dark:text-cyan-400 font-black px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20">
+              <Sparkles className="w-3 h-3 text-cyan-500" />
+              Official Preclinical Curriculum
+            </span>
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-subtle text-secondary border border-subtle">
+              Year 2
+            </span>
+          </div>
+          <h3 className="text-base sm:text-lg font-black text-primary tracking-tight">
+            Accredited Organ System Modules & Exam Question Bank
+          </h3>
+          <p className="text-xs text-secondary max-w-xl leading-relaxed">
+            Study lecture slides and clinical questions across 9 organ systems: Blood, Cardiovascular, Respiratory, GI, Renal, and more.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 relative z-10">
+          <button
+            type="button"
+            onClick={() => onNavigateTab('official_library')}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+          >
+            <span>Explore Official Curriculum</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      </section>
+
       {/* 2. RECENT DECKS (STRICT ORDER 2) */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
