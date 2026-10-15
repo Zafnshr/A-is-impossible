@@ -179,6 +179,23 @@ function mapFeedbackToDb(rec: QuestionFeedbackRecord): any {
   };
 }
 
+function isTableMissingError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  const code = (err.code || '').toLowerCase();
+  const details = (err.details || '').toLowerCase();
+  return (
+    msg.includes('relation') ||
+    msg.includes('does not exist') ||
+    msg.includes('schema cache') ||
+    msg.includes('could not find the table') ||
+    msg.includes('not found') ||
+    details.includes('schema cache') ||
+    code === '42p01' ||
+    code === 'pgrst205'
+  );
+}
+
 class OfficialContentService {
   private isInitialized = false;
   private isSyncing = false;
@@ -250,9 +267,9 @@ class OfficialContentService {
         .select('*');
 
       if (lecErr) {
-        if (/relation|does not exist|42P01/i.test(lecErr.message || '')) {
+        if (isTableMissingError(lecErr)) {
           this.tablesMissing = true;
-          issues.push('Supabase official_lectures table does not exist.');
+          issues.push('Supabase official_lectures table is not yet provisioned in the database.');
         } else {
           issues.push(`Failed fetching official_lectures: ${lecErr.message}`);
         }
@@ -272,7 +289,9 @@ class OfficialContentService {
         .select('*');
 
       if (qErr) {
-        if (!this.tablesMissing && !/relation|does not exist|42P01/i.test(qErr.message || '')) {
+        if (isTableMissingError(qErr)) {
+          this.tablesMissing = true;
+        } else if (!this.tablesMissing) {
           issues.push(`Failed fetching official_questions: ${qErr.message}`);
         }
       } else if (cloudQuestions && cloudQuestions.length > 0) {
@@ -286,7 +305,9 @@ class OfficialContentService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!annErr && cloudAnnouncements && cloudAnnouncements.length > 0) {
+      if (annErr && isTableMissingError(annErr)) {
+        this.tablesMissing = true;
+      } else if (!annErr && cloudAnnouncements && cloudAnnouncements.length > 0) {
         const mappedAnn = cloudAnnouncements.map(mapDbToAnnouncement);
         if (typeof window !== 'undefined') {
           localStorage.setItem(ANNOUNCEMENTS_KEY, JSON.stringify(mappedAnn));
@@ -297,6 +318,10 @@ class OfficialContentService {
       const { data: cloudFeedback, error: fbErr } = await supabase
         .from('official_question_feedback')
         .select('*');
+
+      if (fbErr && isTableMissingError(fbErr)) {
+        this.tablesMissing = true;
+      }
 
       if (!fbErr && cloudFeedback && cloudFeedback.length > 0) {
         const mappedFeedback = cloudFeedback.map(mapDbToFeedback);
