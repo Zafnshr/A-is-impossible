@@ -306,30 +306,6 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
               </button>
             </Tooltip>
           </div>
-
-          <Tooltip content="Add brand new question to this deck">
-            <button
-              onClick={handleAddNewQuestion}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Question</span>
-            </button>
-          </Tooltip>
-
-          {onOpenGem && (
-            <Tooltip content="Open your medical question generator Gem in browser">
-              <button
-                type="button"
-                onClick={onOpenGem}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold text-xs shadow-md transition active:scale-95"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Open Gem</span>
-                <ExternalLink className="w-3 h-3 opacity-80" />
-              </button>
-            </Tooltip>
-          )}
         </div>
       </div>
 
@@ -447,18 +423,6 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                         className="p-1 rounded text-secondary hover:text-primary transition"
                       >
                         <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </Tooltip>
-                    <Tooltip content="Move question to Trash">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteQuestion(q.id);
-                        }}
-                        className="p-1 rounded text-secondary hover:text-rose-500 transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </Tooltip>
                   </div>

@@ -28,7 +28,7 @@ interface NavbarProps {
   onOpenAuthModal?: () => void;
   onOpenGlobalSearch: () => void;
   onOpenHelp: () => void;
-  onStartTour: () => void;
+  onStartTour?: () => void;
   onUpdateSettings: (newSettings: Partial<UserSettings>) => void;
 }
 
@@ -102,18 +102,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </Tooltip>
         )}
-
-        {/* Walkthrough */}
-        <Tooltip content="Interactive feature walkthrough tour">
-          <button
-            type="button"
-            onClick={onStartTour}
-            className="hidden xl:flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-secondary hover:text-primary hover:bg-subtle transition"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
-            <span>Tour</span>
-          </button>
-        </Tooltip>
 
         {/* High-Contrast Toggle */}
         <Tooltip content={settings.highContrast ? 'Disable High Contrast' : 'Enable High Contrast'}>

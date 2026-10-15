@@ -159,7 +159,7 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onPlayCinem
               </div>
             </div>
 
-            {/* Interactive Tour Quick Launcher */}
+            {/* Interactive Tour Information */}
             <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-500/[0.08] via-indigo-500/[0.05] to-transparent border border-cyan-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h4 className="text-xs font-bold text-primary flex items-center gap-1.5">
@@ -167,17 +167,9 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onStartTour, onPlayCinem
                   Hands-On Interactive Walkthrough
                 </h4>
                 <p className="text-[11px] text-secondary mt-0.5">
-                  Learn by doing: practice creating decks, importing exam questions, study modes, question map, collections, and analytics.
+                  Learn by doing: practice creating decks, importing exam questions, study modes, question map, collections, and analytics using the Replay Guided Tour button in the header.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={onStartTour}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-xs"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Restart Welcome Tour</span>
-              </button>
             </div>
           </div>
 

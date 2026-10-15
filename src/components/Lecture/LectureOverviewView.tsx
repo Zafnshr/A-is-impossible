@@ -488,7 +488,6 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
               pdfUrl={activePdfUrl || lecture.pdfUrl}
               title={lecture.title}
               pageCount={lecture.pdfPageCount}
-              onClick={() => setIsPdfModalOpen(true)}
             />
           </div>
 

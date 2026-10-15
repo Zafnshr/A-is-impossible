@@ -348,14 +348,6 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
             </button>
 
             <button
-              onClick={handleStartRename}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-primary border border-subtle text-xs font-semibold transition"
-            >
-              <Pencil className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Rename Deck</span>
-            </button>
-
-            <button
               onClick={() => setHistoryOpen(!historyOpen)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-subtle hover:bg-slate-200 dark:hover:bg-slate-800 text-primary border border-subtle text-xs font-semibold transition"
             >
@@ -434,12 +426,6 @@ export const DeckDetailView: React.FC<DeckDetailViewProps> = ({
       <div className="stagger space-y-3">
         <div className="flex items-center justify-between text-xs font-bold text-secondary uppercase tracking-wider">
           <span>Questions in this Deck ({deckQuestions.length})</span>
-          <button
-            onClick={() => onEditDeck(deck.id)}
-            className="text-cyan-600 dark:text-cyan-400 hover:underline capitalize font-semibold"
-          >
-            Manage in Editor →
-          </button>
         </div>
 
         {deckQuestions.length === 0 ? (

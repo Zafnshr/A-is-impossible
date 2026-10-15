@@ -257,9 +257,15 @@ export interface OfficialQuestion {
   id: string;
   lectureId: string;
   versionType: QuestionVersionType;
+  type?: QuestionType;
   stem: string;
   imageUrl?: string;
   options: OfficialQuestionOption[];
+  correctAnswers?: number[];
+  matchingPairs?: MatchingPair[];
+  correctOrder?: number[];
+  caseVignette?: string;
+  subQuestions?: CaseSubQuestion[];
   displayOrder: number;
   explanation?: string;
   createdAt: number;

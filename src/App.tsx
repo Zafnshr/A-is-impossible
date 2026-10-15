@@ -133,6 +133,9 @@ export default function App() {
   const [myContentSubTab, setMyContentSubTab] = useState<'decks' | 'pdfs'>(
     initialRoute.myContentSubTab || 'decks'
   );
+  const [activeCollectionTab, setActiveCollectionTab] = useState<'favorites' | 'disliked' | 'incorrect'>(
+    initialRoute.collectionTab || 'favorites'
+  );
   const [activeSession, setActiveSession] = useState<StudySessionState | null>(null);
   const [completionSummary, setCompletionSummary] = useState<SessionCompletionSummary | null>(null);
   const [activeExamReview, setActiveExamReview] = useState<SessionCompletionSummary | null>(null);
@@ -414,6 +417,7 @@ export default function App() {
       deckId: selectedDeckForDetail?.id || pendingDeckId,
       myContentSubTab,
       editorDeckId,
+      collectionTab: activeCollectionTab,
     });
     safePushUrl(targetUrl);
   }, [
@@ -425,6 +429,7 @@ export default function App() {
     pendingDeckId,
     myContentSubTab,
     editorDeckId,
+    activeCollectionTab,
   ]);
 
   // Handle browser Back / Forward buttons (popstate)
@@ -441,6 +446,9 @@ export default function App() {
       }
       if (parsed.myContentSubTab) {
         setMyContentSubTab(parsed.myContentSubTab);
+      }
+      if (parsed.collectionTab) {
+        setActiveCollectionTab(parsed.collectionTab);
       }
       if (parsed.deckId) {
         setPendingDeckId(parsed.deckId);
@@ -812,13 +820,23 @@ export default function App() {
           const correctIndices = oq.options
             .map((opt, i) => (opt.isCorrect ? i : -1))
             .filter((i) => i >= 0);
+          const finalCorrectAnswers =
+            oq.correctAnswers && oq.correctAnswers.length > 0
+              ? oq.correctAnswers
+              : correctIndices.length > 0
+              ? correctIndices
+              : [0];
           return {
             id: oq.id,
             deckId: oq.lectureId,
-            type: 'single_mcq',
+            type: oq.type || 'single_mcq',
             question: oq.stem,
             options: oq.options.map((opt) => opt.content),
-            correctAnswers: correctIndices.length > 0 ? correctIndices : [0],
+            correctAnswers: finalCorrectAnswers,
+            matchingPairs: oq.matchingPairs,
+            correctOrder: oq.correctOrder,
+            caseVignette: oq.caseVignette,
+            subQuestions: oq.subQuestions,
             originalOrderIndex: index,
             createdAt: oq.createdAt,
             updatedAt: oq.updatedAt,
@@ -847,13 +865,23 @@ export default function App() {
             const correctIndices = oq.options
               .map((opt, i) => (opt.isCorrect ? i : -1))
               .filter((i) => i >= 0);
+            const finalCorrectAnswers =
+              oq.correctAnswers && oq.correctAnswers.length > 0
+                ? oq.correctAnswers
+                : correctIndices.length > 0
+                ? correctIndices
+                : [0];
             return {
               id: oq.id,
               deckId: oq.lectureId,
-              type: 'single_mcq',
+              type: oq.type || 'single_mcq',
               question: oq.stem,
               options: oq.options.map((opt) => opt.content),
-              correctAnswers: correctIndices.length > 0 ? correctIndices : [0],
+              correctAnswers: finalCorrectAnswers,
+              matchingPairs: oq.matchingPairs,
+              correctOrder: oq.correctOrder,
+              caseVignette: oq.caseVignette,
+              subQuestions: oq.subQuestions,
               originalOrderIndex: index,
               createdAt: oq.createdAt,
               updatedAt: oq.updatedAt,
@@ -1650,7 +1678,12 @@ export default function App() {
                 onResumeSession={() => setActiveTab('study')}
                 onDiscardSession={handleDiscardSessionForDeck}
                 onOpenDeckDetail={handleOpenDeckDetail}
-                onNavigateTab={(tab) => setActiveTab(tab)}
+                onNavigateTab={(tab, subTab) => {
+                  setActiveTab(tab);
+                  if (tab === 'collections' && (subTab === 'favorites' || subTab === 'disliked' || subTab === 'incorrect')) {
+                    setActiveCollectionTab(subTab);
+                  }
+                }}
                 onCreateDeckPrompt={() => handleCreateDeckPrompt()}
               />
             </ErrorBoundary>
@@ -1839,6 +1872,7 @@ export default function App() {
                 decksMap={decksMap}
                 userStatuses={userStatuses}
                 attempts={attempts}
+                initialTab={activeCollectionTab}
                 onStartPracticeCollection={handleStartPracticeCollection}
                 onRemoveFromCollection={handleRemoveFromCollection}
                 onOpenDeckView={(deckId) => {

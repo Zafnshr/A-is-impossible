@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Bookmark,
   Star,
@@ -42,6 +42,7 @@ interface CollectionsViewProps {
   decksMap: Record<string, Deck>;
   userStatuses: QuestionUserStatus[];
   attempts?: UserAttemptRecord[];
+  initialTab?: 'favorites' | 'disliked' | 'incorrect';
   onStartPracticeCollection: (
     collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged',
     filteredQuestionIds?: string[]
@@ -210,6 +211,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   decksMap,
   userStatuses,
   attempts = [],
+  initialTab,
   onStartPracticeCollection,
   onRemoveFromCollection,
   onOpenDeckView,
@@ -218,7 +220,15 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   onBrowseOfficialCurriculum,
 }) => {
   // Active collection tab
-  const [activeTab, setActiveTab] = useState<'favorites' | 'disliked' | 'incorrect'>('favorites');
+  const [activeTab, setActiveTab] = useState<'favorites' | 'disliked' | 'incorrect'>(
+    initialTab || 'favorites'
+  );
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Search & filter states
   const [searchQuery, setSearchQuery] = useState<string>('');

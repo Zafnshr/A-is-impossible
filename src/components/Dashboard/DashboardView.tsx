@@ -44,7 +44,7 @@ interface DashboardViewProps {
   onResumeSession: () => void;
   onDiscardSession?: () => void;
   onOpenDeckDetail: (deck: Deck) => void;
-  onNavigateTab: (tab: any) => void;
+  onNavigateTab: (tab: any, collectionTab?: 'favorites' | 'disliked' | 'incorrect') => void;
   onCreateDeckPrompt: () => void;
 }
 
@@ -381,14 +381,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {recentDecks.length === 0 ? (
-          <div className="p-6 text-center rounded-2xl bg-subtle border border-subtle text-xs text-secondary space-y-3">
+          <div className="p-6 text-center rounded-2xl bg-subtle border border-subtle text-xs text-secondary">
             <p>No lecture decks added yet. Decks you create or study will appear here.</p>
-            <button
-              onClick={onCreateDeckPrompt}
-              className="px-4 py-2 rounded-xl bg-subtle hover:bg-surface border border-subtle text-primary font-bold text-xs transition active:scale-95"
-            >
-              Import or Create Your First Deck
-            </button>
           </div>
         ) : (
           <div className="stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -534,8 +528,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Collections Breakdown Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
           <button
-            onClick={() => onNavigateTab('collections')}
-            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"
+            onClick={() => onNavigateTab('collections', 'favorites')}
+            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
@@ -545,8 +539,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
 
           <button
-            onClick={() => onNavigateTab('collections')}
-            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"
+            onClick={() => onNavigateTab('collections', 'disliked')}
+            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <ThumbsDown className="w-4 h-4 text-rose-500 fill-rose-500/20" />
@@ -556,8 +550,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
 
           <button
-            onClick={() => onNavigateTab('collections')}
-            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card"
+            onClick={() => onNavigateTab('collections', 'incorrect')}
+            className="p-3 rounded-xl bg-surface border border-subtle hover:border-cyan-500 transition flex items-center justify-between text-left shadow-card cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <XCircle className="w-4 h-4 text-rose-500" />
