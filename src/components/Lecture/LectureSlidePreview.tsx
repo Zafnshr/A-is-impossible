@@ -17,6 +17,7 @@ export interface LectureSlidePreviewProps {
   title: string;
   pageCount?: number;
   onClick?: () => void;
+  onPageCountDetected?: (count: number) => void;
 }
 
 export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
@@ -24,6 +25,7 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
   title,
   pageCount,
   onClick,
+  onPageCountDetected,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,6 +36,7 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
   const [isRendered, setIsRendered] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
+  const [detectedPages, setDetectedPages] = useState<number | null>(null);
 
   // Render first page onto canvas
   useEffect(() => {
@@ -98,6 +101,11 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
         }
 
         if (isCancelled || !doc) return;
+
+        if (doc.numPages) {
+          setDetectedPages(doc.numPages);
+          onPageCountDetected?.(doc.numPages);
+        }
 
         const page = await doc.getPage(1);
         if (isCancelled) return;
@@ -233,7 +241,7 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
             </p>
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Slide 1 of {pageCount || 14}</span>
+            <span>Slide 1 of {detectedPages ?? pageCount ?? 1}</span>
             {onClick && (
               <span className="font-mono text-cyan-600 dark:text-cyan-400 font-bold">
                 Open Reader →
@@ -252,7 +260,7 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
               SLIDE 1 PREVIEW
             </div>
             <div className="px-2.5 py-1 rounded-lg bg-slate-950/90 text-[10px] font-mono font-medium text-slate-300 border border-white/10 shadow-md">
-              1 of {pageCount || 14} Slides
+              1 of {detectedPages ?? pageCount ?? 1} Slides
             </div>
           </div>
           {onClick && (

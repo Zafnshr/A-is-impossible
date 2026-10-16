@@ -422,6 +422,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       description: editingLecture.description || '',
       pdfUrl: editingLecture.pdfUrl || undefined,
       pdfPageCount: editingLecture.pdfPageCount || 0,
+      pdfFileSizeBytes: editingLecture.pdfFileSizeBytes || 0,
       status: (editingLecture.status as ContentStatus) || 'published',
       displayOrder: editingLecture.displayOrder || 1,
       practiceQuestionsCount: editingLecture.practiceQuestionsCount || 0,
@@ -830,6 +831,21 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     });
   };
 
+// Helper to accurately extract page count from PDF binary
+function countPdfPages(buffer: ArrayBuffer): number {
+  try {
+    const bytes = new Uint8Array(buffer);
+    const text = new TextDecoder('latin1').decode(bytes);
+    const matches = text.match(/\/Type\s*\/Page\b/g);
+    if (matches && matches.length > 0) {
+      return matches.length;
+    }
+  } catch (err) {
+    console.warn('[Admin] PDF regex page count detection failed:', err);
+  }
+  return 1;
+}
+
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -841,14 +857,20 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       // Persist PDF binary into Supabase Storage & IndexedDB official_pdf_storage
       const res = await officialContentService.saveOfficialPdf(targetId, arrayBuffer, file.name);
 
+      const detectedPages = countPdfPages(arrayBuffer);
+
       setEditingLecture((prev) => ({
         ...prev,
         id: targetId,
         pdfUrl: res.publicUrl || `idb://${targetId}`,
-        pdfPageCount: prev?.pdfPageCount || 20,
+        pdfPageCount: detectedPages,
         pdfFileSizeBytes: file.size,
       }));
-      showToast(`PDF "${file.name}" uploaded successfully.`);
+      showToast(
+        `PDF "${file.name}" uploaded successfully (${detectedPages} ${
+          detectedPages === 1 ? 'slide' : 'slides'
+        }).`
+      );
     } catch (err: any) {
       console.error('[Admin] Error saving PDF file:', err);
       showToast('Failed to save PDF file.');
@@ -2639,7 +2661,15 @@ C) Echocardiogram`}
 
               {/* PDF Slide Deck Management */}
               <div className="space-y-1.5 pt-1">
-                <label className="font-bold text-secondary">PDF Slide Deck</label>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-secondary">PDF Slide Deck</label>
+                  {editingLecture.pdfPageCount !== undefined && editingLecture.pdfPageCount > 0 && (
+                    <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                      {editingLecture.pdfPageCount} {editingLecture.pdfPageCount === 1 ? 'slide' : 'slides'}
+                      {editingLecture.pdfFileSizeBytes ? ` • ${Math.round(editingLecture.pdfFileSizeBytes / 1024)} KB` : ''}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -2660,11 +2690,28 @@ C) Echocardiogram`}
                   <button
                     type="button"
                     onClick={() => pdfFileInputRef.current?.click()}
-                    className="px-3 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary text-xs font-semibold border border-subtle cursor-pointer"
+                    className="px-3 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary text-xs font-semibold border border-subtle cursor-pointer shrink-0"
                   >
                     Upload File
                   </button>
                 </div>
+                {editingLecture.pdfUrl && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <label className="text-[11px] text-muted font-medium">Slide count:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editingLecture.pdfPageCount || 1}
+                      onChange={(e) =>
+                        setEditingLecture((prev) => ({
+                          ...prev,
+                          pdfPageCount: Math.max(1, parseInt(e.target.value, 10) || 1),
+                        }))
+                      }
+                      className="w-20 px-2.5 py-1 rounded-lg bg-subtle border border-subtle text-primary font-mono text-xs"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

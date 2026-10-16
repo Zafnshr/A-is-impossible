@@ -67,9 +67,18 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
   const [resolvedPdfUrl, setResolvedPdfUrl] = useState<string | null>(null);
   const [livePracticeCount, setLivePracticeCount] = useState<number>(0);
   const [liveExamCount, setLiveExamCount] = useState<number>(0);
+  const [livePdfPageCount, setLivePdfPageCount] = useState<number | undefined>(undefined);
   const [pendingSetupTrack, setPendingSetupTrack] = useState<
     'practice' | 'university_exam_style' | 'both' | null
   >(null);
+
+  const formatPdfSizeBytes = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) return '0 KB';
+    if (bytes < 1024 * 1024) {
+      return `${Math.round(bytes / 1024)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -84,6 +93,7 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
         );
         if (lec && isMounted) {
           setLecture(lec);
+          setLivePdfPageCount(lec.pdfPageCount);
           const m = await officialContentService.getLectureMetrics(currentUserId, lec.id);
           setMetrics(m);
 
@@ -467,8 +477,10 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
                 <span>Primary Lecture Slides Deck</span>
               </div>
               <span className="text-xs font-mono text-muted">
-                {lecture.pdfPageCount || 14} Slides •{' '}
-                {Math.round((lecture.pdfFileSizeBytes || 1048576) / 1024 / 1024)} MB
+                {livePdfPageCount ?? lecture.pdfPageCount ?? 1} Slides
+                {lecture.pdfFileSizeBytes && lecture.pdfFileSizeBytes > 0
+                  ? ` • ${formatPdfSizeBytes(lecture.pdfFileSizeBytes)}`
+                  : ''}
               </span>
             </div>
 
@@ -487,7 +499,20 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
             <LectureSlidePreview
               pdfUrl={activePdfUrl || lecture.pdfUrl}
               title={lecture.title}
-              pageCount={lecture.pdfPageCount}
+              pageCount={livePdfPageCount ?? lecture.pdfPageCount}
+              onPageCountDetected={(detected) => {
+                if (detected > 0 && detected !== livePdfPageCount) {
+                  setLivePdfPageCount(detected);
+                  if (lecture && lecture.pdfPageCount !== detected) {
+                    officialContentService
+                      .saveOfficialLecture({
+                        ...lecture,
+                        pdfPageCount: detected,
+                      })
+                      .catch(console.warn);
+                  }
+                }
+              }}
             />
           </div>
 
@@ -499,7 +524,9 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
             >
               <Eye className="w-4 h-4" />
-              <span>Open Slides Reader ({lecture.pdfPageCount || 14} Slides)</span>
+              <span>
+                Open Slides Reader ({livePdfPageCount ?? lecture.pdfPageCount ?? 1} Slides)
+              </span>
             </button>
 
             {(activePdfUrl || lecture.pdfUrl) && (
