@@ -20,6 +20,7 @@ import {
   X,
   Info,
   ExternalLink,
+  Bookmark,
 } from 'lucide-react';
 import { UserSettings } from '../../types';
 import { createDefaultSettings } from '../../services/defaultSettings';
@@ -84,6 +85,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setDangerModalOpen(false);
         setSelectedDangerAction(null);
         showToast('Study progress successfully reset. All history & analytics cleared.');
+      } else if (action === 'clear_collections') {
+        await dbService.clearAllCollections(safeSettings.profileId || 'workspace');
+        if (userId) {
+          await cloudSyncService.clearAllCloudCollections(userId);
+        }
+        localStorage.removeItem('a_plus_guest_snapshot_v2');
+        if (onReloadData) await onReloadData();
+        setDangerModalOpen(false);
+        setSelectedDangerAction(null);
+        showToast('All collections successfully cleared.');
       } else if (action === 'delete_profile') {
         await dbService.deleteCurrentProfile(safeSettings.profileId || 'workspace');
         if (userId) {
@@ -510,6 +521,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="px-4 py-2 rounded-xl text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer self-start sm:self-auto shrink-0 active:scale-95"
               >
                 Reset Progress...
+              </button>
+            </div>
+
+            {/* 1.5 Clear All Collections */}
+            <div className="p-4 rounded-xl bg-subtle/70 border border-subtle hover:border-amber-500/30 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1 sm:max-w-xl">
+                <div className="flex items-center gap-2">
+                  <Bookmark className="w-4 h-4 text-amber-500" />
+                  <span className="font-bold text-xs text-primary">Clear All Collections</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    Favorites & Disliked Lists
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted leading-relaxed">
+                  Clears all saved Favorites, Disliked question feedback, and Incorrect question remediation lists from both local storage and your cloud account.
+                </p>
+                <div className="text-[10px] text-secondary flex items-center gap-1.5">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Keeps:</span>
+                  <span>Imported decks, questions, attempts, and study history</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleOpenDangerModal('clear_collections')}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer self-start sm:self-auto shrink-0 active:scale-95"
+              >
+                Clear Collections...
               </button>
             </div>
 

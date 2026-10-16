@@ -181,7 +181,9 @@ export const accountManager = {
         settings: result.settings ? [{ ...result.settings, profileId: 'workspace' }] : [],
         decks: liveDecks,
         questions: liveQuestions,
-        question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
+        question_status: result.statuses
+          .filter((s) => !new Set(getLocalTombstones()).has(s.questionId))
+          .map((s) => ({ ...s, profileId: 'workspace' })),
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
         sessions: preservedSession ? [preservedSession] : [],
         session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),
@@ -243,7 +245,9 @@ export const accountManager = {
         settings: result.settings ? [{ ...result.settings, profileId: 'workspace' }] : [],
         decks: activeLiveDecks,
         questions: activeLiveQuestions,
-        question_status: result.statuses.map((s) => ({ ...s, profileId: 'workspace' })),
+        question_status: result.statuses
+          .filter((s) => !new Set(getLocalTombstones()).has(s.questionId))
+          .map((s) => ({ ...s, profileId: 'workspace' })),
         attempts: result.attempts.map((a) => ({ ...a, profileId: 'workspace' })),
         sessions: preservedActiveSession ? [preservedActiveSession] : [],
         session_history: result.history.map((h) => ({ ...h, profileId: 'workspace' })),

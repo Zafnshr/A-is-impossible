@@ -1282,6 +1282,9 @@ export default function App() {
     // Local deletion guard so no later sync can resurrect this deck.
     addLocalTombstones([deckId, ...deckQuestions.map((q) => q.id)]);
     await dbService.deleteDeck(deckId);
+    if (currentUser?.id) {
+      await cloudSyncService.deleteCloudDeck(currentUser.id, deckId);
+    }
     await reloadData();
     setActiveTab('library');
     triggerAutoSave();
@@ -1332,8 +1335,14 @@ export default function App() {
       if (target.itemType === 'deck' && target.data?.deck) {
         const qs = Array.isArray(target.data.questions) ? target.data.questions : [];
         addLocalTombstones([target.data.deck.id, ...qs.map((q: any) => q?.id).filter(Boolean)]);
+        if (currentUser?.id) {
+          await cloudSyncService.deleteCloudDeck(currentUser.id, target.data.deck.id);
+        }
       } else if (target.itemType === 'question' && target.data?.id) {
         addLocalTombstones([target.data.id]);
+        if (currentUser?.id) {
+          await cloudSyncService.deleteCloudQuestion(currentUser.id, target.data.id);
+        }
       }
     }
     await dbService.permanentlyDeleteTrash(itemId);
@@ -1356,6 +1365,15 @@ export default function App() {
       }
     });
     addLocalTombstones(ids);
+    if (currentUser?.id) {
+      for (const t of trashItems) {
+        if (t.itemType === 'deck' && t.data?.deck?.id) {
+          await cloudSyncService.deleteCloudDeck(currentUser.id, t.data.deck.id);
+        } else if (t.itemType === 'question' && t.data?.id) {
+          await cloudSyncService.deleteCloudQuestion(currentUser.id, t.data.id);
+        }
+      }
+    }
     await dbService.clearAllTrash(WORKSPACE_ID);
     await reloadData();
     triggerAutoSave();
@@ -1376,6 +1394,9 @@ export default function App() {
       await dbService.moveToTrash(WORKSPACE_ID, 'question', q.question.slice(0, 40), q);
       addLocalTombstones([questionId]);
       await dbService.deleteQuestion(questionId);
+      if (currentUser?.id) {
+        await cloudSyncService.deleteCloudQuestion(currentUser.id, questionId);
+      }
       await reloadData();
       triggerAutoSave();
       triggerCloudSync(true);
@@ -1559,8 +1580,13 @@ export default function App() {
       ...existing,
       [fieldToReset]: false,
       ...(collectionType === 'disliked' ? { dislikeReason: undefined, dislikeNotes: undefined } : {}),
+      updatedAt: Date.now(),
     };
     await dbService.saveQuestionStatus(updated);
+
+    if (currentUser?.id) {
+      await cloudSyncService.updateCloudQuestionStatus(currentUser.id, updated);
+    }
 
     if (collectionType === 'disliked') {
       try {
@@ -1579,20 +1605,40 @@ export default function App() {
     triggerCloudSync(false);
   };
 
+  const handleClearCollection = async (
+    collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged'
+  ) => {
+    await dbService.clearCollection(WORKSPACE_ID, collectionType);
+    if (currentUser?.id) {
+      await cloudSyncService.clearCloudCollection(currentUser.id, collectionType);
+    }
+    await reloadData();
+    triggerAutoSave();
+    triggerCloudSync(false);
+  };
+
   const handleUpdateQuestionStatus = useCallback(
     (status: QuestionUserStatus) => {
+      const withTimestamp: QuestionUserStatus = {
+        ...status,
+        updatedAt: status.updatedAt || Date.now(),
+      };
+      dbService.saveQuestionStatus(withTimestamp);
+      if (currentUser?.id) {
+        cloudSyncService.updateCloudQuestionStatus(currentUser.id, withTimestamp);
+      }
       setUserStatuses((prev) => {
-        const idx = prev.findIndex((s) => s.questionId === status.questionId);
+        const idx = prev.findIndex((s) => s.questionId === withTimestamp.questionId);
         if (idx >= 0) {
           const copy = [...prev];
-          copy[idx] = status;
+          copy[idx] = withTimestamp;
           return copy;
         }
-        return [...prev, status];
+        return [...prev, withTimestamp];
       });
       triggerCloudSync(false);
     },
-    [triggerCloudSync]
+    [currentUser?.id, triggerCloudSync]
   );
 
   // Active session questions
@@ -1888,6 +1934,7 @@ export default function App() {
                 initialTab={activeCollectionTab}
                 onStartPracticeCollection={handleStartPracticeCollection}
                 onRemoveFromCollection={handleRemoveFromCollection}
+                onClearCollection={handleClearCollection}
                 onOpenDeckView={(deckId) => {
                   const d = decksMap[deckId];
                   if (d) handleOpenDeckDetail(d);

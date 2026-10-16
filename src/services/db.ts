@@ -501,11 +501,71 @@ class IndexedDBStorage {
   }
 
   async saveQuestionStatus(status: QuestionUserStatus): Promise<void> {
-    await this.transaction('question_status', 'readwrite', (store) => store.put(status));
+    const toSave: QuestionUserStatus = {
+      ...status,
+      updatedAt: status.updatedAt || Date.now(),
+    };
+    await this.transaction('question_status', 'readwrite', (store) => store.put(toSave));
   }
 
   async saveStatus(status: QuestionUserStatus): Promise<void> {
     return this.saveQuestionStatus(status);
+  }
+
+  async clearCollection(
+    profileId: string,
+    collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged'
+  ): Promise<string[]> {
+    const statuses = await this.getAllStatusForProfile(profileId);
+    const affectedIds: string[] = [];
+    const now = Date.now();
+
+    for (const s of statuses) {
+      let changed = false;
+      if (collectionType === 'favorites' && s.isFavorite) {
+        s.isFavorite = false;
+        changed = true;
+      } else if (collectionType === 'disliked' && s.isDisliked) {
+        s.isDisliked = false;
+        delete s.dislikeReason;
+        delete s.dislikeNotes;
+        changed = true;
+      } else if (collectionType === 'incorrect' && s.isIncorrect) {
+        s.isIncorrect = false;
+        changed = true;
+      } else if (collectionType === 'flagged' && s.isFlagged) {
+        s.isFlagged = false;
+        changed = true;
+      }
+
+      if (changed) {
+        s.updatedAt = now;
+        await this.saveQuestionStatus(s);
+        affectedIds.push(s.questionId);
+      }
+    }
+    return affectedIds;
+  }
+
+  async clearAllCollections(profileId: string): Promise<string[]> {
+    const statuses = await this.getAllStatusForProfile(profileId);
+    const affectedIds: string[] = [];
+    const now = Date.now();
+
+    for (const s of statuses) {
+      if (s.isFavorite || s.isDisliked || s.isIncorrect || s.isFlagged) {
+        s.isFavorite = false;
+        s.isDisliked = false;
+        delete s.dislikeReason;
+        delete s.dislikeNotes;
+        s.isIncorrect = false;
+        s.isFlagged = false;
+        s.updatedAt = now;
+        await this.saveQuestionStatus(s);
+        affectedIds.push(s.questionId);
+      }
+    }
+    return affectedIds;
   }
 
   // --- Attempts / Analytics ---

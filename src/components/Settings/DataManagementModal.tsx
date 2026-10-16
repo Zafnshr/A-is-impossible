@@ -11,11 +11,13 @@ import {
   ShieldAlert,
   ArrowRight,
   Loader2,
+  Bookmark,
 } from 'lucide-react';
 import { exportFullBackup } from '../../services/exporter';
 
 export type DangerActionType =
   | 'reset_progress'
+  | 'clear_collections'
   | 'delete_profile'
   | 'delete_decks'
   | 'factory_reset';
@@ -61,6 +63,28 @@ const ACTION_CONFIGS: Record<DangerActionType, ActionConfig> = {
       'User profiles & UI preferences',
     ],
     executeButtonText: 'Reset Study Progress',
+  },
+  clear_collections: {
+    title: 'Clear All Collections',
+    badge: 'Collections Wipe',
+    requiredText: 'CLEAR COLLECTIONS',
+    icon: Bookmark,
+    accentColor: 'amber',
+    warningMessage:
+      'This action will permanently clear all your saved Favorites, Disliked, and Incorrect question collections both locally and from your cloud account.',
+    clearedItems: [
+      'Bookmarked favorite questions',
+      'Disliked question reports & QA notes',
+      'Incorrect question remediation lists',
+      'Flagged questions',
+    ],
+    keptItems: [
+      'All imported lectures & question banks',
+      'User profile & credentials',
+      'Study session analytics & attempt counts',
+      'Application theme & UI preferences',
+    ],
+    executeButtonText: 'Clear All Collections',
   },
   delete_profile: {
     title: 'Delete Current Profile',

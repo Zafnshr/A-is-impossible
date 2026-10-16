@@ -515,7 +515,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   <label className="text-secondary font-bold">
                     Options ({draft.options.length} Choices) & Correct Answer:
                   </label>
-                  {draft.type !== 'true_false' && (
+                  {draft.type !== 'true_false' && draft.options.length < 6 && (
                     <button
                       onClick={() =>
                         updateDraftWithHistory({

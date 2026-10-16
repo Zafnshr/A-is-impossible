@@ -73,6 +73,7 @@ export interface QuestionUserStatus {
   attemptsCount: number;
   lastAttemptAt?: number;
   lastAttemptCorrect?: boolean;
+  updatedAt?: number;
 }
 
 export interface UserAttemptRecord {

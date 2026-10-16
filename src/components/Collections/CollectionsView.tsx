@@ -51,6 +51,9 @@ interface CollectionsViewProps {
     questionId: string,
     collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged'
   ) => void;
+  onClearCollection?: (
+    collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged'
+  ) => void;
   onOpenDeckView: (deckId: string) => void;
   onOpenOriginalLocation?: (deckId: string, questionId: string) => void;
   onBrowseLibrary?: () => void;
@@ -214,6 +217,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   initialTab,
   onStartPracticeCollection,
   onRemoveFromCollection,
+  onClearCollection,
   onOpenDeckView,
   onOpenOriginalLocation,
   onBrowseLibrary,
@@ -240,6 +244,7 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
   // Modals state
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
   const [statsQuestion, setStatsQuestion] = useState<Question | null>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState<boolean>(false);
 
   // Copy feedback state
   const [copiedQuestionId, setCopiedQuestionId] = useState<string | null>(null);
@@ -507,6 +512,25 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
                 </button>
               </Tooltip>
             </>
+          )}
+
+          {onClearCollection && collectionQuestions.length > 0 && (
+            <Tooltip
+              content={`Remove all ${collectionQuestions.length} questions from ${
+                activeTab === 'favorites' ? 'Favorites' : activeTab === 'disliked' ? 'Disliked' : 'Incorrect'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setClearConfirmOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 text-xs font-bold transition active:scale-95 shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                <span>
+                  Clear {activeTab === 'favorites' ? 'Favorites' : activeTab === 'disliked' ? 'Disliked' : 'Incorrect'} ({collectionQuestions.length})
+                </span>
+              </button>
+            </Tooltip>
           )}
 
           {filteredList.length > 0 && (
@@ -1129,6 +1153,53 @@ export const CollectionsView: React.FC<CollectionsViewProps> = ({
         onClose={() => setStatsQuestion(null)}
         onPracticeQuestion={handlePracticeSingleQuestion}
       />
+
+      {/* Clear Collection Confirmation Modal */}
+      {clearConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-surface border border-subtle shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                <Trash2 className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-primary">
+                  Clear {activeTab === 'favorites' ? 'Favorites' : activeTab === 'disliked' ? 'Disliked' : 'Incorrect'}?
+                </h3>
+                <p className="text-xs text-secondary mt-0.5">
+                  Are you sure you want to remove all {collectionQuestions.length} questions from this collection?
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted leading-relaxed">
+              This action will clear this collection locally and update your cloud account immediately. The underlying questions will remain in their lecture decks.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setClearConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-secondary hover:text-primary hover:bg-subtle transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onClearCollection) {
+                    onClearCollection(activeTab);
+                  }
+                  setClearConfirmOpen(false);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition shadow-md active:scale-95"
+              >
+                Yes, Clear Collection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

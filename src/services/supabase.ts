@@ -46,6 +46,16 @@ if (typeof window !== 'undefined') {
   setTimeout(cleanUrlHash, 150);
 }
 
+function getLocalTombstoneIds(): string[] {
+  try {
+    const raw = localStorage.getItem('a_plus_local_deletes_v1');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface CloudSyncResult {
   decks: Deck[];
   questions: Question[];
@@ -127,6 +137,9 @@ export interface CloudUserSettingsPayload {
       attemptsCount?: number;
       lastAttemptAt?: number;
       lastAttemptCorrect?: boolean;
+      isDisliked?: boolean;
+      dislikeReason?: string;
+      dislikeNotes?: string;
     }
   >;
 }
@@ -403,15 +416,38 @@ export const cloudSyncService = {
       );
     }
 
+    // 1.5 Local Deletion Guard: Eradicate tombstoned items from Supabase & prevent resurrection
+    const tombstonedSet = new Set(getLocalTombstoneIds());
+    const tombstonedDecksToDelete = remoteDecksRes.data
+      ? remoteDecksRes.data.filter((d) => tombstonedSet.has(d.id)).map((d) => d.id)
+      : [];
+    if (tombstonedDecksToDelete.length > 0) {
+      await supabase.from('decks').delete().eq('user_id', userId).in('id', tombstonedDecksToDelete);
+    }
+
+    const tombstonedQuestionsToDelete = remoteQuestionsRes.data
+      ? remoteQuestionsRes.data.filter((q) => tombstonedSet.has(q.id)).map((q) => q.id)
+      : [];
+    if (tombstonedQuestionsToDelete.length > 0) {
+      await supabase.from('questions').delete().eq('user_id', userId).in('id', tombstonedQuestionsToDelete);
+      await supabase.from('user_question_statuses').delete().eq('user_id', userId).in('question_id', tombstonedQuestionsToDelete);
+    }
+
     // 2. Synchronize Decks (merge below; remote rows were read up-front)
     const remoteDecksMap = new Map<string, any>();
     if (remoteDecksRes.data) {
-      remoteDecksRes.data.forEach((d) => remoteDecksMap.set(d.id, d));
+      remoteDecksRes.data.forEach((d) => {
+        if (!tombstonedSet.has(d.id)) {
+          remoteDecksMap.set(d.id, d);
+        }
+      });
     }
 
     const mergedDecksMap = new Map<string, Deck>();
     localDecks.forEach((ld) => {
-      mergedDecksMap.set(ld.id, { ...ld });
+      if (!tombstonedSet.has(ld.id)) {
+        mergedDecksMap.set(ld.id, { ...ld });
+      }
     });
 
     // Merge remote decks into merged map
@@ -494,11 +530,19 @@ export const cloudSyncService = {
     // 3. Synchronize Questions (remote rows were read up-front)
     const remoteQuestionsMap = new Map<string, any>();
     if (remoteQuestionsRes.data) {
-      remoteQuestionsRes.data.forEach((q) => remoteQuestionsMap.set(q.id, q));
+      remoteQuestionsRes.data.forEach((q) => {
+        if (!tombstonedSet.has(q.id)) {
+          remoteQuestionsMap.set(q.id, q);
+        }
+      });
     }
 
     const mergedQuestionsMap = new Map<string, Question>();
-    localQuestions.forEach((lq) => mergedQuestionsMap.set(lq.id, { ...lq }));
+    localQuestions.forEach((lq) => {
+      if (!tombstonedSet.has(lq.id)) {
+        mergedQuestionsMap.set(lq.id, { ...lq });
+      }
+    });
 
     // Merge remote questions
     remoteQuestionsMap.forEach((rq) => {
@@ -587,16 +631,23 @@ export const cloudSyncService = {
     // 4. Synchronize Question User Statuses (remote rows were read up-front)
     const remoteStatusesMap = new Map<string, any>();
     if (remoteStatusesRes.data) {
-      remoteStatusesRes.data.forEach((s) => remoteStatusesMap.set(s.question_id, s));
+      remoteStatusesRes.data.forEach((s) => {
+        if (!tombstonedSet.has(s.question_id)) {
+          remoteStatusesMap.set(s.question_id, s);
+        }
+      });
     }
 
     const mergedStatusesMap = new Map<string, QuestionUserStatus>();
     localStatuses.forEach((ls) => {
-      mergedStatusesMap.set(ls.questionId, { ...ls, profileId: 'workspace' });
+      if (!tombstonedSet.has(ls.questionId)) {
+        mergedStatusesMap.set(ls.questionId, { ...ls, profileId: 'workspace' });
+      }
     });
 
     // Merge remote statuses
     remoteStatusesMap.forEach((rs) => {
+      if (tombstonedSet.has(rs.question_id)) return;
       const decoded = decodeStatusNotes(rs.notes);
       const ext = cloudStatusExt[rs.question_id] || {};
       const attemptsCount = ext.attemptsCount ?? decoded.meta?.attemptsCount ?? 0;
@@ -605,62 +656,96 @@ export const cloudSyncService = {
       const isDisliked = decoded.meta?.isDisliked ?? false;
       const dislikeReason = decoded.meta?.dislikeReason;
       const dislikeNotes = decoded.meta?.dislikeNotes;
+      const remoteTime = rs.updated_at ? new Date(rs.updated_at).getTime() : 0;
 
       const existingLocal = mergedStatusesMap.get(rs.question_id);
       if (!existingLocal) {
-        mergedStatusesMap.set(rs.question_id, {
-          questionId: rs.question_id,
-          profileId: 'workspace',
-          isFavorite: !!rs.is_favorite,
-          isFlagged: !!rs.is_flagged,
-          isDisliked,
-          dislikeReason,
-          dislikeNotes,
-          isIncorrect: !!rs.is_incorrect,
-          userNote: decoded.notes || '',
-          attemptsCount,
-          lastAttemptAt,
-          lastAttemptCorrect,
-        });
-      } else {
-        // Union for collections: If marked favorite, flagged, or disliked on ANY device, keep it!
-        existingLocal.isFavorite = existingLocal.isFavorite || !!rs.is_favorite;
-        existingLocal.isFlagged = existingLocal.isFlagged || !!rs.is_flagged;
-        existingLocal.isDisliked = existingLocal.isDisliked || isDisliked;
-        if (!existingLocal.dislikeReason && dislikeReason) existingLocal.dislikeReason = dislikeReason;
-        if (!existingLocal.dislikeNotes && dislikeNotes) existingLocal.dislikeNotes = dislikeNotes;
+        const hasActiveStatus =
+          !!rs.is_favorite ||
+          !!rs.is_flagged ||
+          !!rs.is_incorrect ||
+          isDisliked ||
+          !!decoded.notes?.trim() ||
+          attemptsCount > 0;
 
-        // Notes: take the non-empty or longer note
-        if (!existingLocal.userNote && decoded.notes) {
-          existingLocal.userNote = decoded.notes;
+        if (hasActiveStatus) {
+          mergedStatusesMap.set(rs.question_id, {
+            questionId: rs.question_id,
+            profileId: 'workspace',
+            isFavorite: !!rs.is_favorite,
+            isFlagged: !!rs.is_flagged,
+            isDisliked,
+            dislikeReason,
+            dislikeNotes,
+            isIncorrect: !!rs.is_incorrect,
+            userNote: decoded.notes || '',
+            attemptsCount,
+            lastAttemptAt,
+            lastAttemptCorrect,
+            updatedAt: remoteTime,
+          });
+        }
+      } else {
+        const localTime = existingLocal.updatedAt || 0;
+        if (remoteTime > localTime) {
+          // Remote is strictly newer: remote wins for collection status flags
+          existingLocal.isFavorite = !!rs.is_favorite;
+          existingLocal.isFlagged = !!rs.is_flagged;
+          existingLocal.isDisliked = isDisliked;
+          existingLocal.dislikeReason = dislikeReason;
+          existingLocal.dislikeNotes = dislikeNotes;
+          existingLocal.isIncorrect = !!rs.is_incorrect;
+          if (decoded.notes) existingLocal.userNote = decoded.notes;
+          existingLocal.updatedAt = remoteTime;
+        } else {
+          // Local is newer or equal: LOCAL PREVAILS!
+          // DO NOT union with || rs.is_favorite!
+          if (!existingLocal.userNote && decoded.notes) {
+            existingLocal.userNote = decoded.notes;
+          }
         }
 
-        // Progress & Attempts
+        // Progress & Attempts: preserve highest count and newest attempt
         existingLocal.attemptsCount = Math.max(existingLocal.attemptsCount || 0, attemptsCount || 0);
-
-        // Take status from the latest attempt
         if ((lastAttemptAt || 0) > (existingLocal.lastAttemptAt || 0)) {
           existingLocal.lastAttemptAt = lastAttemptAt;
           existingLocal.lastAttemptCorrect = lastAttemptCorrect;
-          existingLocal.isIncorrect = !!rs.is_incorrect;
-        } else if (existingLocal.lastAttemptAt === undefined && rs.is_incorrect) {
-          existingLocal.isIncorrect = true;
         }
       }
     });
 
-    // Upload merged statuses to cloud with unique `${userId}_${questionId}`
-    const statusesToUpsert = Array.from(mergedStatusesMap.values()).map((s) => ({
-      id: `${userId}_${s.questionId}`,
-      user_id: userId,
-      question_id: s.questionId,
-      is_favorite: !!s.isFavorite,
-      is_flagged: !!s.isFlagged,
-      is_incorrect: !!s.isIncorrect,
-      notes: encodeStatusNotes(s),
-      updated_at: new Date(now).toISOString(),
-    }));
+    // Upload merged statuses to cloud (and delete empty/cleared rows from Supabase)
+    const statusesToUpsert: any[] = [];
+    const statusesToDeleteIds: string[] = [];
 
+    mergedStatusesMap.forEach((s) => {
+      const hasActiveStatus =
+        !!s.isFavorite ||
+        !!s.isFlagged ||
+        !!s.isIncorrect ||
+        !!s.isDisliked ||
+        !!s.userNote?.trim() ||
+        (s.attemptsCount || 0) > 0;
+
+      if (!hasActiveStatus) {
+        statusesToDeleteIds.push(`${userId}_${s.questionId}`);
+      } else {
+        statusesToUpsert.push({
+          id: `${userId}_${s.questionId}`,
+          user_id: userId,
+          question_id: s.questionId,
+          is_favorite: !!s.isFavorite,
+          is_flagged: !!s.isFlagged,
+          is_incorrect: !!s.isIncorrect,
+          notes: encodeStatusNotes(s),
+          updated_at: new Date(s.updatedAt || now).toISOString(),
+        });
+      }
+    });
+
+    if (statusesToDeleteIds.length > 0) {
+      await supabase.from('user_question_statuses').delete().in('id', statusesToDeleteIds);
+    }
     if (statusesToUpsert.length > 0) {
       await upsertRows('user_question_statuses', statusesToUpsert, 100, syncIssues);
     }
@@ -835,12 +920,303 @@ export const cloudSyncService = {
   },
 
   /**
+   * Authoritatively updates or removes a question user status in Supabase.
+   */
+  async updateCloudQuestionStatus(userId: string, status: QuestionUserStatus): Promise<void> {
+    try {
+      const statusId = `${userId}_${status.questionId}`;
+      const hasActiveStatus =
+        !!status.isFavorite ||
+        !!status.isFlagged ||
+        !!status.isIncorrect ||
+        !!status.isDisliked ||
+        !!status.userNote?.trim() ||
+        (status.attemptsCount || 0) > 0;
+
+      if (!hasActiveStatus) {
+        // If question has no active status flags, notes, or attempts, delete from cloud
+        await supabase
+          .from('user_question_statuses')
+          .delete()
+          .eq('user_id', userId)
+          .eq('question_id', status.questionId);
+      } else {
+        const payload = {
+          id: statusId,
+          user_id: userId,
+          question_id: status.questionId,
+          is_favorite: !!status.isFavorite,
+          is_flagged: !!status.isFlagged,
+          is_incorrect: !!status.isIncorrect,
+          notes: encodeStatusNotes(status),
+          updated_at: new Date(status.updatedAt || Date.now()).toISOString(),
+        };
+        await supabase
+          .from('user_question_statuses')
+          .upsert([payload], { onConflict: 'id' });
+      }
+
+      // Also sync statusExtensions in profiles.settings if present
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('settings')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileRow?.settings) {
+        const settings = profileRow.settings as CloudUserSettingsPayload;
+        const currentExt = settings.statusExtensions || {};
+        if (status.isDisliked || status.dislikeReason || status.dislikeNotes) {
+          currentExt[status.questionId] = {
+            isDisliked: status.isDisliked,
+            dislikeReason: status.dislikeReason,
+            dislikeNotes: status.dislikeNotes,
+            attemptsCount: status.attemptsCount,
+            lastAttemptAt: status.lastAttemptAt,
+            lastAttemptCorrect: status.lastAttemptCorrect,
+          };
+        } else if (currentExt[status.questionId]) {
+          delete currentExt[status.questionId];
+        }
+        await supabase
+          .from('profiles')
+          .update({
+            settings: { ...settings, statusExtensions: currentExt, syncedAt: Date.now() },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+      }
+    } catch (err) {
+      console.warn('[Sync] Failed to update cloud question status:', err);
+    }
+  },
+
+  /**
+   * Authoritatively clears a specific collection in Supabase for the user
+   */
+  async clearCloudCollection(
+    userId: string,
+    collectionType: 'favorites' | 'disliked' | 'incorrect' | 'flagged'
+  ): Promise<void> {
+    try {
+      const { data: statuses } = await supabase
+        .from('user_question_statuses')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (statuses && statuses.length > 0) {
+        const nowIso = new Date().toISOString();
+        const toUpsert: any[] = [];
+        const toDeleteIds: string[] = [];
+
+        for (const s of statuses) {
+          const decoded = decodeStatusNotes(s.notes);
+          let isFav = !!s.is_favorite;
+          let isFlag = !!s.is_flagged;
+          let isInc = !!s.is_incorrect;
+          let isDis = !!decoded.meta?.isDisliked;
+          let reason = decoded.meta?.dislikeReason;
+          let notes = decoded.meta?.dislikeNotes;
+
+          if (collectionType === 'favorites') isFav = false;
+          if (collectionType === 'flagged') isFlag = false;
+          if (collectionType === 'incorrect') isInc = false;
+          if (collectionType === 'disliked') {
+            isDis = false;
+            reason = undefined;
+            notes = undefined;
+          }
+
+          const hasRemaining =
+            isFav ||
+            isFlag ||
+            isInc ||
+            isDis ||
+            !!decoded.notes?.trim() ||
+            (decoded.meta?.attemptsCount || 0) > 0;
+
+          if (!hasRemaining) {
+            toDeleteIds.push(s.id);
+          } else {
+            toUpsert.push({
+              id: s.id,
+              user_id: userId,
+              question_id: s.question_id,
+              is_favorite: isFav,
+              is_flagged: isFlag,
+              is_incorrect: isInc,
+              notes: encodeStatusNotes({
+                questionId: s.question_id,
+                profileId: 'workspace',
+                isFavorite: isFav,
+                isFlagged: isFlag,
+                isIncorrect: isInc,
+                isDisliked: isDis,
+                dislikeReason: reason,
+                dislikeNotes: notes,
+                userNote: decoded.notes || '',
+                attemptsCount: decoded.meta?.attemptsCount || 0,
+                lastAttemptAt: decoded.meta?.lastAttemptAt,
+                lastAttemptCorrect: decoded.meta?.lastAttemptCorrect,
+              }),
+              updated_at: nowIso,
+            });
+          }
+        }
+
+        if (toDeleteIds.length > 0) {
+          await supabase.from('user_question_statuses').delete().in('id', toDeleteIds);
+        }
+        if (toUpsert.length > 0) {
+          const issues: string[] = [];
+          await upsertRows('user_question_statuses', toUpsert, 100, issues);
+        }
+      }
+
+      // Also clean up profiles.settings if collectionType is disliked
+      if (collectionType === 'disliked') {
+        const { data: profileRow } = await supabase
+          .from('profiles')
+          .select('settings')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (profileRow?.settings) {
+          const currentSettings = profileRow.settings as CloudUserSettingsPayload;
+          const currentExt = currentSettings.statusExtensions || {};
+          let extChanged = false;
+          for (const qId in currentExt) {
+            if (currentExt[qId]?.isDisliked) {
+              delete currentExt[qId];
+              extChanged = true;
+            }
+          }
+          if (extChanged) {
+            await supabase
+              .from('profiles')
+              .update({
+                settings: { ...currentSettings, statusExtensions: currentExt, syncedAt: Date.now() },
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', userId);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Sync] Failed to clear cloud collection:', err);
+    }
+  },
+
+  /**
+   * Authoritatively clears ALL collections (Favorites, Disliked, Incorrect, Flagged) for the user in Supabase
+   */
+  async clearAllCloudCollections(userId: string): Promise<void> {
+    try {
+      const { data: statuses } = await supabase
+        .from('user_question_statuses')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (statuses && statuses.length > 0) {
+        const nowIso = new Date().toISOString();
+        const toUpsert: any[] = [];
+        const toDeleteIds: string[] = [];
+
+        for (const s of statuses) {
+          const decoded = decodeStatusNotes(s.notes);
+          const hasRemaining =
+            !!decoded.notes?.trim() || (decoded.meta?.attemptsCount || 0) > 0;
+
+          if (!hasRemaining) {
+            toDeleteIds.push(s.id);
+          } else {
+            toUpsert.push({
+              id: s.id,
+              user_id: userId,
+              question_id: s.question_id,
+              is_favorite: false,
+              is_flagged: false,
+              is_incorrect: false,
+              notes: encodeStatusNotes({
+                questionId: s.question_id,
+                profileId: 'workspace',
+                isFavorite: false,
+                isFlagged: false,
+                isIncorrect: false,
+                isDisliked: false,
+                userNote: decoded.notes || '',
+                attemptsCount: decoded.meta?.attemptsCount || 0,
+                lastAttemptAt: decoded.meta?.lastAttemptAt,
+                lastAttemptCorrect: decoded.meta?.lastAttemptCorrect,
+              }),
+              updated_at: nowIso,
+            });
+          }
+        }
+
+        if (toDeleteIds.length > 0) {
+          await supabase.from('user_question_statuses').delete().in('id', toDeleteIds);
+        }
+        if (toUpsert.length > 0) {
+          const issues: string[] = [];
+          await upsertRows('user_question_statuses', toUpsert, 100, issues);
+        }
+      }
+
+      // Clear all status extensions in profile settings
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('settings')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileRow?.settings) {
+        const currentSettings = profileRow.settings as CloudUserSettingsPayload;
+        await supabase
+          .from('profiles')
+          .update({
+            settings: { ...currentSettings, statusExtensions: {}, syncedAt: Date.now() },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+      }
+    } catch (err) {
+      console.warn('[Sync] Failed to clear all cloud collections:', err);
+    }
+  },
+
+  /**
+   * Deletes a single deck and its associated questions from Supabase
+   */
+  async deleteCloudDeck(userId: string, deckId: string): Promise<void> {
+    try {
+      await supabase.from('questions').delete().eq('user_id', userId).eq('deck_id', deckId);
+      await supabase.from('decks').delete().eq('user_id', userId).eq('id', deckId);
+    } catch (err) {
+      console.warn('[Sync] Failed to delete cloud deck:', err);
+    }
+  },
+
+  /**
+   * Deletes a single question and its user status from Supabase
+   */
+  async deleteCloudQuestion(userId: string, questionId: string): Promise<void> {
+    try {
+      await supabase.from('questions').delete().eq('user_id', userId).eq('id', questionId);
+      await supabase.from('user_question_statuses').delete().eq('user_id', userId).eq('question_id', questionId);
+    } catch (err) {
+      console.warn('[Sync] Failed to delete cloud question:', err);
+    }
+  },
+
+  /**
    * Deletes all personal decks and questions for the user in Supabase
    */
   async deleteAllCloudDecks(userId: string): Promise<void> {
     try {
       await supabase.from('questions').delete().eq('user_id', userId);
       await supabase.from('decks').delete().eq('user_id', userId);
+      await supabase.from('user_question_statuses').delete().eq('user_id', userId);
 
       const { data: profileRow } = await supabase
         .from('profiles')
@@ -854,6 +1230,7 @@ export const cloudSyncService = {
           ...currentSettings,
           deckMetadata: {},
           questionExtensions: {},
+          statusExtensions: {},
           syncedAt: Date.now(),
         };
         await supabase
@@ -874,6 +1251,9 @@ export const cloudSyncService = {
    */
   async deleteCloudUserProfile(userId: string): Promise<void> {
     try {
+      await supabase.from('questions').delete().eq('user_id', userId);
+      await supabase.from('decks').delete().eq('user_id', userId);
+      await supabase.from('user_question_statuses').delete().eq('user_id', userId);
       await supabase
         .from('profiles')
         .update({
