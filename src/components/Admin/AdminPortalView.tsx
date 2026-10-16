@@ -3484,14 +3484,7 @@ C) Echocardiogram`}
 
               {/* Google Drive PDF Slide Deck Management */}
               <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-secondary">Google Drive PDF Sharing Link</label>
-                  {editingLecture.pdfPageCount !== undefined && editingLecture.pdfPageCount > 0 && (
-                    <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                      {editingLecture.pdfPageCount} {editingLecture.pdfPageCount === 1 ? 'slide' : 'slides'}
-                    </span>
-                  )}
-                </div>
+                <label className="font-bold text-secondary">Google Drive PDF Sharing Link</label>
 
                 <div className="flex items-center gap-2">
                   <input
@@ -3517,7 +3510,7 @@ C) Echocardiogram`}
 
                 {/* Live Google Drive Detection Badge */}
                 {editingLecture.pdfUrl && (
-                  <div className="flex items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-2 pt-0.5">
                     {extractGoogleDriveFileId(editingLecture.pdfUrl) ? (
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-mono font-bold">
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -3528,22 +3521,6 @@ C) Echocardiogram`}
                         Direct URL (Non-Drive or custom link)
                       </span>
                     )}
-
-                    <div className="flex items-center gap-2">
-                      <label className="text-[11px] text-muted font-medium">Slide count:</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={editingLecture.pdfPageCount || 1}
-                        onChange={(e) =>
-                          setEditingLecture((prev) => ({
-                            ...prev,
-                            pdfPageCount: Math.max(1, parseInt(e.target.value, 10) || 1),
-                          }))
-                        }
-                        className="w-20 px-2.5 py-1 rounded-lg bg-subtle border border-subtle text-primary font-mono text-xs"
-                      />
-                    </div>
                   </div>
                 )}
               </div>

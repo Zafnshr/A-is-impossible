@@ -341,11 +341,20 @@ class OfficialContentService {
           await dbService.saveOfficialLecture(lec);
         }
 
-        // Authoritative deletion: remove any local cached lecture that was deleted in Supabase
+        // Preserve local creations: push any local lecture not in cloud to Supabase
         const localLectures = await dbService.getOfficialLectures();
         for (const local of localLectures) {
           if (!cloudLecIds.has(local.id)) {
-            await dbService.deleteOfficialLecture(local.id);
+            try {
+              const { error: pushErr } = await supabase
+                .from('official_lectures')
+                .upsert([mapOfficialLectureToDb(local)], { onConflict: 'id' });
+              if (!pushErr) {
+                cloudLecIds.add(local.id);
+              }
+            } catch (pushEx) {
+              console.warn('[OfficialContentService] Could not push local lecture to cloud:', pushEx);
+            }
           }
         }
       }
@@ -369,11 +378,20 @@ class OfficialContentService {
           await dbService.saveOfficialQuestionsBatch(mappedQuestions);
         }
 
-        // Authoritative deletion: remove any local cached question that was deleted in Supabase
+        // Preserve local creations: push any local question not in cloud to Supabase
         const localQuestions = await dbService.getOfficialQuestions();
         for (const localQ of localQuestions) {
           if (!cloudQIds.has(localQ.id)) {
-            await dbService.deleteOfficialQuestion(localQ.id);
+            try {
+              const { error: pushQErr } = await supabase
+                .from('official_questions')
+                .upsert([mapOfficialQuestionToDb(localQ)], { onConflict: 'id' });
+              if (!pushQErr) {
+                cloudQIds.add(localQ.id);
+              }
+            } catch (pushEx) {
+              console.warn('[OfficialContentService] Could not push local question to cloud:', pushEx);
+            }
           }
         }
       }
