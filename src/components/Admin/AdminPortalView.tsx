@@ -389,11 +389,17 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
           if (pairs.length < 2 || pairs.some((p) => !p.left?.trim() || !p.right?.trim())) {
             isValid = false;
             validationError = 'Need at least 2 complete matching pairs';
+          } else if (pairs.length > 6) {
+            isValid = false;
+            validationError = 'Maximum 6 matching pairs allowed';
           }
         } else if (qType === 'ordering') {
           if ((q.options || []).length < 2) {
             isValid = false;
             validationError = 'Need at least 2 sequence items to order';
+          } else if ((q.options || []).length > 6) {
+            isValid = false;
+            validationError = 'Maximum 6 sequence items allowed';
           }
         } else if (qType === 'case_study') {
           if (!q.caseVignette?.trim() && !q.question?.trim()) {
@@ -404,6 +410,9 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
           // single_mcq, multiple_mcq, true_false
           if (opts.length < 2) {
             validationError = `Need at least 2 options (detected ${opts.length})`;
+            isValid = false;
+          } else if (opts.length > 6) {
+            validationError = `Maximum 6 options allowed (detected ${opts.length})`;
             isValid = false;
           } else if (!opts.some((o) => o.isCorrect)) {
             validationError = 'Missing correct answer key';
@@ -4202,25 +4211,27 @@ C) Echocardiogram`}
                     <label className="font-bold text-secondary uppercase tracking-wider text-[11px]">
                       Matching Pairs (Premise → Target Match)
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingQuestion((prev) => {
-                          if (!prev) return null;
-                          const pairs = [...(prev.matchingPairs || [])];
-                          return {
-                            ...prev,
-                            matchingPairs: [
-                              ...pairs,
-                              { id: `mp_${Date.now()}_${pairs.length}`, left: '', right: '' },
-                            ],
-                          };
-                        });
-                      }}
-                      className="text-cyan-500 hover:underline font-bold text-[11px] cursor-pointer"
-                    >
-                      + Add Pair
-                    </button>
+                    {(editingQuestion.matchingPairs || []).length < 6 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQuestion((prev) => {
+                            if (!prev) return null;
+                            const pairs = [...(prev.matchingPairs || [])];
+                            return {
+                              ...prev,
+                              matchingPairs: [
+                                ...pairs,
+                                { id: `mp_${Date.now()}_${pairs.length}`, left: '', right: '' },
+                              ],
+                            };
+                          });
+                        }}
+                        className="text-cyan-500 hover:underline font-bold text-[11px] cursor-pointer"
+                      >
+                        + Add Pair
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -4289,35 +4300,37 @@ C) Echocardiogram`}
                     <label className="font-bold text-secondary uppercase tracking-wider text-[11px]">
                       Sequence Steps (Arrange in Correct Chronological / Procedural Order)
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingQuestion((prev) => {
-                          if (!prev) return null;
-                          const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = [
-                            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-                          ];
-                          const newOpts = [
-                            ...prev.options,
-                            {
-                              id: `opt_${Date.now()}_${prev.options.length}`,
-                              optionLetter: letters[prev.options.length] || 'H',
-                              content: '',
-                              isCorrect: true,
-                              displayOrder: prev.options.length + 1,
-                            },
-                          ];
-                          return {
-                            ...prev,
-                            options: newOpts,
-                            correctOrder: newOpts.map((_, i) => i),
-                          };
-                        });
-                      }}
-                      className="text-cyan-500 hover:underline font-bold text-[11px] cursor-pointer"
-                    >
-                      + Add Step
-                    </button>
+                    {(editingQuestion.options || []).length < 6 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQuestion((prev) => {
+                            if (!prev) return null;
+                            const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F')[] = [
+                              'A', 'B', 'C', 'D', 'E', 'F',
+                            ];
+                            const newOpts = [
+                              ...prev.options,
+                              {
+                                id: `opt_${Date.now()}_${prev.options.length}`,
+                                optionLetter: letters[prev.options.length] || 'F',
+                                content: '',
+                                isCorrect: true,
+                                displayOrder: prev.options.length + 1,
+                              },
+                            ];
+                            return {
+                              ...prev,
+                              options: newOpts,
+                              correctOrder: newOpts.map((_, i) => i),
+                            };
+                          });
+                        }}
+                        className="text-cyan-500 hover:underline font-bold text-[11px] cursor-pointer"
+                      >
+                        + Add Step
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -4553,14 +4566,14 @@ C) Echocardiogram`}
                         ? 'Answer Choices (Check ALL correct answers)'
                         : 'Answer Choices (Mark the single correct answer)'}
                     </label>
-                    {editingQuestion.type !== 'true_false' && editingQuestion.options.length < 8 && (
+                    {editingQuestion.type !== 'true_false' && editingQuestion.options.length < 6 && (
                       <button
                         type="button"
                         onClick={() => {
-                          const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = [
-                            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                          const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F')[] = [
+                            'A', 'B', 'C', 'D', 'E', 'F',
                           ];
-                          const nextLetter = letters[editingQuestion.options.length] || 'H';
+                          const nextLetter = letters[editingQuestion.options.length] || 'F';
                           setEditingQuestion((prev) => {
                             if (!prev) return null;
                             return {
@@ -4686,8 +4699,8 @@ C) Echocardiogram`}
                               onClick={() => {
                                 setEditingQuestion((prev) => {
                                   if (!prev) return null;
-                                  const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = [
-                                    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                                  const letters: ('A' | 'B' | 'C' | 'D' | 'E' | 'F')[] = [
+                                    'A', 'B', 'C', 'D', 'E', 'F',
                                   ];
                                   const filtered = prev.options.filter((_, idx) => idx !== oIdx);
                                   return {

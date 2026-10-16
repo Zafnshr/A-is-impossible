@@ -344,6 +344,15 @@ function matchPrimaryQuestionHeader(line: string): { isStart: boolean; num?: num
     }
   }
 
+  // 4. Special question type headers without numbers: "MATCHING:", "ORDER:", "SEQUENCE:"
+  const specialTypeHead = trimmed.match(/^(?:MATCHING|ORDER|SEQUENCE)[\:\.]\s*(.*)$/i);
+  if (specialTypeHead) {
+    return {
+      isStart: true,
+      text: trimmed,
+    };
+  }
+
   return { isStart: false, text: trimmed };
 }
 
@@ -629,15 +638,14 @@ function segmentDocumentIntoBlocks(
         startsNewBlock = true;
       } else if (curBlock.blockType === 'case') {
         // Inside a Case Block:
-        // Does this line start a new top-level question, or is it a sub-question of the active case?
-        // If it's a decimal subquestion like Q6.1 or 1.1, it stays in the case!
-        // But if it is an explicit top-level question like Q7, Q8, or a non-decimal Q,
-        // it CLOSES the Case Block immediately!
+        // Decimal subquestion like Q1.1 or 1.1 stays in the case.
+        // Sequential subquestions (1., 2., Q1, Question 1) also stay in the case unless a new CASE or Answer Key starts.
         const subCheck = matchCaseSubQuestionHeader(line);
         if (subCheck.isSub) {
           startsNewBlock = false; // It belongs to the active Case
+        } else if (!matchCaseHeader(line).isCase && !isAnswerKeySectionHeader(line)) {
+          startsNewBlock = false; // Child question inside case block
         } else {
-          // Explicit top-level question ends the active case!
           startsNewBlock = true;
         }
       } else {
@@ -647,15 +655,14 @@ function segmentDocumentIntoBlocks(
         const keyEntry = curQNum ? mainAnswerKeyMap.get(curQNum) : undefined;
 
         // Context checks
-        const hasLetterItems = curBlock.lines.some((l) => matchStrictOptionLine(l.line).isOption);
         const stemText = curBlock.lines.length > 0 ? curBlock.lines[0].line : '';
-        const isMatchingCtx = keyEntry?.typeHint === 'matching' || isMatchingPrompt(stemText) || hasLetterItems;
+        const isMatchingCtx = keyEntry?.typeHint === 'matching' || isMatchingPrompt(stemText);
         const isOrderingCtx = keyEntry?.typeHint === 'ordering' || isOrderingPrompt(stemText);
 
-        // Find the maximum numbered item already present in curBlock
+        // Find the maximum numbered item already present in curBlock (skip index 0 as it is the question stem)
         let maxNumberedItemInBlock = 0;
-        for (const bl of curBlock.lines) {
-          const numCheck = matchNumberedListItem(bl.line);
+        for (let li = 1; li < curBlock.lines.length; li++) {
+          const numCheck = matchNumberedListItem(curBlock.lines[li].line);
           if (numCheck.isItem && numCheck.num > maxNumberedItemInBlock) {
             maxNumberedItemInBlock = numCheck.num;
           }
@@ -755,13 +762,18 @@ function parseCaseBlock(
       continue; // Skip the CASE header itself
     }
 
-    // Check for child subquestion header (e.g. "Q1.1...", "1.1...", "Q6.1...")
+    // Check for child subquestion header (e.g. "Q1.1...", "1.1...", "Q6.1...", or "1. ...", "Question 1: ...")
     const subHead = matchCaseSubQuestionHeader(line);
-    if (subHead.isSub) {
+    const primHead = !subHead.isSub ? matchPrimaryQuestionHeader(line) : null;
+    if (subHead.isSub || (primHead && primHead.isStart)) {
       if (curSub) rawSubs.push(curSub);
+      const subKey = subHead.isSub
+        ? (subHead.subKey || `${caseQNum}.${rawSubs.length + 1}`)
+        : `${caseQNum}.${primHead?.num || rawSubs.length + 1}`;
+      const stem = subHead.isSub ? subHead.text : (primHead?.text || `Sub-question ${rawSubs.length + 1}`);
       curSub = {
-        subKey: subHead.subKey || `${caseQNum}.${rawSubs.length + 1}`,
-        stem: subHead.text || `Sub-question ${subHead.subKey}`,
+        subKey,
+        stem,
         options: [],
         startLine: originalLineNum,
       };
@@ -845,6 +857,14 @@ function parseCaseBlock(
         issue: 'Insufficient sub-question options',
         cause: `Sub-question has only ${optTexts.length} options. Minimum 2 required.`,
         suggestedFix: 'Add missing options in Question Review.',
+      });
+    } else if (optTexts.length > 6) {
+      issues.push({
+        questionNumber: `${caseQNum}.${sIdx + 1}`,
+        location: `Case ${caseQNum} Sub-question ${subKey}`,
+        issue: 'Excess sub-question choices',
+        cause: `Sub-question has ${optTexts.length} choices. Maximum 6 choices (A through F) allowed.`,
+        suggestedFix: 'Remove extra options in Question Review.',
       });
     }
 
@@ -949,35 +969,72 @@ function parseStandardBlock(
   // 1. MATCHING PARSER
   const hasMatchingKey = effectiveKeyData?.typeHint === 'matching';
   const hasTwoCols = letterItems.length >= 2 && numberItems.length >= 2;
-  const isMatching = hasMatchingKey || (hasTwoCols && isMatchingPrompt(stem));
+  const hasArrowItems =
+    letterItems.length >= 2 &&
+    letterItems.some((l) => /(?:->|-->|=>|\s-\s)/.test(l.text));
+  const isMatching =
+    hasMatchingKey ||
+    (hasTwoCols && isMatchingPrompt(stem)) ||
+    (hasArrowItems && (isMatchingPrompt(stem) || hasMatchingKey || /matching/i.test(stem)));
 
-  if (isMatching) {
+  if (isMatching && (hasTwoCols || hasMatchingKey || hasArrowItems)) {
     const matchingPairs: MatchingPair[] = [];
-    const rightMap = new Map<string, string>();
-    numberItems.forEach((r, idx) => {
-      rightMap.set(String(r.num), r.text);
-      rightMap.set(String(idx + 1), r.text);
-    });
-
-    letterItems.forEach((leftItem, idx) => {
-      const letter = leftItem.letter.toUpperCase();
-      const targetNumStr = effectiveKeyData?.matchingPairs ? effectiveKeyData.matchingPairs[letter] : undefined;
-      let matchedRight = '';
-
-      if (targetNumStr && rightMap.has(targetNumStr)) {
-        matchedRight = rightMap.get(targetNumStr)!;
-      } else if (numberItems[idx]) {
-        matchedRight = numberItems[idx].text;
-      } else if (numberItems.length > 0) {
-        matchedRight = numberItems[0].text;
-      }
-
-      matchingPairs.push({
-        id: `mp_${qNum}_${letter}`,
-        left: leftItem.text,
-        right: matchedRight,
+    if (hasArrowItems) {
+      letterItems.forEach((leftItem, idx) => {
+        const parts = leftItem.text.split(/\s*(?:->|-->|=>|\s-\s)\s*/);
+        const left = parts[0]?.trim() || leftItem.text;
+        const right = parts.slice(1).join(' -> ').trim() || `Target ${idx + 1}`;
+        matchingPairs.push({
+          id: `mp_${qNum}_${leftItem.letter || idx + 1}`,
+          left,
+          right,
+        });
       });
-    });
+    } else {
+      const rightMap = new Map<string, string>();
+      numberItems.forEach((r, idx) => {
+        rightMap.set(String(r.num), r.text);
+        rightMap.set(String(idx + 1), r.text);
+      });
+
+      letterItems.forEach((leftItem, idx) => {
+        const letter = leftItem.letter.toUpperCase();
+        const targetNumStr = effectiveKeyData?.matchingPairs ? effectiveKeyData.matchingPairs[letter] : undefined;
+        let matchedRight = '';
+
+        if (targetNumStr && rightMap.has(targetNumStr)) {
+          matchedRight = rightMap.get(targetNumStr)!;
+        } else if (numberItems[idx]) {
+          matchedRight = numberItems[idx].text;
+        } else if (numberItems.length > 0) {
+          matchedRight = numberItems[0].text;
+        }
+
+        matchingPairs.push({
+          id: `mp_${qNum}_${letter}`,
+          left: leftItem.text,
+          right: matchedRight,
+        });
+      });
+    }
+
+    if (matchingPairs.length < 2) {
+      issues.push({
+        questionNumber: qNum,
+        location: `Question #${qNum} (Matching)`,
+        issue: 'Insufficient matching pairs',
+        cause: `Matching question has only ${matchingPairs.length} pairs. Minimum 2 required.`,
+        suggestedFix: 'Add pairs in Question Review.',
+      });
+    } else if (matchingPairs.length > 6) {
+      issues.push({
+        questionNumber: qNum,
+        location: `Question #${qNum} (Matching)`,
+        issue: 'Excess matching pairs',
+        cause: `Matching question has ${matchingPairs.length} pairs. Maximum 6 pairs allowed.`,
+        suggestedFix: 'Remove extra pairs in Question Review.',
+      });
+    }
 
     const parsedQuestion: ParsedQuestion = {
       type: 'matching',
@@ -989,18 +1046,18 @@ function parseStandardBlock(
       highYieldNotes: '',
       _debug: {
         detectedType: 'matching',
-        classificationReason: `Classified as Matching: Detected ${letterItems.length} left items, ${numberItems.length} right items, matching key "${effectiveKeyData?.rawToken || 'default'}".`,
+        classificationReason: `Classified as Matching: Detected ${matchingPairs.length} pairs.`,
         boundaryLine: block.startLine,
         startLine: block.startLine,
         endLine: block.endLine,
         questionId: String(qNum),
         parserUsed: 'MatchingBlockParser',
         rawAnswerToken: effectiveKeyData?.rawToken,
-        validationState: 'valid',
+        validationState: issues.length > 0 ? 'error' : 'valid',
       },
     };
 
-    return { question: parsedQuestion, hasAnswerKey: !!effectiveKeyData, parserUsed: 'MatchingBlockParser' };
+    return { question: parsedQuestion, hasAnswerKey: !!effectiveKeyData || hasArrowItems, parserUsed: 'MatchingBlockParser' };
   }
 
   // 2. ORDERING PARSER
@@ -1014,6 +1071,13 @@ function parseStandardBlock(
 
     if (effectiveKeyData?.orderSequence && effectiveKeyData.orderSequence.length === items.length) {
       correctOrder = effectiveKeyData.orderSequence.map((v) => v - 1);
+    } else if (effectiveKeyData?.letters && effectiveKeyData.letters.length === items.length) {
+      correctOrder = effectiveKeyData.letters.map((lettr) => {
+        const num = parseInt(lettr, 10);
+        if (!isNaN(num) && num >= 1 && num <= items.length) return num - 1;
+        const code = lettr.toUpperCase().charCodeAt(0) - 65;
+        return code >= 0 && code < items.length ? code : 0;
+      });
     } else {
       correctOrder = items.map((_, i) => i);
       issues.push({
@@ -1022,6 +1086,24 @@ function parseStandardBlock(
         issue: 'Missing ordering sequence key',
         cause: 'No sequence answer key was found (e.g. "1. 2,4,3,5,1").',
         suggestedFix: 'Arrange the sequence order in Question Review.',
+      });
+    }
+
+    if (items.length < 2) {
+      issues.push({
+        questionNumber: qNum,
+        location: `Question #${qNum} (Ordering)`,
+        issue: 'Insufficient sequence items',
+        cause: `Ordering question has only ${items.length} items. Minimum 2 required.`,
+        suggestedFix: 'Add sequence steps in Question Review.',
+      });
+    } else if (items.length > 6) {
+      issues.push({
+        questionNumber: qNum,
+        location: `Question #${qNum} (Ordering)`,
+        issue: 'Excess sequence items',
+        cause: `Ordering question has ${items.length} items. Maximum 6 items allowed.`,
+        suggestedFix: 'Remove extra sequence steps in Question Review.',
       });
     }
 
@@ -1042,7 +1124,7 @@ function parseStandardBlock(
         questionId: String(qNum),
         parserUsed: 'OrderingBlockParser',
         rawAnswerToken: effectiveKeyData?.rawToken,
-        validationState: 'valid',
+        validationState: issues.some((iss) => String(iss.questionNumber) === String(qNum)) ? 'error' : 'valid',
       },
     };
 
@@ -1093,7 +1175,7 @@ function parseStandardBlock(
   }
 
   // 4. MULTIPLE MCQ PARSER
-  const isMulti = resolvedLetters.length > 1 || /\(select all that apply\)/i.test(stem);
+  const isMulti = resolvedLetters.length > 1 || /[\(\[]select all that apply[\)\]]/i.test(stem);
 
   if (isMulti) {
     const correctAnswers: number[] = [];
@@ -1118,6 +1200,14 @@ function parseStandardBlock(
         cause: `Question has only ${optCount} options. Minimum 2 required.`,
         suggestedFix: 'Add missing options in Question Review.',
       });
+    } else if (optCount > 6) {
+      issues.push({
+        questionNumber: qNum,
+        location: `Question #${qNum}`,
+        issue: 'Excess choices',
+        cause: `Question has ${optCount} choices. Maximum 6 choices (A through F) allowed.`,
+        suggestedFix: 'Remove extra options in Question Review.',
+      });
     }
 
     const parsedQuestion: ParsedQuestion = {
@@ -1136,7 +1226,7 @@ function parseStandardBlock(
         questionId: String(qNum),
         parserUsed: 'MultipleMcqBlockParser',
         rawAnswerToken: effectiveKeyData?.rawToken,
-        validationState: 'valid',
+        validationState: issues.some((iss) => String(iss.questionNumber) === String(qNum)) ? 'error' : 'valid',
       },
     };
 
@@ -1184,6 +1274,14 @@ function parseStandardBlock(
       cause: `Question has only ${optCount} options. Minimum 2 required.`,
       suggestedFix: 'Add missing options in Question Review.',
     });
+  } else if (optCount > 6) {
+    issues.push({
+      questionNumber: qNum,
+      location: `Question #${qNum}`,
+      issue: 'Excess choices',
+      cause: `Question has ${optCount} choices. Maximum 6 choices (A through F) allowed.`,
+      suggestedFix: 'Remove extra options in Question Review.',
+    });
   }
 
   const parsedQuestion: ParsedQuestion = {
@@ -1202,7 +1300,7 @@ function parseStandardBlock(
       questionId: String(qNum),
       parserUsed: 'SingleMcqBlockParser',
       rawAnswerToken: effectiveKeyData?.rawToken,
-      validationState: issues.length > 0 ? 'error' : 'valid',
+      validationState: issues.some((iss) => String(iss.questionNumber) === String(qNum)) ? 'error' : 'valid',
     },
   };
 
@@ -1254,6 +1352,14 @@ export function parseQuestionsText(
                 cause: 'A matching question requires at least 2 pairs.',
                 suggestedFix: 'Add matching pairs in Question Review.',
               });
+            } else if (pairs.length > 6) {
+              issues.push({
+                questionNumber: qNum,
+                location: `Question #${qNum}`,
+                issue: 'Excess matching pairs',
+                cause: `Matching question has ${pairs.length} pairs. Maximum 6 pairs allowed.`,
+                suggestedFix: 'Remove extra matching pairs in Question Review.',
+              });
             } else {
               keyCount++;
             }
@@ -1267,6 +1373,14 @@ export function parseQuestionsText(
                 issue: 'Insufficient sequence items',
                 cause: 'An ordering question requires at least 2 items.',
                 suggestedFix: 'Add sequence items in Question Review.',
+              });
+            } else if (items.length > 6) {
+              issues.push({
+                questionNumber: qNum,
+                location: `Question #${qNum}`,
+                issue: 'Excess sequence items',
+                cause: `Ordering question has ${items.length} items. Maximum 6 items allowed.`,
+                suggestedFix: 'Remove extra sequence items in Question Review.',
               });
             } else if (order.length !== items.length) {
               issues.push({
@@ -1290,6 +1404,26 @@ export function parseQuestionsText(
                 suggestedFix: 'Add child sub-questions in Question Review.',
               });
             } else {
+              subs.forEach((sq: any, sIdx: number) => {
+                const subOpts = Array.isArray(sq.options) ? sq.options : [];
+                if (subOpts.length < 2) {
+                  issues.push({
+                    questionNumber: `${qNum}.${sIdx + 1}`,
+                    location: `Question #${qNum} Sub-question ${sIdx + 1}`,
+                    issue: 'Insufficient sub-question options',
+                    cause: `Sub-question has only ${subOpts.length} options. Minimum 2 required.`,
+                    suggestedFix: 'Add missing options in Question Review.',
+                  });
+                } else if (subOpts.length > 6) {
+                  issues.push({
+                    questionNumber: `${qNum}.${sIdx + 1}`,
+                    location: `Question #${qNum} Sub-question ${sIdx + 1}`,
+                    issue: 'Excess sub-question choices',
+                    cause: `Sub-question has ${subOpts.length} choices. Maximum 6 allowed.`,
+                    suggestedFix: 'Remove extra options in Question Review.',
+                  });
+                }
+              });
               keyCount++;
             }
           } else {
@@ -1300,6 +1434,14 @@ export function parseQuestionsText(
                 issue: 'Insufficient options',
                 cause: `Question has only ${options.length} options. Minimum 2 required.`,
                 suggestedFix: 'Add missing options in Question Review.',
+              });
+            } else if (options.length > 6) {
+              issues.push({
+                questionNumber: qNum,
+                location: `Question #${qNum}`,
+                issue: 'Excess choices',
+                cause: `Question has ${options.length} choices. Maximum 6 choices allowed.`,
+                suggestedFix: 'Remove extra options in Question Review.',
               });
             }
             if (correctAnswers.length === 0) {

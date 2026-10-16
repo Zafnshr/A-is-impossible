@@ -196,7 +196,7 @@ export function decodeQuestionExplanation(rawExp?: string): { explanation: strin
 const STATUS_META_PREFIX = '<!--APLUS_STATUS_META:';
 const STATUS_META_SUFFIX = '-->';
 
-export function encodeStatusNotes(s: QuestionUserStatus): string {
+export function encodeStatusNotes(s: Partial<QuestionUserStatus>): string {
   const meta = {
     attemptsCount: s.attemptsCount || 0,
     lastAttemptAt: s.lastAttemptAt,
@@ -774,5 +774,128 @@ export const cloudSyncService = {
       syncedAt: now,
       syncIssues,
     };
+  },
+
+  /**
+   * Resets cloud study progress (session history, attempts, question attempt counts)
+   */
+  async resetCloudStudyProgress(userId: string): Promise<void> {
+    try {
+      const issues: string[] = [];
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('settings')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const currentSettings = (profileRow?.settings as CloudUserSettingsPayload) || {};
+      const updatedPayload: CloudUserSettingsPayload = {
+        ...currentSettings,
+        sessionHistory: [],
+        attempts: [],
+        statusExtensions: {},
+        syncedAt: Date.now(),
+      };
+
+      await supabase
+        .from('profiles')
+        .update({
+          settings: updatedPayload,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      const { data: statuses } = await supabase
+        .from('user_question_statuses')
+        .select('id, question_id, notes')
+        .eq('user_id', userId);
+
+      if (statuses && statuses.length > 0) {
+        const resetRows = statuses.map((s) => {
+          const decoded = decodeStatusNotes(s.notes);
+          return {
+            id: s.id,
+            user_id: userId,
+            question_id: s.question_id,
+            is_incorrect: false,
+            notes: encodeStatusNotes({
+              questionId: s.question_id,
+              profileId: 'workspace',
+              userNote: decoded.notes || '',
+              attemptsCount: 0,
+            }),
+            updated_at: new Date().toISOString(),
+          };
+        });
+        await upsertRows('user_question_statuses', resetRows, 100, issues);
+      }
+    } catch (err) {
+      console.warn('[Sync] Failed to reset cloud study progress:', err);
+    }
+  },
+
+  /**
+   * Deletes all personal decks and questions for the user in Supabase
+   */
+  async deleteAllCloudDecks(userId: string): Promise<void> {
+    try {
+      await supabase.from('questions').delete().eq('user_id', userId);
+      await supabase.from('decks').delete().eq('user_id', userId);
+
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('settings')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileRow?.settings) {
+        const currentSettings = profileRow.settings as CloudUserSettingsPayload;
+        const updatedPayload: CloudUserSettingsPayload = {
+          ...currentSettings,
+          deckMetadata: {},
+          questionExtensions: {},
+          syncedAt: Date.now(),
+        };
+        await supabase
+          .from('profiles')
+          .update({
+            settings: updatedPayload,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+      }
+    } catch (err) {
+      console.warn('[Sync] Failed to delete all cloud decks:', err);
+    }
+  },
+
+  /**
+   * Deletes cloud user profile data and resets settings
+   */
+  async deleteCloudUserProfile(userId: string): Promise<void> {
+    try {
+      await supabase
+        .from('profiles')
+        .update({
+          settings: {},
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+    } catch (err) {
+      console.warn('[Sync] Failed to delete cloud user profile:', err);
+    }
+  },
+
+  /**
+   * Performs full system wipe for the cloud user (decks, questions, statuses, progress, settings)
+   */
+  async factoryResetCloudUser(userId: string): Promise<void> {
+    try {
+      await this.deleteAllCloudDecks(userId);
+      await supabase.from('user_question_statuses').delete().eq('user_id', userId);
+      await this.deleteCloudUserProfile(userId);
+    } catch (err) {
+      console.warn('[Sync] Failed to factory reset cloud user:', err);
+    }
   },
 };

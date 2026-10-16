@@ -149,6 +149,21 @@ D) Respiratory alkalosis
 ANSWER: C
 EXPLANATION: Elevated H+, CO2, temperature, and 2,3-BPG all stabilize the T (taut/tense) deoxygenated state of Hb, releasing O2 to tissues.`;
 
+export const SAMPLE_MULTI_AND_TF_TEXT = `1. Which of the following conditions characteristically present with a microcytic, hypochromic anemia (MCV < 80 fL)? [Select all that apply]
+A) Iron deficiency anemia
+B) Thalassemia minor or major
+C) Anemia of chronic disease (long-standing)
+D) Vitamin B12 (cobalamin) deficiency
+E) Sideroblastic anemia
+ANSWER: A, B, C, E
+EXPLANATION: Microcytic hypochromic anemias (MCV < 80 fL) include iron deficiency anemia, thalassemias, sideroblastic anemia, and long-standing anemia of chronic disease. In contrast, vitamin B12 deficiency produces macrocytic megaloblastic anemia (MCV > 100 fL).
+
+2. True or False: Mature human erythrocytes can actively synthesize new structural proteins and enzymes during circulation.
+A) True
+B) False
+ANSWER: False
+EXPLANATION: Mature erythrocytes extrude their nuclei and shed all cytoplasmic ribosomes and mitochondria during reticulocyte maturation, rendering them unable to synthesize new RNA, enzymes, or hemoglobin during their 120-day circulating lifespan.`;
+
 export interface QuestionFormatTemplate {
   id: string;
   name: string;
@@ -165,102 +180,116 @@ export const SAMPLE_QUESTION_TEMPLATES: QuestionFormatTemplate[] = [
     name: 'Standard Multiple Choice (Single Answer)',
     category: 'High-Yield MCQ',
     badge: 'Most Common',
-    description: 'A question stem followed by lettered options A-D or A-E with one correct choice, answer key, and clinical explanation.',
+    description: 'A clinical stem followed by lettered options A-D or A-E with one correct choice, answer key, and in-depth explanation.',
     sampleSnippet: `1. Which cell in the gastric mucosa secretes intrinsic factor necessary for vitamin B12 absorption?
 A) Chief (peptic) cells
 B) Parietal (oxyntic) cells
 C) G cells
 D) Enterochromaffin-like (ECL) cells
 ANSWER: B
-EXPLANATION: Parietal cells secrete gastric acid (HCl) and intrinsic factor (IF). Intrinsic factor binds cyanocobalamin (B12) in the duodenum, enabling absorption in the terminal ileum.`,
+EXPLANATION: Parietal cells in the gastric oxyntic glands secrete hydrochloric acid (HCl) and intrinsic factor (IF). Intrinsic factor binds vitamin B12 (cyanocobalamin) in the duodenum, protecting it from digestion and enabling receptor-mediated endocytosis in the terminal ileum.`,
     howToUse: 'Format each choice with A) B) C) D) on its own line. Add ANSWER: followed by the correct letter.',
   },
   {
     id: 'case_study',
-    name: 'Clinical Case Vignette (Scenario + Questions)',
+    name: 'Clinical Case Vignette (Scenario + Sub-Questions)',
     category: 'Clinical Vignette',
     badge: 'Exam Vignette',
-    description: 'A realistic patient presentation followed by linked clinical diagnostic and management questions.',
-    sampleSnippet: `CASE 1:
-A 28-year-old female presents with persistent fatigue, exertional dyspnea, and spoon-shaped fingernails (koilonychia). Complete blood count reveals:
-Hb: 8.5 g/dL (Normal: 12-15)
-MCV: 68 fL (Normal: 80-100)
-Serum Ferritin: 8 ng/mL (Normal: 15-150)
-Total Iron Binding Capacity (TIBC): Elevated
+    description: 'A realistic patient presentation followed by linked clinical diagnostic, mechanistic, and management questions.',
+    sampleSnippet: `CASE 1: Severe Microcytic Anemia & Iron Metabolism
+A 28-year-old female presents to the outpatient clinic with a 3-month history of worsening fatigue, exertional dyspnea, pallor, and brittle spoon-shaped fingernails (koilonychia). Complete blood count (CBC) and iron studies reveal:
+- Hemoglobin: 8.2 g/dL (Normal: 12.0 - 15.5 g/dL)
+- Mean Corpuscular Volume (MCV): 66 fL (Normal: 80 - 100 fL)
+- Mean Corpuscular Hemoglobin (MCH): 22 pg (Normal: 27 - 33 pg)
+- Serum Ferritin: 6 ng/mL (Normal: 15 - 150 ng/mL)
+- Total Iron Binding Capacity (TIBC): 460 mcg/dL (Normal: 250 - 410 mcg/dL)
+- Transferrin Saturation: 8% (Normal: 20 - 50%)
 
-1. What is the most definitive primary diagnosis?
-A) Megaloblastic anemia
+1.1 What is the most definitive primary diagnosis based on the laboratory findings?
+A) Megaloblastic anemia due to folate deficiency
 B) Iron deficiency anemia
-C) Thalassemia trait
-D) Aplastic anemia
+C) Beta-thalassemia minor (trait)
+D) Anemia of chronic disease
 ANSWER: B
-EXPLANATION: Low ferritin, elevated TIBC, low MCV, and koilonychia are pathognomonic for severe iron deficiency anemia.
+EXPLANATION: Marked microcytic hypochromic anemia (MCV 66 fL) accompanied by severely depleted ferritin (6 ng/mL) and elevated TIBC (460 mcg/dL) is pathognomonic for iron deficiency anemia.
 
-2. What is the recommended first-line pharmacological treatment?
-A) Oral ferrous sulfate with vitamin C
-B) Intramuscular cyanocobalamin
-C) Subcutaneous erythropoietin
-D) Immediate packed red blood cell transfusion
+1.2 Which hepatic peptide hormone is expected to be markedly down-regulated in this patient?
+A) Hepcidin
+B) Erythropoietin
+C) Ferritin
+D) Ceruloplasmin
 ANSWER: A
-EXPLANATION: Oral ferrous sulfate taken with ascorbic acid (which maintains iron in the soluble Fe2+ state) is standard first-line therapy.`,
-    howToUse: 'Start with "CASE 1:" followed by patient background, then numbered questions with choices below.',
+EXPLANATION: In systemic iron deficiency, hepatic synthesis of hepcidin is suppressed. This allows ferroportin to remain active on the basolateral surface of enterocytes, maximizing iron absorption into circulation.
+
+1.3 What is the recommended first-line oral pharmacological therapy?
+A) Oral ferrous sulfate co-administered with ascorbic acid (vitamin C)
+B) Monthly intramuscular cyanocobalamin injections
+C) Subcutaneous recombinant erythropoietin injections
+D) Immediate transfusion of packed red blood cells
+ANSWER: A
+EXPLANATION: Oral ferrous sulfate taken with ascorbic acid (which reduces Fe3+ to soluble Fe2+) is the standard first-line management for uncomplicated iron deficiency anemia.`,
+    howToUse: 'Start with "CASE 1:" followed by patient background, then child sub-questions (1.1, 1.2, 1.3) with choices and ANSWER below.',
   },
   {
     id: 'multiple_answers',
     name: 'Multiple Answers (Select All That Apply)',
     category: 'Multi-Select',
     badge: 'Complex MCQ',
-    description: 'A question with multiple correct options indicated in the answer key.',
-    sampleSnippet: `1. Which of the following conditions typically present with a microcytic, hypochromic anemia (MCV < 80 fL)? [Select all that apply]
+    description: 'A clinical question with multiple correct options indicated in the answer key.',
+    sampleSnippet: `1. Which of the following conditions characteristically present with a microcytic, hypochromic anemia (MCV < 80 fL)? [Select all that apply]
 A) Iron deficiency anemia
 B) Thalassemia minor or major
-C) Anemia of chronic disease
-D) Vitamin B12 deficiency
+C) Anemia of chronic disease (long-standing)
+D) Vitamin B12 (cobalamin) deficiency
 E) Sideroblastic anemia
 ANSWER: A, B, C, E
-EXPLANATION: Iron deficiency, thalassemia, sideroblastic anemia, and long-standing anemia of chronic disease present with MCV < 80 fL. B12 deficiency produces macrocytic anemia (MCV > 100 fL).`,
-    howToUse: 'Include multiple letters in the ANSWER line separated by commas, e.g. "ANSWER: A, B, C".',
+EXPLANATION: Microcytic hypochromic anemias (MCV < 80 fL) include iron deficiency anemia, thalassemias, sideroblastic anemia, and long-standing anemia of chronic disease. In contrast, vitamin B12 deficiency produces macrocytic megaloblastic anemia (MCV > 100 fL).`,
+    howToUse: 'Include [Select all that apply] in the prompt and list multiple letters in the ANSWER line, e.g. "ANSWER: A, B, C, E".',
   },
   {
     id: 'true_false',
     name: 'True / False Statement',
     category: 'Rapid Recall',
     badge: 'Concept Check',
-    description: 'A conceptual assertion with True and False options.',
-    sampleSnippet: `1. Mature human erythrocytes synthesize hemoglobin actively throughout their 120-day circulating lifespan.
+    description: 'A core medical assertion tested with binary True and False choices.',
+    sampleSnippet: `1. True or False: Mature human erythrocytes can actively synthesize new structural proteins and enzymes during circulation.
 A) True
 B) False
-ANSWER: B
-EXPLANATION: False. Mature erythrocytes extrude their nuclei and polyribosomes during reticulocyte maturation and cannot synthesize new hemoglobin or structural proteins.`,
-    howToUse: 'Options must be A) True and B) False with ANSWER: A or B.',
+ANSWER: False
+EXPLANATION: Mature erythrocytes extrude their nuclei and shed all cytoplasmic ribosomes and mitochondria during reticulocyte maturation, rendering them unable to synthesize new RNA, enzymes, or hemoglobin during their 120-day circulating lifespan.`,
+    howToUse: 'Options must be A) True and B) False with ANSWER: True (or A) or ANSWER: False (or B).',
   },
   {
     id: 'matching',
     name: 'Matching Pairs',
     category: 'Association',
-    badge: 'High-Yield',
-    description: 'Pairs of terms, anatomical structures, or physiological regulators to match.',
-    sampleSnippet: `MATCHING: Match each cell type with its primary secretory product:
-A. Parietal cells -> 1. Intrinsic factor
-B. Chief cells -> 2. Pepsinogen
-C. G cells -> 3. Gastrin
-D. Enterochromaffin-like cells -> 4. Histamine`,
-    howToUse: 'Prefix with "MATCHING:" and use "A. Left side -> 1. Right side" for each pair.',
+    badge: 'High-Yield Pairs',
+    description: 'Associate physiological structures, receptors, or cell types with their primary functions or secretions.',
+    sampleSnippet: `1. Match each gastric mucosal cell type with its primary physiological secretory product:
+A) Parietal (oxyntic) cells -> Intrinsic factor & Hydrochloric acid (HCl)
+B) Chief (peptic) cells -> Pepsinogen
+C) G cells -> Gastrin
+D) Enterochromaffin-like (ECL) cells -> Histamine
+ANSWER: A-1, B-2, C-3, D-4
+EXPLANATION: Parietal cells secrete HCl and intrinsic factor (essential for ileal B12 absorption); Chief cells secrete the zymogen pepsinogen; G cells in the gastric antrum secrete gastrin; ECL cells in the gastric lamina propria secrete histamine.`,
+    howToUse: 'Use "A) Left item -> Right item" on each line and include "ANSWER: A-1, B-2, C-3, D-4".',
   },
   {
     id: 'ordering',
     name: 'Ordering & Sequence',
     category: 'Chronological',
     badge: 'Pathways',
-    description: 'Chronological steps in a physiological pathway or maturation sequence.',
-    sampleSnippet: `ORDER: Arrange the stages of erythroid development from earliest precursor to mature circulating cell:
+    description: 'Arrange physiological cascades, developmental precursors, or clinical pathways in strict chronological order.',
+    sampleSnippet: `1. Arrange the stages of erythroid development in chronological order from earliest precursor to mature circulating cell:
 1. Proerythroblast
 2. Basophilic normoblast
 3. Polychromatophilic normoblast
-4. Orthochromatic normoblast
+4. Orthochromatic normoblast (late normoblast)
 5. Reticulocyte
-6. Mature erythrocyte`,
-    howToUse: 'Prefix with "ORDER:" and list the steps in correct chronological order.',
+6. Mature erythrocyte
+ANSWER: 1, 2, 3, 4, 5, 6
+EXPLANATION: Erythropoiesis progresses sequentially through: (1) Proerythroblast, (2) Basophilic normoblast with active RNA synthesis, (3) Polychromatophilic normoblast with rising hemoglobin, (4) Orthochromatic normoblast which extrudes its pyknotic nucleus, (5) Reticulocyte which enters peripheral blood, and (6) Mature enucleated biconcave erythrocyte.`,
+    howToUse: 'Use "1. Arrange the stages..." followed by numbered items (1-6) and "ANSWER: 1, 2, 3, 4, 5, 6".',
   },
 ];
 

@@ -34,6 +34,7 @@ import {
   openPracticeGem,
   openExamStyleGem,
 } from '../../services/gemLink';
+import { cloudAuthService, cloudSyncService } from '../../services/supabase';
 
 interface SettingsViewProps {
   settings?: UserSettings;
@@ -70,25 +71,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleExecuteDangerAction = async (action: DangerActionType) => {
     try {
+      const currentUser = await cloudAuthService.getCurrentUser();
+      const userId = currentUser?.id;
+
       if (action === 'reset_progress') {
         await dbService.resetStudyProgress(safeSettings.profileId || 'workspace');
+        if (userId) {
+          await cloudSyncService.resetCloudStudyProgress(userId);
+        }
+        localStorage.removeItem('a_plus_guest_snapshot_v2');
         if (onReloadData) await onReloadData();
         setDangerModalOpen(false);
         setSelectedDangerAction(null);
         showToast('Study progress successfully reset. All history & analytics cleared.');
       } else if (action === 'delete_profile') {
         await dbService.deleteCurrentProfile(safeSettings.profileId || 'workspace');
+        if (userId) {
+          await cloudSyncService.deleteCloudUserProfile(userId);
+          await cloudAuthService.signOut();
+        }
+        localStorage.removeItem('a_plus_guest_snapshot_v2');
         if (onReloadData) await onReloadData();
         setDangerModalOpen(false);
         setSelectedDangerAction(null);
         showToast('Current profile and preferences successfully deleted.');
       } else if (action === 'delete_decks') {
         await dbService.deleteAllDecks();
+        if (userId) {
+          await cloudSyncService.deleteAllCloudDecks(userId);
+        }
+        localStorage.removeItem('a_plus_guest_snapshot_v2');
+        localStorage.removeItem('a_plus_local_deletes_v1');
         if (onReloadData) await onReloadData();
         setDangerModalOpen(false);
         setSelectedDangerAction(null);
         showToast('All decks and question banks successfully deleted.');
       } else if (action === 'factory_reset') {
+        if (userId) {
+          await cloudSyncService.factoryResetCloudUser(userId);
+          await cloudAuthService.signOut();
+        }
         await dbService.factoryResetPlatform();
         showToast('Platform reset to factory state. Reloading first-launch wizard...');
         setTimeout(() => {

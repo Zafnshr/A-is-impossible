@@ -43,7 +43,11 @@ import {
   getDefaultModule,
   getDefaultSubject,
 } from '../../services/academicStructure';
-import { SAMPLE_RAW_COLLEGE_EXAM_TEXT, SAMPLE_QUESTION_TEMPLATES } from '../../services/tourSampleService';
+import {
+  SAMPLE_RAW_COLLEGE_EXAM_TEXT,
+  SAMPLE_QUESTION_TEMPLATES,
+  SAMPLE_MULTI_AND_TF_TEXT,
+} from '../../services/tourSampleService';
 import { Deck, Question, QuestionType, MatchingPair, CaseSubQuestion } from '../../types';
 import { Tooltip } from '../Tooltip';
 
@@ -273,6 +277,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setReviewQuestions((prev) =>
       prev.map((q) => {
         if (q.id !== id) return q;
+        if (q.options.length >= 6) return q;
         const nextLetter = String.fromCharCode(65 + q.options.length);
         return {
           ...q,
@@ -286,10 +291,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setReviewQuestions((prev) =>
       prev.map((q) => {
         if (q.id !== id) return q;
-        if (q.options.length <= 2) {
-          alert('A multiple-choice question must have at least 2 options.');
-          return q;
-        }
+        if (q.options.length <= 2) return q;
         const newOpts = q.options.filter((_, i) => i !== optIndex);
         const newCorrect = q.correctAnswers
           .filter((idx) => idx !== optIndex)
@@ -348,6 +350,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       prev.map((q) => {
         if (q.id !== qId) return q;
         const pairs = q.matchingPairs ? [...q.matchingPairs] : [];
+        if (pairs.length >= 6) return q;
         const nextIdx = pairs.length + 1;
         pairs.push({
           id: `mp_${Date.now()}_${nextIdx}`,
@@ -363,10 +366,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setReviewQuestions((prev) =>
       prev.map((q) => {
         if (q.id !== qId || !q.matchingPairs) return q;
-        if (q.matchingPairs.length <= 2) {
-          alert('A matching question requires at least 2 pairs.');
-          return q;
-        }
+        if (q.matchingPairs.length <= 2) return q;
         return {
           ...q,
           matchingPairs: q.matchingPairs.filter((_, i) => i !== pairIndex),
@@ -404,6 +404,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setReviewQuestions((prev) =>
       prev.map((q) => {
         if (q.id !== qId) return q;
+        if (q.options.length >= 6) return q;
         const newOpts = [...q.options, `New Step ${q.options.length + 1}`];
         const newOrder = q.correctOrder ? [...q.correctOrder, q.options.length] : newOpts.map((_, i) => i);
         return { ...q, options: newOpts, correctOrder: newOrder };
@@ -415,10 +416,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setReviewQuestions((prev) =>
       prev.map((q) => {
         if (q.id !== qId) return q;
-        if (q.options.length <= 2) {
-          alert('An ordering question requires at least 2 steps.');
-          return q;
-        }
+        if (q.options.length <= 2) return q;
         const newOpts = q.options.filter((_, i) => i !== itemIdx);
         // Reindex correctOrder permutation
         const newOrder = (q.correctOrder || [])
@@ -481,6 +479,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       prev.map((q) => {
         if (q.id !== qId || !q.subQuestions) return q;
         const subs = [...q.subQuestions];
+        if (subs[subIdx].options.length >= 6) return q;
         const nextLetter = String.fromCharCode(65 + subs[subIdx].options.length);
         const options = [...subs[subIdx].options, `Option ${nextLetter}`];
         subs[subIdx] = { ...subs[subIdx], options };
@@ -494,10 +493,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       prev.map((q) => {
         if (q.id !== qId || !q.subQuestions) return q;
         const subs = [...q.subQuestions];
-        if (subs[subIdx].options.length <= 2) {
-          alert('Sub-question must have at least 2 options.');
-          return q;
-        }
+        if (subs[subIdx].options.length <= 2) return q;
         const options = subs[subIdx].options.filter((_, i) => i !== optIdx);
         let correctAnswer = subs[subIdx].correctAnswer;
         if (correctAnswer === optIdx) correctAnswer = 0;
@@ -529,10 +525,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setReviewQuestions((prev) =>
       prev.map((q) => {
         if (q.id !== qId || !q.subQuestions) return q;
-        if (q.subQuestions.length <= 1) {
-          alert('Case study requires at least one sub-question.');
-          return q;
-        }
+        if (q.subQuestions.length <= 1) return q;
         return {
           ...q,
           subQuestions: q.subQuestions.filter((_, i) => i !== subIdx),
@@ -906,7 +899,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 onClick={() => {
                   const caseSample = SAMPLE_QUESTION_TEMPLATES.find((t) => t.id === 'case_study')?.sampleSnippet || '';
                   setPastedText(caseSample);
-                  if (!lectureName.trim()) setLectureName('Clinical Case Vignette: Severe Anemia');
+                  if (!lectureName.trim()) setLectureName('Clinical Case Vignette: Severe Microcytic Anemia');
                 }}
                 className="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer"
               >
@@ -917,10 +910,8 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  const multiSample = SAMPLE_QUESTION_TEMPLATES.find((t) => t.id === 'multiple_answers')?.sampleSnippet || '';
-                  const tfSample = SAMPLE_QUESTION_TEMPLATES.find((t) => t.id === 'true_false')?.sampleSnippet || '';
-                  setPastedText(`${multiSample}\n\n${tfSample}`);
-                  if (!lectureName.trim()) setLectureName('RBC Physiology & Microcytic Anemia');
+                  setPastedText(SAMPLE_MULTI_AND_TF_TEXT);
+                  if (!lectureName.trim()) setLectureName('Hematology: Multi-Select & True/False Concept Check');
                 }}
                 className="px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold text-[11px] flex items-center gap-1.5 transition cursor-pointer"
               >
@@ -1402,8 +1393,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                                     <span>Options (Click letter to select correct answer):</span>
                                     <button
                                       type="button"
+                                      disabled={sub.options.length >= 6}
                                       onClick={() => handleAddSubQuestionOption(item.id, sIdx)}
-                                      className="text-cyan-600 dark:text-cyan-400 hover:underline"
+                                      className="text-cyan-600 dark:text-cyan-400 hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                                      title={sub.options.length >= 6 ? 'Maximum 6 options allowed' : 'Add option'}
                                     >
                                       + Option
                                     </button>
@@ -1443,10 +1436,12 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                                         />
                                         <button
                                           type="button"
+                                          disabled={sub.options.length <= 2}
                                           onClick={() =>
                                             handleDeleteSubQuestionOption(item.id, sIdx, oIdx)
                                           }
-                                          className="p-1 text-muted hover:text-rose-500"
+                                          className="p-1 text-muted hover:text-rose-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                                          title={sub.options.length <= 2 ? 'Minimum 2 options required' : 'Delete option'}
                                         >
                                           <Trash2 className="w-3 h-3" />
                                         </button>
@@ -1483,8 +1478,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                             <span>Matching Pairs (Column A ➔ Column B):</span>
                             <button
                               type="button"
+                              disabled={(item.matchingPairs?.length || 0) >= 6}
                               onClick={() => handleAddMatchingPair(item.id)}
-                              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+                              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                              title={(item.matchingPairs?.length || 0) >= 6 ? 'Maximum 6 pairs allowed' : 'Add pair'}
                             >
                               <Plus className="w-3 h-3" /> Add Pair
                             </button>
@@ -1532,9 +1529,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                                     />
                                     <button
                                       type="button"
+                                      disabled={(item.matchingPairs?.length || 0) <= 2}
                                       onClick={() => handleDeleteMatchingPair(item.id, pIdx)}
-                                      className="p-1.5 text-muted hover:text-rose-500"
-                                      title="Delete pair"
+                                      className="p-1.5 text-muted hover:text-rose-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                                      title={(item.matchingPairs?.length || 0) <= 2 ? 'Minimum 2 pairs required' : 'Delete pair'}
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
@@ -1569,8 +1567,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                             <span>Correct Sequence Order (Use arrows to arrange):</span>
                             <button
                               type="button"
+                              disabled={item.options.length >= 6}
                               onClick={() => handleAddOrderingItem(item.id)}
-                              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+                              className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                              title={item.options.length >= 6 ? 'Maximum 6 steps allowed' : 'Add step'}
                             >
                               <Plus className="w-3 h-3" /> Add Step
                             </button>
@@ -1629,10 +1629,12 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                                       </button>
                                       <button
                                         type="button"
+                                        disabled={item.options.length <= 2}
                                         onClick={() =>
                                           handleDeleteOrderingItem(item.id, optIdx)
                                         }
-                                        className="p-1 text-muted hover:text-rose-500"
+                                        className="p-1 text-muted hover:text-rose-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        title={item.options.length <= 2 ? 'Minimum 2 steps required' : 'Delete step'}
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
@@ -1673,8 +1675,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                             {item.type !== 'true_false' && (
                               <button
                                 type="button"
+                                disabled={item.options.length >= 6}
                                 onClick={() => handleAddOption(item.id)}
-                                className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline"
+                                className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                                title={item.options.length >= 6 ? 'Maximum 6 options allowed' : 'Add option'}
                               >
                                 <Plus className="w-3 h-3" />
                                 <span>Add Option</span>
@@ -1716,9 +1720,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                                   {item.type !== 'true_false' && (
                                     <button
                                       type="button"
+                                      disabled={item.options.length <= 2}
                                       onClick={() => handleDeleteOption(item.id, optIdx)}
-                                      className="p-1.5 text-muted hover:text-rose-500 transition shrink-0"
-                                      title="Delete this option"
+                                      className="p-1.5 text-muted hover:text-rose-500 transition shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                                      title={item.options.length <= 2 ? 'Minimum 2 options required' : 'Delete this option'}
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
