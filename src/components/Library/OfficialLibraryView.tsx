@@ -630,7 +630,7 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
                                 {lec.pdfUrl ? (
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-[10px] font-bold border border-cyan-500/20">
                                     <FileText className="w-3 h-3 text-cyan-500" />
-                                    <span>{lec.pdfPageCount || 14} Slides Ready</span>
+                                    <span>Slides Ready</span>
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-subtle text-muted text-[10px] font-medium border border-subtle">

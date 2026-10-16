@@ -203,6 +203,13 @@ function isTableMissingError(err: any): boolean {
 class OfficialContentService {
   private isInitialized = false;
   private isSyncing = false;
+  private activeSyncPromise: Promise<{
+    success: boolean;
+    lecturesCount: number;
+    questionsCount: number;
+    tablesMissing: boolean;
+    issues: string[];
+  }> | null = null;
   private lastSyncedAt: number | null = null;
   private tablesMissing = false;
   private syncIssues: string[] = [];
@@ -236,6 +243,19 @@ class OfficialContentService {
     };
   }
 
+  private async ensureInitialSyncCompleted(): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initializeOfficialContent();
+      return;
+    }
+    if (this.lastSyncedAt === null && this.activeSyncPromise) {
+      await Promise.race([
+        this.activeSyncPromise,
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
+    }
+  }
+
   public async initializeOfficialContent(forceRefresh = false): Promise<void> {
     // 1. Attach window focus and visibility listeners for instant refresh
     if (typeof window !== 'undefined' && !this.focusListenerAttached) {
@@ -266,8 +286,15 @@ class OfficialContentService {
     }
 
     if (this.isInitialized && !forceRefresh) {
-      // Trigger background sync to ensure fresh data without blocking execution
-      this.syncFromCloud().catch(() => {});
+      if (this.lastSyncedAt === null && this.activeSyncPromise) {
+        await Promise.race([
+          this.activeSyncPromise,
+          new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+      } else {
+        // Trigger background sync to ensure fresh data
+        this.syncFromCloud().catch(() => {});
+      }
       return;
     }
 
@@ -292,10 +319,10 @@ class OfficialContentService {
   }
 
   /**
-   * Authoritative Two-Way Cloud Sync with Supabase:
+   * 100% Authoritative Cloud Sync with Supabase:
    * 1. Fetches cloud records for lectures, questions, announcements, config, and feedback.
-   * 2. Authoritatively replaces local IndexedDB and localStorage (deleting stale or deleted cloud items).
-   * 3. Syncs global config (Gem URLs & secondary admin whitelist).
+   * 2. Authoritatively wipes & replaces local IndexedDB and localStorage with ONLY the exact rows in Supabase.
+   * 3. Never pushes stale/deleted local IndexedDB items back into Supabase (eliminating zombie resurrection).
    * 4. Notifies all reactive UI listeners across the app.
    */
   public async syncFromCloud(): Promise<{
@@ -305,24 +332,38 @@ class OfficialContentService {
     tablesMissing: boolean;
     issues: string[];
   }> {
-    if (this.isSyncing) {
-      return {
-        success: false,
-        lecturesCount: 0,
-        questionsCount: 0,
-        tablesMissing: this.tablesMissing,
-        issues: ['Sync already in progress'],
-      };
+    if (this.activeSyncPromise) {
+      return this.activeSyncPromise;
     }
 
     this.isSyncing = true;
+    this.activeSyncPromise = this.executeSyncFromCloud();
+    try {
+      return await this.activeSyncPromise;
+    } finally {
+      this.isSyncing = false;
+      this.activeSyncPromise = null;
+    }
+  }
+
+  private async executeSyncFromCloud(): Promise<{
+    success: boolean;
+    lecturesCount: number;
+    questionsCount: number;
+    tablesMissing: boolean;
+    issues: string[];
+  }> {
     const issues: string[] = [];
 
     try {
-      // 1. Fetch Official Lectures from Supabase (anon or auth)
-      const { data: cloudLectures, error: lecErr } = await supabase
-        .from('official_lectures')
-        .select('*');
+      // 1. Fetch Official Lectures & Questions from Supabase concurrently
+      const [lecRes, qRes] = await Promise.all([
+        supabase.from('official_lectures').select('*'),
+        supabase.from('official_questions').select('*'),
+      ]);
+
+      const { data: cloudLectures, error: lecErr } = lecRes;
+      const { data: cloudQuestions, error: qErr } = qRes;
 
       if (lecErr) {
         if (isTableMissingError(lecErr)) {
@@ -331,38 +372,7 @@ class OfficialContentService {
         } else {
           issues.push(`Failed fetching official_lectures: ${lecErr.message}`);
         }
-      } else {
-        this.tablesMissing = false;
-        const mappedLectures = (cloudLectures || []).map(mapDbToOfficialLecture);
-        const cloudLecIds = new Set(mappedLectures.map((l) => l.id));
-
-        // Save authoritative cloud rows into local IndexedDB
-        for (const lec of mappedLectures) {
-          await dbService.saveOfficialLecture(lec);
-        }
-
-        // Preserve local creations: push any local lecture not in cloud to Supabase
-        const localLectures = await dbService.getOfficialLectures();
-        for (const local of localLectures) {
-          if (!cloudLecIds.has(local.id)) {
-            try {
-              const { error: pushErr } = await supabase
-                .from('official_lectures')
-                .upsert([mapOfficialLectureToDb(local)], { onConflict: 'id' });
-              if (!pushErr) {
-                cloudLecIds.add(local.id);
-              }
-            } catch (pushEx) {
-              console.warn('[OfficialContentService] Could not push local lecture to cloud:', pushEx);
-            }
-          }
-        }
       }
-
-      // 2. Fetch Official Questions from Supabase
-      const { data: cloudQuestions, error: qErr } = await supabase
-        .from('official_questions')
-        .select('*');
 
       if (qErr) {
         if (isTableMissingError(qErr)) {
@@ -370,33 +380,27 @@ class OfficialContentService {
         } else if (!this.tablesMissing) {
           issues.push(`Failed fetching official_questions: ${qErr.message}`);
         }
-      } else {
-        const mappedQuestions = (cloudQuestions || []).map(mapDbToOfficialQuestion);
-        const cloudQIds = new Set(mappedQuestions.map((q) => q.id));
-
-        if (mappedQuestions.length > 0) {
-          await dbService.saveOfficialQuestionsBatch(mappedQuestions);
-        }
-
-        // Preserve local creations: push any local question not in cloud to Supabase
-        const localQuestions = await dbService.getOfficialQuestions();
-        for (const localQ of localQuestions) {
-          if (!cloudQIds.has(localQ.id)) {
-            try {
-              const { error: pushQErr } = await supabase
-                .from('official_questions')
-                .upsert([mapOfficialQuestionToDb(localQ)], { onConflict: 'id' });
-              if (!pushQErr) {
-                cloudQIds.add(localQ.id);
-              }
-            } catch (pushEx) {
-              console.warn('[OfficialContentService] Could not push local question to cloud:', pushEx);
-            }
-          }
-        }
       }
 
-      // 3. Fetch Official Announcements from Supabase
+      // Authoritative Wipe & Replace when Supabase responds without error
+      if (!lecErr && !qErr) {
+        this.tablesMissing = false;
+        const mappedLectures = (cloudLectures || []).map(mapDbToOfficialLecture);
+        const mappedQuestions = (cloudQuestions || []).map(mapDbToOfficialQuestion);
+
+        await dbService.clearAllOfficialContent();
+        await dbService.replaceAllOfficialLectures(mappedLectures);
+        await dbService.replaceAllOfficialQuestions(mappedQuestions);
+      } else if (!lecErr) {
+        this.tablesMissing = false;
+        const mappedLectures = (cloudLectures || []).map(mapDbToOfficialLecture);
+        await dbService.replaceAllOfficialLectures(mappedLectures);
+      } else if (!qErr) {
+        const mappedQuestions = (cloudQuestions || []).map(mapDbToOfficialQuestion);
+        await dbService.replaceAllOfficialQuestions(mappedQuestions);
+      }
+
+      // 3. Fetch Official Announcements from Supabase (Authoritative Replace)
       const { data: cloudAnnouncements, error: annErr } = await supabase
         .from('official_announcements')
         .select('*')
@@ -411,7 +415,7 @@ class OfficialContentService {
         }
       }
 
-      // 4. Fetch Question Feedback (QA Queue) from Supabase
+      // 4. Fetch Question Feedback (QA Queue) from Supabase (Authoritative Replace)
       const { data: cloudFeedback, error: fbErr } = await supabase
         .from('official_question_feedback')
         .select('*');
@@ -421,7 +425,6 @@ class OfficialContentService {
       } else if (!fbErr && cloudFeedback) {
         const mappedFeedback = cloudFeedback.map(mapDbToFeedback);
         if (typeof window !== 'undefined') {
-          // Clear old local feedback records first
           for (let i = localStorage.length - 1; i >= 0; i--) {
             const k = localStorage.key(i);
             if (k && k.startsWith(FEEDBACK_PREFIX)) {
@@ -499,15 +502,13 @@ class OfficialContentService {
         tablesMissing: this.tablesMissing,
         issues,
       };
-    } finally {
-      this.isSyncing = false;
     }
   }
 
-  // --- Lecture CRUD with Cloud Write-Through ---
+  // --- Lecture CRUD with Authoritative Cloud Write-First ---
 
   public async getOfficialLectures(): Promise<OfficialLecture[]> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     return dbService.getOfficialLectures();
   }
 
@@ -517,7 +518,7 @@ class OfficialContentService {
   }
 
   public async updateLectureStatus(lectureId: string, status: ContentStatus): Promise<OfficialLecture | null> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     const existing = await dbService.getOfficialLectureById(lectureId);
     if (!existing) return null;
 
@@ -528,24 +529,24 @@ class OfficialContentService {
       updatedAt: Date.now(),
     };
 
-    // 1. Local IndexedDB
-    await dbService.saveOfficialLecture(updated);
+    // 1. Authoritative Cloud Supabase Write FIRST
+    const { error } = await supabase
+      .from('official_lectures')
+      .upsert([mapOfficialLectureToDb(updated)], { onConflict: 'id' });
 
-    // 2. Cloud Supabase Write-Through
-    try {
-      await supabase
-        .from('official_lectures')
-        .upsert([mapOfficialLectureToDb(updated)], { onConflict: 'id' });
-    } catch (e) {
-      console.warn('[OfficialContentService] updateLectureStatus cloud write warning:', e);
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud write failed: ${error.message}`);
     }
+
+    // 2. Local IndexedDB
+    await dbService.saveOfficialLecture(updated);
 
     this.notifyListeners();
     return updated;
   }
 
   public async batchUpdateLectureStatus(lectureIds: string[], status: ContentStatus): Promise<number> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     let count = 0;
     const updatedLectures: OfficialLecture[] = [];
 
@@ -558,19 +559,24 @@ class OfficialContentService {
           publishedAt: status === 'published' ? (existing.publishedAt || Date.now()) : existing.publishedAt,
           updatedAt: Date.now(),
         };
-        await dbService.saveOfficialLecture(updated);
         updatedLectures.push(updated);
         count++;
       }
     }
 
     if (updatedLectures.length > 0) {
-      try {
-        await supabase
-          .from('official_lectures')
-          .upsert(updatedLectures.map(mapOfficialLectureToDb), { onConflict: 'id' });
-      } catch (e) {
-        console.warn('[OfficialContentService] batchUpdateLectureStatus cloud write warning:', e);
+      // 1. Authoritative Cloud Supabase Write FIRST
+      const { error } = await supabase
+        .from('official_lectures')
+        .upsert(updatedLectures.map(mapOfficialLectureToDb), { onConflict: 'id' });
+
+      if (error && !isTableMissingError(error)) {
+        throw new Error(`Supabase cloud write failed: ${error.message}`);
+      }
+
+      // 2. Local IndexedDB
+      for (const updated of updatedLectures) {
+        await dbService.saveOfficialLecture(updated);
       }
     }
 
@@ -584,50 +590,51 @@ class OfficialContentService {
     weekSlug: string,
     lectureSlug: string
   ): Promise<OfficialLecture | null> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     return dbService.getOfficialLectureBySlug(moduleSlug, subjectSlug, weekSlug, lectureSlug);
   }
 
   public async getLectureById(id: string): Promise<OfficialLecture | null> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     return dbService.getOfficialLectureById(id);
   }
 
   public async saveOfficialLecture(lecture: OfficialLecture): Promise<void> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     const withDefaults: OfficialLecture = {
       ...lecture,
+      weekId: lecture.weekSlug || lecture.weekId || 'week-1',
       status: lecture.status || 'published',
       updatedAt: Date.now(),
     };
 
-    // 1. Local IndexedDB
-    await dbService.saveOfficialLecture(withDefaults);
+    // 1. Authoritative Cloud Supabase Write FIRST
+    const { error } = await supabase
+      .from('official_lectures')
+      .upsert([mapOfficialLectureToDb(withDefaults)], { onConflict: 'id' });
 
-    // 2. Cloud Supabase Write-Through
-    try {
-      await supabase
-        .from('official_lectures')
-        .upsert([mapOfficialLectureToDb(withDefaults)], { onConflict: 'id' });
-    } catch (e) {
-      console.warn('[OfficialContentService] saveOfficialLecture cloud write warning:', e);
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud write failed: ${error.message}`);
     }
+
+    // 2. Local IndexedDB
+    await dbService.saveOfficialLecture(withDefaults);
 
     this.notifyListeners();
   }
 
   public async deleteOfficialLecture(lectureId: string): Promise<void> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
 
-    // 1. Local IndexedDB
-    await dbService.deleteOfficialLecture(lectureId);
+    // 1. Authoritative Cloud Supabase Write FIRST (cascades to questions)
+    const { error } = await supabase.from('official_lectures').delete().eq('id', lectureId);
 
-    // 2. Cloud Supabase Write-Through (cascades to questions)
-    try {
-      await supabase.from('official_lectures').delete().eq('id', lectureId);
-    } catch (e) {
-      console.warn('[OfficialContentService] deleteOfficialLecture cloud write warning:', e);
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud delete failed: ${error.message}`);
     }
+
+    // 2. Local IndexedDB
+    await dbService.deleteOfficialLecture(lectureId);
 
     this.notifyListeners();
   }
@@ -639,7 +646,7 @@ class OfficialContentService {
     fileData: Blob | ArrayBuffer | Uint8Array,
     fileName?: string
   ): Promise<{ publicUrl?: string; error?: string }> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
 
     // Always persist to local IndexedDB for immediate offline access
     await dbService.saveOfficialPdf(lectureId, fileData, fileName);
@@ -696,22 +703,22 @@ class OfficialContentService {
   public async getOfficialPdf(
     lectureId: string
   ): Promise<{ fileData: Blob | ArrayBuffer | Uint8Array; fileName?: string } | null> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     return dbService.getOfficialPdf(lectureId);
   }
 
   public async getOfficialPdfBlobUrl(lectureId: string): Promise<string | null> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     return dbService.getOfficialPdfBlobUrl(lectureId);
   }
 
-  // --- Official Questions CRUD with Cloud Write-Through ---
+  // --- Official Questions CRUD with Authoritative Cloud Write-First ---
 
   public async getQuestionsForLecture(
     lectureId: string,
     versionType?: QuestionVersionType
   ): Promise<OfficialQuestion[]> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     return dbService.getOfficialQuestions(lectureId, versionType);
   }
 
@@ -719,63 +726,63 @@ class OfficialContentService {
     lectureIds: string[],
     versionType?: QuestionVersionType | 'both'
   ): Promise<OfficialQuestion[]> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
     return dbService.getOfficialQuestionsForLectures(lectureIds, versionType);
   }
 
   public async saveOfficialQuestion(question: OfficialQuestion): Promise<void> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
 
-    // 1. Local IndexedDB
-    await dbService.saveOfficialQuestion(question);
+    // 1. Authoritative Cloud Supabase Write FIRST
+    const { error } = await supabase
+      .from('official_questions')
+      .upsert([mapOfficialQuestionToDb(question)], { onConflict: 'id' });
 
-    // 2. Cloud Supabase Write-Through
-    try {
-      await supabase
-        .from('official_questions')
-        .upsert([mapOfficialQuestionToDb(question)], { onConflict: 'id' });
-    } catch (e) {
-      console.warn('[OfficialContentService] saveOfficialQuestion cloud write warning:', e);
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud write failed: ${error.message}`);
     }
+
+    // 2. Local IndexedDB
+    await dbService.saveOfficialQuestion(question);
 
     this.notifyListeners();
   }
 
   public async saveOfficialQuestionsBatch(questions: OfficialQuestion[]): Promise<void> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
 
-    // 1. Local IndexedDB
-    await dbService.saveOfficialQuestionsBatch(questions);
+    // 1. Authoritative Cloud Supabase Write FIRST (in chunks of 100)
+    const rows = questions.map(mapOfficialQuestionToDb);
+    const batchSize = 100;
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const chunk = rows.slice(i, i + batchSize);
+      const { error } = await supabase
+        .from('official_questions')
+        .upsert(chunk, { onConflict: 'id' });
 
-    // 2. Cloud Supabase Write-Through (in chunks of 100)
-    try {
-      const rows = questions.map(mapOfficialQuestionToDb);
-      const batchSize = 100;
-      for (let i = 0; i < rows.length; i += batchSize) {
-        const chunk = rows.slice(i, i + batchSize);
-        await supabase
-          .from('official_questions')
-          .upsert(chunk, { onConflict: 'id' });
+      if (error && !isTableMissingError(error)) {
+        throw new Error(`Supabase cloud batch write failed: ${error.message}`);
       }
-    } catch (e) {
-      console.warn('[OfficialContentService] saveOfficialQuestionsBatch cloud write warning:', e);
     }
+
+    // 2. Local IndexedDB
+    await dbService.saveOfficialQuestionsBatch(questions);
 
     this.notifyListeners();
   }
 
   public async deleteOfficialQuestion(questionId: string): Promise<void> {
-    await this.initializeOfficialContent();
+    await this.ensureInitialSyncCompleted();
 
-    // 1. Local IndexedDB
-    await dbService.deleteOfficialQuestion(questionId);
+    // 1. Authoritative Cloud Supabase Write FIRST
+    const { error } = await supabase.from('official_questions').delete().eq('id', questionId);
 
-    // 2. Cloud Supabase Write-Through
-    try {
-      await supabase.from('official_questions').delete().eq('id', questionId);
-    } catch (e) {
-      console.warn('[OfficialContentService] deleteOfficialQuestion cloud write warning:', e);
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud delete failed: ${error.message}`);
     }
+
+    // 2. Local IndexedDB
+    await dbService.deleteOfficialQuestion(questionId);
 
     this.notifyListeners();
   }
@@ -955,7 +962,19 @@ class OfficialContentService {
   }
 
   public async resolveQuestionFeedback(questionId: string): Promise<void> {
-    // 1. Clear from localStorage
+    await this.ensureInitialSyncCompleted();
+
+    // 1. Authoritative Cloud Supabase Write FIRST
+    const { error } = await supabase
+      .from('official_question_feedback')
+      .delete()
+      .eq('question_id', questionId);
+
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud delete failed: ${error.message}`);
+    }
+
+    // 2. Clear from localStorage
     if (typeof window !== 'undefined') {
       try {
         for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -967,19 +986,13 @@ class OfficialContentService {
       } catch {}
     }
 
-    // 2. Cloud Supabase Write-Through
-    try {
-      await supabase.from('official_question_feedback').delete().eq('question_id', questionId);
-    } catch (e) {
-      console.warn('[OfficialContentService] resolveQuestionFeedback cloud warning:', e);
-    }
-
     this.notifyListeners();
   }
 
-  // --- Announcements API with Cloud Write-Through ---
+  // --- Announcements API with Authoritative Cloud Write-First ---
 
   public async getAnnouncements(): Promise<OfficialAnnouncement[]> {
+    await this.ensureInitialSyncCompleted();
     if (typeof window === 'undefined') return [];
     try {
       const raw = localStorage.getItem(ANNOUNCEMENTS_KEY);
@@ -990,12 +1003,25 @@ class OfficialContentService {
   }
 
   public async getActiveAnnouncements(): Promise<OfficialAnnouncement[]> {
+    await this.ensureInitialSyncCompleted();
     const all = await this.getAnnouncements();
     const now = Date.now();
     return all.filter((a) => a.isActive && (!a.expiresAt || a.expiresAt > now));
   }
 
   public async saveAnnouncement(announcement: OfficialAnnouncement): Promise<void> {
+    await this.ensureInitialSyncCompleted();
+
+    // 1. Authoritative Cloud Supabase Write FIRST
+    const { error } = await supabase
+      .from('official_announcements')
+      .upsert([mapAnnouncementToDb(announcement)], { onConflict: 'id' });
+
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud write failed: ${error.message}`);
+    }
+
+    // 2. Local storage
     const all = await this.getAnnouncements();
     const index = all.findIndex((a) => a.id === announcement.id);
     if (index >= 0) {
@@ -1005,15 +1031,6 @@ class OfficialContentService {
     }
     if (typeof window !== 'undefined') {
       localStorage.setItem(ANNOUNCEMENTS_KEY, JSON.stringify(all));
-    }
-
-    // Cloud Supabase Write-Through
-    try {
-      await supabase
-        .from('official_announcements')
-        .upsert([mapAnnouncementToDb(announcement)], { onConflict: 'id' });
-    } catch (e) {
-      console.warn('[OfficialContentService] saveAnnouncement cloud write warning:', e);
     }
 
     this.notifyListeners();
@@ -1028,24 +1045,38 @@ class OfficialContentService {
   }
 
   public async deleteAnnouncement(id: string): Promise<void> {
+    await this.ensureInitialSyncCompleted();
+
+    // 1. Authoritative Cloud Supabase Write FIRST
+    const { error } = await supabase.from('official_announcements').delete().eq('id', id);
+
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud delete failed: ${error.message}`);
+    }
+
+    // 2. Local storage
     const all = await this.getAnnouncements();
     const filtered = all.filter((a) => a.id !== id);
     if (typeof window !== 'undefined') {
       localStorage.setItem(ANNOUNCEMENTS_KEY, JSON.stringify(filtered));
     }
 
-    // Cloud Supabase Write-Through
-    try {
-      await supabase.from('official_announcements').delete().eq('id', id);
-    } catch (e) {
-      console.warn('[OfficialContentService] deleteAnnouncement cloud write warning:', e);
-    }
-
     this.notifyListeners();
   }
 
   public async updateConfigKey(key: string, value: any): Promise<void> {
-    // 1. Local update
+    await this.ensureInitialSyncCompleted();
+
+    // 1. Authoritative Cloud Supabase update FIRST
+    const { error } = await supabase
+      .from('official_config')
+      .upsert([{ key, value, updated_at: Date.now() }], { onConflict: 'key' });
+
+    if (error && !isTableMissingError(error)) {
+      throw new Error(`Supabase cloud config write failed: ${error.message}`);
+    }
+
+    // 2. Local update
     if (typeof window !== 'undefined') {
       try {
         if (key === 'secondary_admin_emails' && Array.isArray(value)) {
@@ -1056,15 +1087,6 @@ class OfficialContentService {
           localStorage.setItem('a_plus_exam_gem_url', value);
         }
       } catch {}
-    }
-
-    // 2. Cloud Supabase update
-    try {
-      await supabase
-        .from('official_config')
-        .upsert([{ key, value, updated_at: Date.now() }], { onConflict: 'key' });
-    } catch (e) {
-      console.warn('[OfficialContentService] updateConfigKey cloud warning:', e);
     }
 
     this.notifyListeners();

@@ -123,12 +123,18 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
           setLivePracticeCount(pCount);
           setLiveExamCount(eCount);
 
-          if (lec.practiceQuestionsCount !== pCount || lec.universityExamStyleQuestionsCount !== eCount) {
-            officialContentService.saveOfficialLecture({
-              ...lec,
-              practiceQuestionsCount: pCount,
-              universityExamStyleQuestionsCount: eCount,
-            }).catch(() => {});
+          // 3. If lecture was moved to a new week/subject/module or renamed, keep browser URL in sync
+          if (
+            typeof window !== 'undefined' &&
+            (lec.moduleSlug.toLowerCase() !== moduleSlug.toLowerCase() ||
+              lec.subjectSlug.toLowerCase() !== subjectSlug.toLowerCase() ||
+              lec.weekSlug.toLowerCase() !== weekSlug.toLowerCase() ||
+              lec.slug.toLowerCase() !== lectureSlug.toLowerCase())
+          ) {
+            try {
+              const canonicalUrl = `/year-2/${lec.moduleSlug}/${lec.subjectSlug}/${lec.weekSlug}/lecture/${lec.slug}`;
+              window.history.replaceState({}, '', canonicalUrl);
+            } catch {}
           }
         }
       } catch (err) {
@@ -496,16 +502,9 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
                 <span>Primary Lecture Slides Deck</span>
               </div>
               <span className="text-xs font-mono text-muted">
-                {livePdfPageCount && livePdfPageCount > 0
-                  ? `${livePdfPageCount} Slides`
-                  : lecture.pdfPageCount && lecture.pdfPageCount > 0
-                  ? `${lecture.pdfPageCount} Slides`
-                  : isGoogleDriveUrl(activePdfUrl)
+                {activePdfUrl || lecture.pdfUrl
                   ? 'Google Drive Slide Deck'
-                  : 'Slide Deck'}
-                {lecture.pdfFileSizeBytes && lecture.pdfFileSizeBytes > 0
-                  ? ` • ${formatPdfSizeBytes(lecture.pdfFileSizeBytes)}`
-                  : ''}
+                  : 'No Slide Deck Attached'}
               </span>
             </div>
 
@@ -520,22 +519,15 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
               )}
             </div>
 
-            {/* Real Slide Deck First Page Preview Canvas */}
+            {/* Real Slide Deck Preview */}
             <LectureSlidePreview
               pdfUrl={activePdfUrl || lecture.pdfUrl}
               title={lecture.title}
               pageCount={livePdfPageCount ?? lecture.pdfPageCount}
+              onClick={() => setIsPdfModalOpen(true)}
               onPageCountDetected={(detected) => {
                 if (detected > 0 && detected !== livePdfPageCount) {
                   setLivePdfPageCount(detected);
-                  if (lecture && lecture.pdfPageCount !== detected) {
-                    officialContentService
-                      .saveOfficialLecture({
-                        ...lecture,
-                        pdfPageCount: detected,
-                      })
-                      .catch(console.warn);
-                  }
                 }
               }}
             />
@@ -545,15 +537,12 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
           <div className="pt-4 border-t border-subtle flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
+              disabled={!(activePdfUrl || lecture.pdfUrl)}
               onClick={() => setIsPdfModalOpen(true)}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
             >
               <Eye className="w-4 h-4" />
-              <span>
-                {((livePdfPageCount && livePdfPageCount > 0) || (lecture.pdfPageCount && lecture.pdfPageCount > 0))
-                  ? `Open Slides Reader (${livePdfPageCount ?? lecture.pdfPageCount} Slides)`
-                  : 'Open Slides Reader'}
-              </span>
+              <span>Open Slides Reader</span>
             </button>
 
             {(activePdfUrl || lecture.pdfUrl) && (

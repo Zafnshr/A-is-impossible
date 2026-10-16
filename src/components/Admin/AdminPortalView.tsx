@@ -465,23 +465,26 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
 
     const title = editingLecture.title.trim();
     const slug =
-      editingLecture.slug?.trim() ||
       title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
+        .replace(/^-|-$/g, '') ||
+      editingLecture.slug?.trim() ||
+      `lecture-${Date.now()}`;
+
+    const resolvedWeekSlug = editingLecture.weekSlug || 'week-1';
 
     const lectureRecord: OfficialLecture = {
       id: editingLecture.id || `lec_${Date.now()}`,
-      weekId: editingLecture.weekId || editingLecture.weekSlug || 'week-1',
+      weekId: resolvedWeekSlug,
       moduleSlug: editingLecture.moduleSlug || 'blood',
       subjectSlug: editingLecture.subjectSlug || 'physiology',
-      weekSlug: editingLecture.weekSlug || 'week-1',
+      weekSlug: resolvedWeekSlug,
       slug,
       title,
       description: editingLecture.description || '',
-      pdfUrl: editingLecture.pdfUrl || undefined,
-      pdfPageCount: editingLecture.pdfPageCount || 0,
+      pdfUrl: editingLecture.pdfUrl?.trim() || undefined,
+      pdfPageCount: 0,
       pdfFileSizeBytes: editingLecture.pdfFileSizeBytes || 0,
       status: (editingLecture.status as ContentStatus) || 'published',
       displayOrder: editingLecture.displayOrder || 1,
@@ -493,12 +496,17 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       updatedAt: Date.now(),
     };
 
-    await officialContentService.saveOfficialLecture(lectureRecord);
-    setIsLectureModalOpen(false);
-    setEditingLecture(null);
-    showToast(`Lecture "${lectureRecord.title}" saved successfully.`);
-    await loadData();
-    onReloadData?.();
+    try {
+      await officialContentService.saveOfficialLecture(lectureRecord);
+      setIsLectureModalOpen(false);
+      setEditingLecture(null);
+      showToast(`Lecture "${lectureRecord.title}" saved to Supabase cloud.`);
+      await loadData();
+      onReloadData?.();
+    } catch (err: any) {
+      console.error('[Admin] Error saving lecture:', err);
+      showToast(err?.message || 'Failed to save lecture to Supabase cloud.');
+    }
   };
 
   const handleUpdateLectureStatus = async (lectureId: string, newStatus: ContentStatus) => {
@@ -510,10 +518,15 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       updatedAt: Date.now(),
       publishedAt: newStatus === 'published' ? Date.now() : lec.publishedAt,
     };
-    await officialContentService.saveOfficialLecture(updated);
-    setLectures((prev) => prev.map((l) => (l.id === lectureId ? updated : l)));
-    showToast(`Status updated to ${newStatus.toUpperCase()}`);
-    onReloadData?.();
+    try {
+      await officialContentService.saveOfficialLecture(updated);
+      setLectures((prev) => prev.map((l) => (l.id === lectureId ? updated : l)));
+      showToast(`Status updated to ${newStatus.toUpperCase()}`);
+      onReloadData?.();
+    } catch (err: any) {
+      console.error('[Admin] Error updating lecture status:', err);
+      showToast(err?.message || 'Failed to update status in Supabase cloud.');
+    }
   };
 
   const handleDeleteLecture = (lecture: OfficialLecture) => {
@@ -1052,12 +1065,16 @@ function countPdfPages(buffer: ArrayBuffer): number {
       targetUrl: newAnnUrl.trim() || undefined,
       createdAt: Date.now(),
     };
-    await officialContentService.saveAnnouncement(newAnn);
-    setNewAnnTitle('');
-    setNewAnnBody('');
-    setNewAnnUrl('');
-    showToast('Announcement broadcasted.');
-    await loadData();
+    try {
+      await officialContentService.saveAnnouncement(newAnn);
+      setNewAnnTitle('');
+      setNewAnnBody('');
+      setNewAnnUrl('');
+      showToast('Announcement broadcasted to Supabase cloud.');
+      await loadData();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed broadcasting announcement.');
+    }
   };
 
   const handleDeleteAnnouncement = (id: string) => {
@@ -1072,8 +1089,8 @@ function countPdfPages(buffer: ArrayBuffer): number {
           await officialContentService.deleteAnnouncement(id);
           showToast('Announcement deleted.');
           await loadData();
-        } catch {
-          showToast('Failed deleting announcement.');
+        } catch (err: any) {
+          showToast(err?.message || 'Failed deleting announcement.');
         }
       },
     });
@@ -1089,8 +1106,8 @@ function countPdfPages(buffer: ArrayBuffer): number {
       setEditingAnnouncement(null);
       showToast('Announcement updated.');
       await loadData();
-    } catch {
-      showToast('Failed saving announcement.');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed saving announcement.');
     }
   };
 
@@ -1101,16 +1118,23 @@ function countPdfPages(buffer: ArrayBuffer): number {
   ) => {
     const lec = lectures.find((l) => l.id === lectureId);
     if (!lec) return;
+    const nextWeekSlug = updates.weekSlug || lec.weekSlug;
     const updated: OfficialLecture = {
       ...lec,
       ...updates,
-      weekId: updates.weekSlug || lec.weekId,
+      weekSlug: nextWeekSlug,
+      weekId: nextWeekSlug,
       updatedAt: Date.now(),
     };
-    await officialContentService.saveOfficialLecture(updated);
-    setLectures((prev) => prev.map((l) => (l.id === lectureId ? updated : l)));
-    showToast(`Relocated "${lec.title}"`);
-    onReloadData?.();
+    try {
+      await officialContentService.saveOfficialLecture(updated);
+      setLectures((prev) => prev.map((l) => (l.id === lectureId ? updated : l)));
+      showToast(`Relocated "${lec.title}" to ${updated.moduleSlug} > ${updated.subjectSlug} > ${updated.weekSlug}`);
+      onReloadData?.();
+    } catch (err: any) {
+      console.error('[Admin] Error relocating lecture:', err);
+      showToast(err?.message || 'Failed to relocate lecture in Supabase cloud.');
+    }
   };
 
   const handleBulkRelocate = async () => {
@@ -1133,8 +1157,8 @@ function countPdfPages(buffer: ArrayBuffer): number {
       setSelectedLectureIds([]);
       await loadData();
       onReloadData?.();
-    } catch {
-      showToast('Failed to relocate selected lectures.');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to relocate selected lectures.');
     }
   };
 
@@ -1149,18 +1173,22 @@ function countPdfPages(buffer: ArrayBuffer): number {
     const curOrder = cur.displayOrder || idx + 1;
     const tgtOrder = tgt.displayOrder || targetIdx + 1;
 
-    await officialContentService.saveOfficialLecture({
-      ...cur,
-      displayOrder: tgtOrder,
-      updatedAt: Date.now(),
-    });
-    await officialContentService.saveOfficialLecture({
-      ...tgt,
-      displayOrder: curOrder,
-      updatedAt: Date.now(),
-    });
-    await loadData();
-    showToast('Updated lecture order.');
+    try {
+      await officialContentService.saveOfficialLecture({
+        ...cur,
+        displayOrder: tgtOrder,
+        updatedAt: Date.now(),
+      });
+      await officialContentService.saveOfficialLecture({
+        ...tgt,
+        displayOrder: curOrder,
+        updatedAt: Date.now(),
+      });
+      await loadData();
+      showToast('Updated lecture order.');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed updating lecture order.');
+    }
   };
 
   const handleCloneLecture = async (lec: OfficialLecture) => {
@@ -2301,11 +2329,7 @@ function countPdfPages(buffer: ArrayBuffer): number {
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold text-[10px] font-mono">
                                   <FileText className="w-3 h-3" />
-                                  <span>
-                                    {lec.pdfPageCount && lec.pdfPageCount > 0
-                                      ? `${lec.pdfPageCount}p`
-                                      : 'Drive Deck'}
-                                  </span>
+                                  <span>Drive Deck</span>
                                 </span>
                                 <button
                                   type="button"

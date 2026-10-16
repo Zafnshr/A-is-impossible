@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { FileText, Eye, Maximize2, Loader2, ExternalLink } from 'lucide-react';
+import { FileText, Eye, Maximize2, Loader2 } from 'lucide-react';
 import { officialContentService } from '../../services/officialContentService';
-import { isGoogleDriveUrl } from '../../services/googleDrivePdf';
+import {
+  isGoogleDriveUrl,
+  getGoogleDriveEmbedPreviewUrl,
+} from '../../services/googleDrivePdf';
 
 // Configure Mozilla PDF.js worker
 if (typeof window !== 'undefined') {
@@ -33,25 +36,20 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
   const renderTaskRef = useRef<any>(null);
   const cachedDocRef = useRef<any>(null);
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const isDrive = isGoogleDriveUrl(pdfUrl);
+
+  const [isLoading, setIsLoading] = useState<boolean>(() => Boolean(pdfUrl) && !isDrive);
   const [isRendered, setIsRendered] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
   const [detectedPages, setDetectedPages] = useState<number | null>(null);
 
-  const isDrive = isGoogleDriveUrl(pdfUrl);
-
-  // Render first page onto canvas
+  // Render first page onto canvas ONLY for non-Google-Drive local/direct PDFs
   useEffect(() => {
-    if (!pdfUrl) {
-      setIsLoading(false);
-      setHasError(true);
-      return;
-    }
-
-    if (isDrive) {
+    if (!pdfUrl || isDrive) {
       setIsLoading(false);
       setIsRendered(false);
+      setHasError(false);
       return;
     }
 
@@ -86,7 +84,6 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
 
           if (!doc) {
             try {
-              // First attempt: fetch arrayBuffer to avoid HTTP range issues in dev server
               const response = await fetch(pdfUrl);
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
               const arrayBuffer = await response.arrayBuffer();
@@ -98,7 +95,6 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
               }).promise;
             } catch {
               if (isCancelled) return;
-              // Fallback: direct URL loading
               doc = await pdfjsLib.getDocument({
                 url: pdfUrl,
                 cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
@@ -139,13 +135,10 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
         const ctx = canvas.getContext('2d', { alpha: false });
         if (!ctx) return;
 
-        // Cancel previous render task if still executing
         if (renderTaskRef.current) {
           try {
             renderTaskRef.current.cancel();
-          } catch {
-            // ignore
-          }
+          } catch {}
         }
 
         const renderTask = page.render({
@@ -177,12 +170,60 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
       if (renderTaskRef.current) {
         try {
           renderTaskRef.current.cancel();
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
     };
-  }, [pdfUrl]);
+  }, [pdfUrl, isDrive]);
+
+  // 1. Clean Empty Placeholder when no PDF or Drive link is attached
+  if (!pdfUrl) {
+    return (
+      <div
+        style={{ aspectRatio: '16 / 9' }}
+        className="relative w-full rounded-2xl bg-slate-900/90 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs flex flex-col items-center justify-center p-6 text-center gap-3"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center">
+          <FileText className="w-6 h-6" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-sm font-bold text-slate-200">No Slide Deck Attached Yet</h3>
+          <p className="text-xs text-slate-400 max-w-sm">
+            Attach a Google Drive PDF link in the Admin Portal to enable interactive slide reading.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Live Google Drive Embed Preview Container
+  if (isDrive) {
+    return (
+      <div
+        style={{ aspectRatio: '16 / 9' }}
+        className="relative w-full rounded-2xl bg-slate-950 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs ring-1 ring-black/5 dark:ring-white/10"
+      >
+        <iframe
+          src={getGoogleDriveEmbedPreviewUrl(pdfUrl)}
+          className="w-full h-full border-0"
+          allow="autoplay"
+          title={title}
+        />
+        {onClick && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+            className="absolute top-3 right-3 z-20 px-3 py-1.5 rounded-xl bg-slate-950/90 hover:bg-cyan-600 text-white text-[11px] font-bold border border-white/15 hover:border-cyan-400 shadow-lg flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <Maximize2 className="w-3.5 h-3.5 text-cyan-400 group-hover:text-white" />
+            <span>Open Fullscreen Reader</span>
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -204,7 +245,7 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
       }`}
       title={onClick ? 'Click to launch interactive slide reader' : title}
     >
-      {/* 1. Underlying Real Slide Canvas */}
+      {/* Underlying Real Slide Canvas */}
       <canvas
         ref={canvasRef}
         className={`w-full h-full object-contain block transition-opacity duration-500 ${
@@ -212,59 +253,22 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
         }`}
       />
 
-      {/* 2. Loading Shimmer Skeleton */}
-      {isLoading && !isRendered && !isDrive && (
+      {/* Loading Shimmer Skeleton */}
+      {isLoading && !isRendered && (
         <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center gap-3 text-slate-300 z-10">
           <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shadow-inner">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
           <div className="flex flex-col items-center gap-1 text-center px-4">
             <span className="text-xs font-bold font-mono tracking-wide text-slate-200">
-              Rendering Slide 1 Preview...
+              Loading Slide Preview...
             </span>
-            <span className="text-[11px] text-slate-400">Loading high-definition slide canvas</span>
           </div>
         </div>
       )}
 
-      {/* Google Drive Presentation Card */}
-      {isDrive && (
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/60 flex flex-col justify-between p-6 sm:p-7 z-10 text-white">
-          <div className="flex items-center justify-between">
-            <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-[10px] font-mono tracking-wider font-bold text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              GOOGLE DRIVE DECK
-            </span>
-            <div className="w-9 h-9 rounded-full bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
-              <Eye className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex flex-col items-center justify-center text-center py-2 px-4 space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <FileText className="w-7 h-7" />
-            </div>
-            <h3 className="text-base sm:text-lg font-black text-white line-clamp-2 max-w-md">
-              {title}
-            </h3>
-            <p className="text-xs text-slate-400">
-              Interactive Google Drive Slide Deck • Verified University Curriculum
-            </p>
-          </div>
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-            <span>
-              {pageCount && pageCount > 0 ? `${pageCount} Slides` : 'Official Slide Deck'}
-            </span>
-            {onClick && (
-              <span className="font-mono text-cyan-400 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                Launch Reader →
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 3. Graceful Error Fallback */}
-      {hasError && !isDrive && (
+      {/* Graceful Error Fallback */}
+      {hasError && (
         <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-white to-cyan-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex flex-col justify-between p-6 sm:p-7 z-10">
           <div className="flex items-center justify-between">
             <span className="px-2.5 py-1 rounded-md bg-cyan-500/10 text-[10px] font-mono tracking-wider font-bold text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
@@ -286,7 +290,7 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
             </p>
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Slide 1 of {detectedPages ?? pageCount ?? 1}</span>
+            <span>{detectedPages || pageCount ? `${detectedPages || pageCount} Slides` : 'Official Slide Deck'}</span>
             {onClick && (
               <span className="font-mono text-cyan-600 dark:text-cyan-400 font-bold">
                 Open Reader →
@@ -296,17 +300,19 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
         </div>
       )}
 
-      {/* 4. Top Floating Badges */}
-      {!hasError && !isDrive && (
+      {/* Top Floating Badges */}
+      {!hasError && (
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
           <div className="flex items-center gap-2">
             <div className="px-2.5 py-1 rounded-lg bg-slate-950/90 text-[10px] font-mono tracking-wider font-bold text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5 shadow-md">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              SLIDE 1 PREVIEW
+              SLIDE PREVIEW
             </div>
-            <div className="px-2.5 py-1 rounded-lg bg-slate-950/90 text-[10px] font-mono font-medium text-slate-300 border border-white/10 shadow-md">
-              1 of {detectedPages ?? pageCount ?? 1} Slides
-            </div>
+            {(detectedPages || (pageCount && pageCount > 0)) ? (
+              <div className="px-2.5 py-1 rounded-lg bg-slate-950/90 text-[10px] font-mono font-medium text-slate-300 border border-white/10 shadow-md">
+                {detectedPages || pageCount} Slides
+              </div>
+            ) : null}
           </div>
           {onClick && (
             <div className="w-8 h-8 rounded-full bg-slate-950/90 text-cyan-400 border border-white/10 flex items-center justify-center shadow-md group-hover:bg-cyan-500 group-hover:text-white group-hover:scale-105 transition-all">
@@ -316,18 +322,18 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
         </div>
       )}
 
-      {/* 5. Center Hover Action Badge (only if clickable) */}
-      {!hasError && !isDrive && onClick && (
+      {/* Center Hover Action Badge */}
+      {!hasError && onClick && (
         <div className="absolute inset-0 bg-slate-950/20 group-hover:bg-slate-950/50 transition-all duration-300 flex items-center justify-center pointer-events-none z-10">
           <div className="transform translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 px-5 py-2.5 rounded-full bg-slate-950/95 text-white border border-cyan-500/50 shadow-2xl flex items-center gap-2 text-xs font-bold tracking-wide">
             <Maximize2 className="w-4 h-4 text-cyan-400" />
-            <span>Launch Slide Reader</span>
+            <span>Open Fullscreen Reader</span>
           </div>
         </div>
       )}
 
-      {/* 6. Bottom Scrim with Title and CTA */}
-      {!hasError && !isDrive && (
+      {/* Bottom Scrim with Title and CTA */}
+      {!hasError && (
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/95 via-slate-950/60 to-transparent pt-8 pb-3 px-4 flex items-center justify-between text-white pointer-events-none z-10">
           <div className="flex items-center gap-2 min-w-0 pr-3">
             <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
@@ -343,3 +349,4 @@ export const LectureSlidePreview: React.FC<LectureSlidePreviewProps> = ({
     </div>
   );
 };
+

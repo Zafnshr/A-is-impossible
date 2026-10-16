@@ -1189,15 +1189,104 @@ class IndexedDBStorage {
     lectureSlug: string
   ): Promise<OfficialLecture | null> {
     const all = await this.getOfficialLectures();
+    const m = moduleSlug.toLowerCase();
+    const s = subjectSlug.toLowerCase();
+    const w = weekSlug.toLowerCase();
+    const slug = lectureSlug.toLowerCase();
+
+    // 1. Exact path match
+    const exact = all.find(
+      (l) =>
+        l.moduleSlug.toLowerCase() === m &&
+        l.subjectSlug.toLowerCase() === s &&
+        l.weekSlug.toLowerCase() === w &&
+        l.slug.toLowerCase() === slug
+    );
+    if (exact) return exact;
+
+    // 2. Fallback if moved to a different week within the same module & subject
+    const sameSubject = all.find(
+      (l) =>
+        l.moduleSlug.toLowerCase() === m &&
+        l.subjectSlug.toLowerCase() === s &&
+        l.slug.toLowerCase() === slug
+    );
+    if (sameSubject) return sameSubject;
+
+    // 3. Fallback if moved across subjects/modules (match by lecture slug or ID)
     return (
       all.find(
-        (l) =>
-          l.moduleSlug.toLowerCase() === moduleSlug.toLowerCase() &&
-          l.subjectSlug.toLowerCase() === subjectSlug.toLowerCase() &&
-          l.weekSlug.toLowerCase() === weekSlug.toLowerCase() &&
-          l.slug.toLowerCase() === lectureSlug.toLowerCase()
+        (l) => l.slug.toLowerCase() === slug || l.id.toLowerCase() === slug
       ) || null
     );
+  }
+
+  public async replaceAllOfficialLectures(lectures: OfficialLecture[]): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.official_lectures.clear();
+      for (const lec of lectures) {
+        this.memoryStores.official_lectures.set(lec.id, lec);
+      }
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_lectures.clear();
+      for (const lec of lectures) {
+        this.memoryStores.official_lectures.set(lec.id, lec);
+      }
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('official_lectures', 'readwrite');
+        const store = tx.objectStore('official_lectures');
+        store.clear();
+        for (const lec of lectures) {
+          store.put(lec);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async replaceAllOfficialQuestions(questions: OfficialQuestion[]): Promise<void> {
+    if (this.isMemoryMode) {
+      this.memoryStores.official_questions.clear();
+      for (const q of questions) {
+        this.memoryStores.official_questions.set(q.id, q);
+      }
+      return;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      this.memoryStores.official_questions.clear();
+      for (const q of questions) {
+        this.memoryStores.official_questions.set(q.id, q);
+      }
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('official_questions', 'readwrite');
+        const store = tx.objectStore('official_questions');
+        store.clear();
+        for (const q of questions) {
+          store.put(q);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
   }
 
   public async saveOfficialLecture(lecture: OfficialLecture): Promise<void> {

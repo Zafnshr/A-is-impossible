@@ -1,5 +1,5 @@
 // Service Worker for "A is Impossible" Offline Capabilities & Fast Live Sync
-const CACHE_NAME = 'a-is-impossible-cache-v6';
+const CACHE_NAME = 'a-is-impossible-cache-v8';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -31,7 +31,38 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const request = event.request;
-  const isNavigation = request.mode === 'navigate' || 
+  const urlStr = request.url || '';
+
+  // 1. Immediately bypass all Supabase, Google Drive, Google APIs, and backend requests
+  if (
+    urlStr.includes('supabase.co') ||
+    urlStr.includes('drive.google.com') ||
+    urlStr.includes('googleapis.com') ||
+    urlStr.includes('googleusercontent.com') ||
+    urlStr.includes('/rest/v1/') ||
+    urlStr.includes('/auth/v1/') ||
+    urlStr.includes('/storage/v1/')
+  ) {
+    return;
+  }
+
+  let url;
+  try {
+    url = new URL(urlStr);
+  } catch {
+    return;
+  }
+
+  // Only handle same-origin HTTP/HTTPS requests
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    url.origin !== self.location.origin
+  ) {
+    return;
+  }
+
+  const isNavigation =
+    request.mode === 'navigate' ||
     (request.headers.get('accept') && request.headers.get('accept').includes('text/html'));
 
   if (isNavigation) {
@@ -57,25 +88,37 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-First strategy with network fallback for other static assets
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200) {
+  // Network-First with Cache Fallback for /assets/ (JS/CSS bundles) so code updates deploy immediately
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+            });
+          }
           return networkResponse;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Network-First with Cache Fallback for other same-origin static assets
+  event.respondWith(
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache);
+          });
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, responseToCache);
-        });
         return networkResponse;
-      }).catch(() => {
-        // Fallback gracefully if network fails and not cached
-      });
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });
 
