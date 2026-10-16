@@ -184,15 +184,19 @@ function isTableMissingError(err: any): boolean {
   const msg = (err.message || '').toLowerCase();
   const code = (err.code || '').toLowerCase();
   const details = (err.details || '').toLowerCase();
+
+  // If it's an RLS policy recursion or permission issue, the table definitely exists
+  if (code === '42p17' || msg.includes('infinite recursion') || code === '42501') {
+    return false;
+  }
+
   return (
-    msg.includes('relation') ||
-    msg.includes('does not exist') ||
-    msg.includes('schema cache') ||
-    msg.includes('could not find the table') ||
-    msg.includes('not found') ||
-    details.includes('schema cache') ||
     code === '42p01' ||
-    code === 'pgrst205'
+    code === 'pgrst205' ||
+    msg.includes('schema cache') ||
+    details.includes('schema cache') ||
+    msg.includes('could not find the table') ||
+    (msg.includes('relation') && msg.includes('does not exist'))
   );
 }
 

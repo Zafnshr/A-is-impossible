@@ -215,49 +215,42 @@ create policy "public_write_official_feedback"
   on official_question_feedback for all to anon, authenticated 
   using (true) with check (true);
 
+create or replace function public.is_official_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select (
+    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
+    or exists (
+      select 1 from official_config
+      where key = 'secondary_admin_emails'
+      and value ? (auth.jwt() ->> 'email')
+    )
+  );
+$$;
+
 create policy "admin_write_official_lectures" 
   on official_lectures for all to authenticated 
-  using (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  )
-  with check (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  );
+  using (public.is_official_admin())
+  with check (public.is_official_admin());
 
 create policy "admin_write_official_questions" 
   on official_questions for all to authenticated 
-  using (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  )
-  with check (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  );
+  using (public.is_official_admin())
+  with check (public.is_official_admin());
 
 create policy "admin_write_official_announcements" 
   on official_announcements for all to authenticated 
-  using (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  )
-  with check (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  );
+  using (public.is_official_admin())
+  with check (public.is_official_admin());
 
 create policy "admin_write_official_config" 
   on official_config for all to authenticated 
-  using (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  )
-  with check (
-    auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-    or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-  );
+  using (public.is_official_admin())
+  with check (public.is_official_admin());
 
 -- STORAGE BUCKET: official-pdfs
 insert into storage.buckets (id, name, public)
@@ -275,17 +268,11 @@ create policy "admin_write_official_pdfs"
   on storage.objects for all to authenticated
   using (
     bucket_id = 'official-pdfs'
-    and (
-      auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-      or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-    )
+    and public.is_official_admin()
   )
   with check (
     bucket_id = 'official-pdfs'
-    and (
-      auth.jwt() ->> 'email' = 'abdalrahmanhani30@gmail.com'
-      or exists (select 1 from official_config where key = 'secondary_admin_emails' and value ? (auth.jwt() ->> 'email'))
-    )
+    and public.is_official_admin()
   );
 `;
 
