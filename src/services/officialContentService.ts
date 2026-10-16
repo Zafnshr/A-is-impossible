@@ -206,6 +206,26 @@ class OfficialContentService {
   private lastSyncedAt: number | null = null;
   private tablesMissing = false;
   private syncIssues: string[] = [];
+  private listeners = new Set<() => void>();
+  private focusListenerAttached = false;
+  private realtimeChannelAttached = false;
+
+  public subscribe(fn: () => void): () => void {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  }
+
+  private notifyListeners(): void {
+    this.listeners.forEach((fn) => {
+      try {
+        fn();
+      } catch (e) {
+        console.error('[OfficialContentService] Listener callback error:', e);
+      }
+    });
+  }
 
   public getCloudStatus(): CloudOfficialSyncStatus {
     return {
@@ -216,8 +236,40 @@ class OfficialContentService {
     };
   }
 
-  public async initializeOfficialContent(): Promise<void> {
-    if (this.isInitialized) return;
+  public async initializeOfficialContent(forceRefresh = false): Promise<void> {
+    // 1. Attach window focus and visibility listeners for instant refresh
+    if (typeof window !== 'undefined' && !this.focusListenerAttached) {
+      this.focusListenerAttached = true;
+      window.addEventListener('focus', () => {
+        this.syncFromCloud().catch(() => {});
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.syncFromCloud().catch(() => {});
+        }
+      });
+    }
+
+    // 2. Attach Supabase Realtime channel for instant cross-device updates
+    if (!this.realtimeChannelAttached) {
+      this.realtimeChannelAttached = true;
+      try {
+        supabase
+          .channel('official-content-sync')
+          .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+            this.syncFromCloud().catch(() => {});
+          })
+          .subscribe();
+      } catch (e) {
+        console.warn('[OfficialContentService] Realtime channel setup warning:', e);
+      }
+    }
+
+    if (this.isInitialized && !forceRefresh) {
+      // Trigger background sync to ensure fresh data without blocking execution
+      this.syncFromCloud().catch(() => {});
+      return;
+    }
 
     try {
       // One-time purge of legacy hardcoded sample/demo data from IndexedDB
@@ -228,10 +280,11 @@ class OfficialContentService {
 
       this.isInitialized = true;
 
-      // Asynchronously initiate two-way cloud synchronization without blocking render
-      this.syncFromCloud().catch((err) => {
-        console.warn('[OfficialContentService] Initial cloud sync non-fatal warning:', err);
-      });
+      // Authoritative boot: await cloud sync with a 4s timeout fallback to local IndexedDB
+      await Promise.race([
+        this.syncFromCloud(),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
     } catch (e) {
       console.warn('[OfficialContentService] Error during initialization:', e);
       this.isInitialized = true;
@@ -239,10 +292,11 @@ class OfficialContentService {
   }
 
   /**
-   * Two-Way Cloud Sync with Supabase:
+   * Authoritative Two-Way Cloud Sync with Supabase:
    * 1. Fetches cloud records for lectures, questions, announcements, config, and feedback.
-   * 2. Writes fetched records into local IndexedDB and localStorage (offline cache).
-   * 3. Checks for any local admin records not yet in Supabase and pushes them up.
+   * 2. Authoritatively replaces local IndexedDB and localStorage (deleting stale or deleted cloud items).
+   * 3. Syncs global config (Gem URLs & secondary admin whitelist).
+   * 4. Notifies all reactive UI listeners across the app.
    */
   public async syncFromCloud(): Promise<{
     success: boolean;
@@ -279,10 +333,19 @@ class OfficialContentService {
         }
       } else {
         this.tablesMissing = false;
-        if (cloudLectures && cloudLectures.length > 0) {
-          const mappedLectures = cloudLectures.map(mapDbToOfficialLecture);
-          for (const lec of mappedLectures) {
-            await dbService.saveOfficialLecture(lec);
+        const mappedLectures = (cloudLectures || []).map(mapDbToOfficialLecture);
+        const cloudLecIds = new Set(mappedLectures.map((l) => l.id));
+
+        // Save authoritative cloud rows into local IndexedDB
+        for (const lec of mappedLectures) {
+          await dbService.saveOfficialLecture(lec);
+        }
+
+        // Authoritative deletion: remove any local cached lecture that was deleted in Supabase
+        const localLectures = await dbService.getOfficialLectures();
+        for (const local of localLectures) {
+          if (!cloudLecIds.has(local.id)) {
+            await dbService.deleteOfficialLecture(local.id);
           }
         }
       }
@@ -298,9 +361,21 @@ class OfficialContentService {
         } else if (!this.tablesMissing) {
           issues.push(`Failed fetching official_questions: ${qErr.message}`);
         }
-      } else if (cloudQuestions && cloudQuestions.length > 0) {
-        const mappedQuestions = cloudQuestions.map(mapDbToOfficialQuestion);
-        await dbService.saveOfficialQuestionsBatch(mappedQuestions);
+      } else {
+        const mappedQuestions = (cloudQuestions || []).map(mapDbToOfficialQuestion);
+        const cloudQIds = new Set(mappedQuestions.map((q) => q.id));
+
+        if (mappedQuestions.length > 0) {
+          await dbService.saveOfficialQuestionsBatch(mappedQuestions);
+        }
+
+        // Authoritative deletion: remove any local cached question that was deleted in Supabase
+        const localQuestions = await dbService.getOfficialQuestions();
+        for (const localQ of localQuestions) {
+          if (!cloudQIds.has(localQ.id)) {
+            await dbService.deleteOfficialQuestion(localQ.id);
+          }
+        }
       }
 
       // 3. Fetch Official Announcements from Supabase
@@ -311,7 +386,7 @@ class OfficialContentService {
 
       if (annErr && isTableMissingError(annErr)) {
         this.tablesMissing = true;
-      } else if (!annErr && cloudAnnouncements && cloudAnnouncements.length > 0) {
+      } else if (!annErr && cloudAnnouncements) {
         const mappedAnn = cloudAnnouncements.map(mapDbToAnnouncement);
         if (typeof window !== 'undefined') {
           localStorage.setItem(ANNOUNCEMENTS_KEY, JSON.stringify(mappedAnn));
@@ -325,11 +400,16 @@ class OfficialContentService {
 
       if (fbErr && isTableMissingError(fbErr)) {
         this.tablesMissing = true;
-      }
-
-      if (!fbErr && cloudFeedback && cloudFeedback.length > 0) {
+      } else if (!fbErr && cloudFeedback) {
         const mappedFeedback = cloudFeedback.map(mapDbToFeedback);
         if (typeof window !== 'undefined') {
+          // Clear old local feedback records first
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(FEEDBACK_PREFIX)) {
+              localStorage.removeItem(k);
+            }
+          }
           for (const fb of mappedFeedback) {
             localStorage.setItem(
               `${FEEDBACK_PREFIX}${fb.userId}_${fb.questionId}`,
@@ -339,46 +419,34 @@ class OfficialContentService {
         }
       }
 
-      // 5. Two-Way Push: Check if local IndexedDB has lectures/questions not yet in cloud
-      if (!this.tablesMissing) {
-        try {
-          const localLectures = await dbService.getOfficialLectures();
-          const cloudLecIds = new Set((cloudLectures || []).map((l: any) => l.id));
-          const missingLectures = localLectures.filter((l) => !cloudLecIds.has(l.id));
+      // 5. Fetch Official System Config from Supabase (Gem URLs & secondary admin whitelist)
+      try {
+        const { data: cloudConfig, error: cfgErr } = await supabase
+          .from('official_config')
+          .select('*');
 
-          if (missingLectures.length > 0) {
-            const dbRows = missingLectures.map(mapOfficialLectureToDb);
-            const { error: pushLecErr } = await supabase
-              .from('official_lectures')
-              .upsert(dbRows, { onConflict: 'id' });
-            if (pushLecErr) {
-              console.warn('[OfficialContentService] Auto-push local lectures warning:', pushLecErr);
-            }
-          }
-
-          const localQuestions = await dbService.getOfficialQuestionsForLectures(
-            localLectures.map((l) => l.id),
-            'both'
-          );
-          const cloudQIds = new Set((cloudQuestions || []).map((q: any) => q.id));
-          const missingQuestions = localQuestions.filter((q) => !cloudQIds.has(q.id));
-
-          if (missingQuestions.length > 0) {
-            const dbRows = missingQuestions.map(mapOfficialQuestionToDb);
-            const batchSize = 100;
-            for (let i = 0; i < dbRows.length; i += batchSize) {
-              const chunk = dbRows.slice(i, i + batchSize);
-              const { error: pushQErr } = await supabase
-                .from('official_questions')
-                .upsert(chunk, { onConflict: 'id' });
-              if (pushQErr) {
-                console.warn('[OfficialContentService] Auto-push local questions warning:', pushQErr);
+        if (!cfgErr && cloudConfig) {
+          for (const row of cloudConfig) {
+            if (row.key === 'secondary_admin_emails' && Array.isArray(row.value)) {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(
+                  'a_plus_secondary_admin_whitelist_v1',
+                  JSON.stringify(row.value)
+                );
+              }
+            } else if (row.key === 'practice_gem_url' && typeof row.value === 'string') {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('a_plus_practice_gem_url', row.value);
+              }
+            } else if (row.key === 'exam_style_gem_url' && typeof row.value === 'string') {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('a_plus_exam_gem_url', row.value);
               }
             }
           }
-        } catch (pushErr) {
-          console.warn('[OfficialContentService] Auto-push check warning:', pushErr);
         }
+      } catch (cfgE) {
+        console.warn('[OfficialContentService] Config sync notice:', cfgE);
       }
 
       this.lastSyncedAt = Date.now();
@@ -391,6 +459,9 @@ class OfficialContentService {
           'both'
         )
       ).length;
+
+      // Authoritative notification to reactive subscribers
+      this.notifyListeners();
 
       return {
         success: issues.length === 0,
@@ -451,6 +522,7 @@ class OfficialContentService {
       console.warn('[OfficialContentService] updateLectureStatus cloud write warning:', e);
     }
 
+    this.notifyListeners();
     return updated;
   }
 
@@ -484,6 +556,7 @@ class OfficialContentService {
       }
     }
 
+    this.notifyListeners();
     return count;
   }
 
@@ -521,6 +594,8 @@ class OfficialContentService {
     } catch (e) {
       console.warn('[OfficialContentService] saveOfficialLecture cloud write warning:', e);
     }
+
+    this.notifyListeners();
   }
 
   public async deleteOfficialLecture(lectureId: string): Promise<void> {
@@ -535,6 +610,8 @@ class OfficialContentService {
     } catch (e) {
       console.warn('[OfficialContentService] deleteOfficialLecture cloud write warning:', e);
     }
+
+    this.notifyListeners();
   }
 
   // --- PDF Storage & Cloud CDN Integration ---
@@ -642,6 +719,8 @@ class OfficialContentService {
     } catch (e) {
       console.warn('[OfficialContentService] saveOfficialQuestion cloud write warning:', e);
     }
+
+    this.notifyListeners();
   }
 
   public async saveOfficialQuestionsBatch(questions: OfficialQuestion[]): Promise<void> {
@@ -663,6 +742,8 @@ class OfficialContentService {
     } catch (e) {
       console.warn('[OfficialContentService] saveOfficialQuestionsBatch cloud write warning:', e);
     }
+
+    this.notifyListeners();
   }
 
   public async deleteOfficialQuestion(questionId: string): Promise<void> {
@@ -677,6 +758,8 @@ class OfficialContentService {
     } catch (e) {
       console.warn('[OfficialContentService] deleteOfficialQuestion cloud write warning:', e);
     }
+
+    this.notifyListeners();
   }
 
   public async purgeAllSampleData(): Promise<void> {
@@ -793,6 +876,7 @@ class OfficialContentService {
     lectureId: string;
     dislikeCount: number;
     reasons: Record<DislikeReasonType, number>;
+    notes: string[];
   }[] {
     if (typeof window !== 'undefined') {
       try {
@@ -815,6 +899,7 @@ class OfficialContentService {
             lectureId: string;
             dislikeCount: number;
             reasons: Record<DislikeReasonType, number>;
+            notes: string[];
           }
         > = {};
 
@@ -830,12 +915,16 @@ class OfficialContentService {
                 duplicate: 0,
                 other: 0,
               },
+              notes: [],
             };
           }
           grouped[rec.questionId].dislikeCount += 1;
           if (rec.dislikeReason) {
             grouped[rec.questionId].reasons[rec.dislikeReason] =
               (grouped[rec.questionId].reasons[rec.dislikeReason] || 0) + 1;
+          }
+          if (rec.dislikeNotes && rec.dislikeNotes.trim()) {
+            grouped[rec.questionId].notes.push(rec.dislikeNotes.trim());
           }
         }
 
@@ -845,6 +934,29 @@ class OfficialContentService {
       }
     }
     return [];
+  }
+
+  public async resolveQuestionFeedback(questionId: string): Promise<void> {
+    // 1. Clear from localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(FEEDBACK_PREFIX) && k.endsWith(`_${questionId}`)) {
+            localStorage.removeItem(k);
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Cloud Supabase Write-Through
+    try {
+      await supabase.from('official_question_feedback').delete().eq('question_id', questionId);
+    } catch (e) {
+      console.warn('[OfficialContentService] resolveQuestionFeedback cloud warning:', e);
+    }
+
+    this.notifyListeners();
   }
 
   // --- Announcements API with Cloud Write-Through ---
@@ -885,6 +997,16 @@ class OfficialContentService {
     } catch (e) {
       console.warn('[OfficialContentService] saveAnnouncement cloud write warning:', e);
     }
+
+    this.notifyListeners();
+  }
+
+  public async toggleAnnouncementActive(id: string, isActive: boolean): Promise<void> {
+    const all = await this.getAnnouncements();
+    const target = all.find((a) => a.id === id);
+    if (!target) return;
+    target.isActive = isActive;
+    await this.saveAnnouncement(target);
   }
 
   public async deleteAnnouncement(id: string): Promise<void> {
@@ -900,6 +1022,180 @@ class OfficialContentService {
     } catch (e) {
       console.warn('[OfficialContentService] deleteAnnouncement cloud write warning:', e);
     }
+
+    this.notifyListeners();
+  }
+
+  public async updateConfigKey(key: string, value: any): Promise<void> {
+    // 1. Local update
+    if (typeof window !== 'undefined') {
+      try {
+        if (key === 'secondary_admin_emails' && Array.isArray(value)) {
+          localStorage.setItem('a_plus_secondary_admin_whitelist_v1', JSON.stringify(value));
+        } else if (key === 'practice_gem_url' && typeof value === 'string') {
+          localStorage.setItem('a_plus_practice_gem_url', value);
+        } else if (key === 'exam_style_gem_url' && typeof value === 'string') {
+          localStorage.setItem('a_plus_exam_gem_url', value);
+        }
+      } catch {}
+    }
+
+    // 2. Cloud Supabase update
+    try {
+      await supabase
+        .from('official_config')
+        .upsert([{ key, value, updated_at: Date.now() }], { onConflict: 'key' });
+    } catch (e) {
+      console.warn('[OfficialContentService] updateConfigKey cloud warning:', e);
+    }
+
+    this.notifyListeners();
+  }
+
+  public async getConfigValue(key: string): Promise<string | null> {
+    if (typeof window !== 'undefined') {
+      try {
+        if (key === 'practice_gem_url') {
+          return localStorage.getItem('a_plus_practice_gem_url');
+        } else if (key === 'exam_style_gem_url') {
+          return localStorage.getItem('a_plus_exam_gem_url');
+        }
+      } catch {}
+    }
+    try {
+      const { data, error } = await supabase
+        .from('official_config')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
+      if (!error && data?.value) {
+        return typeof data.value === 'string' ? data.value : JSON.stringify(data.value);
+      }
+    } catch {}
+    return null;
+  }
+
+  public async getQuestionById(questionId: string): Promise<OfficialQuestion | null> {
+    await this.initializeOfficialContent();
+    const local = await dbService.getOfficialQuestionById(questionId);
+    if (local) return local;
+
+    try {
+      const { data, error } = await supabase
+        .from('official_questions')
+        .select('*')
+        .eq('id', questionId)
+        .maybeSingle();
+      if (!error && data) {
+        return mapDbToOfficialQuestion(data);
+      }
+    } catch {}
+    return null;
+  }
+
+  public async cloneLecture(lectureId: string, cloneQuestions: boolean = true): Promise<OfficialLecture | null> {
+    await this.initializeOfficialContent();
+    const source = await dbService.getOfficialLectureById(lectureId);
+    if (!source) return null;
+
+    const newLectureId = `lec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const clonedLecture: OfficialLecture = {
+      ...source,
+      id: newLectureId,
+      slug: `${source.slug}-copy-${Math.random().toString(36).substring(2, 5)}`,
+      title: `${source.title} (Copy)`,
+      status: 'draft',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      publishedAt: undefined,
+      viewCount: 0,
+      pdfViewCount: 0,
+    };
+
+    if (cloneQuestions) {
+      const sourceQuestions = await dbService.getOfficialQuestions(lectureId);
+      const clonedQuestions: OfficialQuestion[] = sourceQuestions.map((q) => ({
+        ...q,
+        id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        lectureId: newLectureId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }));
+      clonedLecture.practiceQuestionsCount = clonedQuestions.filter((q) => q.versionType === 'practice').length;
+      clonedLecture.universityExamStyleQuestionsCount = clonedQuestions.filter((q) => q.versionType === 'university_exam_style').length;
+
+      await this.saveOfficialLecture(clonedLecture);
+      if (clonedQuestions.length > 0) {
+        await this.saveOfficialQuestionsBatch(clonedQuestions);
+      }
+    } else {
+      clonedLecture.practiceQuestionsCount = 0;
+      clonedLecture.universityExamStyleQuestionsCount = 0;
+      await this.saveOfficialLecture(clonedLecture);
+    }
+
+    this.notifyListeners();
+    return clonedLecture;
+  }
+
+  public async exportCurriculumSnapshot(): Promise<{
+    version: number;
+    exportedAt: number;
+    lectures: OfficialLecture[];
+    questions: OfficialQuestion[];
+    announcements: OfficialAnnouncement[];
+  }> {
+    await this.initializeOfficialContent();
+    const lectures = await dbService.getOfficialLectures();
+    const questions = await dbService.getOfficialQuestions();
+    const announcements = await this.getAnnouncements();
+
+    return {
+      version: 1,
+      exportedAt: Date.now(),
+      lectures,
+      questions,
+      announcements,
+    };
+  }
+
+  public async importCurriculumSnapshot(snapshot: any): Promise<{
+    success: boolean;
+    lecturesCount: number;
+    questionsCount: number;
+  }> {
+    if (!snapshot || !Array.isArray(snapshot.lectures)) {
+      throw new Error('Invalid curriculum snapshot format. Expected JSON with "lectures" array.');
+    }
+
+    await this.initializeOfficialContent();
+
+    const lectures: OfficialLecture[] = snapshot.lectures;
+    const questions: OfficialQuestion[] = Array.isArray(snapshot.questions) ? snapshot.questions : [];
+    const announcements: OfficialAnnouncement[] = Array.isArray(snapshot.announcements) ? snapshot.announcements : [];
+
+    // Save lectures
+    for (const lec of lectures) {
+      await this.saveOfficialLecture(lec);
+    }
+
+    // Save questions
+    if (questions.length > 0) {
+      await this.saveOfficialQuestionsBatch(questions);
+    }
+
+    // Save announcements
+    for (const ann of announcements) {
+      await this.saveAnnouncement(ann);
+    }
+
+    this.notifyListeners();
+
+    return {
+      success: true,
+      lecturesCount: lectures.length,
+      questionsCount: questions.length,
+    };
   }
 
   // --- User Administration API ---

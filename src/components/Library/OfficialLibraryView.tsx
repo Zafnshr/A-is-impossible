@@ -145,6 +145,24 @@ const YEAR_2_MODULES: ModuleMeta[] = [
   },
 ];
 
+// Helper to find the first subject with published lectures in a module, defaulting to 'physiology'
+const getDefaultSubjectForModule = (
+  moduleSlug: string | null,
+  lecturesList: OfficialLecture[]
+): string => {
+  if (!moduleSlug) return 'physiology';
+  const modulePublished = lecturesList.filter(
+    (l) => l.moduleSlug === moduleSlug && l.status === 'published'
+  );
+  for (const sub of STANDARD_SUBJECTS) {
+    const slug = sub.toLowerCase().replace(/\s+/g, '-');
+    if (modulePublished.some((l) => l.subjectSlug === slug)) {
+      return slug;
+    }
+  }
+  return 'physiology';
+};
+
 export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
   onSelectLecture,
   onSwitchToMyContent,
@@ -157,7 +175,9 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
   const [loading, setLoading] = useState(!officialLectures || officialLectures.length === 0);
   const [adminShowDrafts, setAdminShowDrafts] = useState<boolean>(false);
   const [selectedModuleSlug, setSelectedModuleSlug] = useState<string | null>(initialModuleSlug || null);
-  const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>('all');
+  const [selectedSubjectSlug, setSelectedSubjectSlug] = useState<string>(() =>
+    getDefaultSubjectForModule(initialModuleSlug || null, officialLectures || [])
+  );
 
   useEffect(() => {
     if (officialLectures !== undefined) {
@@ -169,19 +189,22 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
   useEffect(() => {
     if (initialModuleSlug !== undefined) {
       setSelectedModuleSlug(initialModuleSlug);
+      setSelectedSubjectSlug(getDefaultSubjectForModule(initialModuleSlug, lectures));
     }
   }, [initialModuleSlug]);
 
   const handleSetModuleSlug = (slug: string | null) => {
     setSelectedModuleSlug(slug);
-    setSelectedSubjectSlug('all');
+    setSelectedSubjectSlug(getDefaultSubjectForModule(slug, lectures));
     onModuleChange?.(slug);
   };
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>({
-    'week-1': true,
-    'week-2': true,
-    'week-3': true,
+  const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (let i = 1; i <= 16; i++) {
+      initial[`week-${i}`] = true;
+    }
+    return initial;
   });
 
   useEffect(() => {
@@ -199,8 +222,14 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
       }
     };
     fetchOfficialLectures();
+
+    const unsubscribe = officialContentService.subscribe(() => {
+      fetchOfficialLectures();
+    });
+
     return () => {
       isMounted = false;
+      unsubscribe();
     };
   }, []);
 
@@ -210,16 +239,13 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
     return YEAR_2_MODULES.find((m) => m.slug === selectedModuleSlug) || null;
   }, [selectedModuleSlug]);
 
-  // Subject tabs: All Subjects + standard subjects formatted with slugs
+  // Subject tabs: Standard subjects formatted with slugs (NO "All Subjects")
   const subjectTabs = useMemo(() => {
-    return [
-      { name: 'All Subjects', slug: 'all', isFormative: false },
-      ...STANDARD_SUBJECTS.map((subjectName) => ({
-        name: subjectName,
-        slug: subjectName.toLowerCase().replace(/\s+/g, '-'),
-        isFormative: subjectName === 'Formative Exams',
-      })),
-    ];
+    return STANDARD_SUBJECTS.map((subjectName) => ({
+      name: subjectName,
+      slug: subjectName.toLowerCase().replace(/\s+/g, '-'),
+      isFormative: subjectName === 'Formative Exams',
+    }));
   }, []);
 
   // Base pool of visible lectures:
@@ -263,7 +289,7 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
       if (selectedModuleSlug && lec.moduleSlug !== selectedModuleSlug) {
         return false;
       }
-      if (selectedSubjectSlug !== 'all' && selectedModuleSlug && lec.subjectSlug !== selectedSubjectSlug) {
+      if (selectedModuleSlug && selectedSubjectSlug && lec.subjectSlug !== selectedSubjectSlug) {
         return false;
       }
       if (searchQuery.trim()) {
@@ -275,6 +301,22 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
       return true;
     });
   }, [visibleLectures, selectedModuleSlug, selectedSubjectSlug, searchQuery]);
+
+  // Automatically expand all weeks (1-16) containing lectures for the active subject
+  useEffect(() => {
+    if (filteredLectures.length > 0) {
+      const weeksToExpand: Record<string, boolean> = {};
+      filteredLectures.forEach((lec) => {
+        if (lec.weekSlug) {
+          weeksToExpand[lec.weekSlug] = true;
+        }
+      });
+      setExpandedWeeks((prev) => ({
+        ...prev,
+        ...weeksToExpand,
+      }));
+    }
+  }, [selectedModuleSlug, selectedSubjectSlug, filteredLectures]);
 
   // Group lectures by week
   const lecturesByWeek = useMemo(() => {
@@ -485,9 +527,9 @@ export const OfficialLibraryView: React.FC<OfficialLibraryViewProps> = ({
             <div className="flex items-center gap-2 min-w-max">
               {subjectTabs.map((tab) => {
                 const isSelected = selectedSubjectSlug === tab.slug;
-                const count = tab.slug === 'all'
-                  ? visibleLectures.filter((l) => !selectedModuleSlug || l.moduleSlug === selectedModuleSlug).length
-                  : visibleLectures.filter((l) => (!selectedModuleSlug || l.moduleSlug === selectedModuleSlug) && l.subjectSlug === tab.slug).length;
+                const count = visibleLectures.filter(
+                  (l) => (!selectedModuleSlug || l.moduleSlug === selectedModuleSlug) && l.subjectSlug === tab.slug
+                ).length;
 
                 return (
                   <button

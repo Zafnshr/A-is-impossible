@@ -74,9 +74,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   });
 
   useEffect(() => {
-    officialContentService.getActiveAnnouncements().then((data) => {
-      setAnnouncements(data);
-    }).catch(() => {});
+    let isMounted = true;
+    const loadAnnouncements = () => {
+      officialContentService
+        .getActiveAnnouncements()
+        .then((data) => {
+          if (isMounted) setAnnouncements(data);
+        })
+        .catch(() => {});
+    };
+
+    loadAnnouncements();
+
+    const unsubscribe = officialContentService.subscribe(() => {
+      loadAnnouncements();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const handleDismissAnnouncement = (id: string) => {

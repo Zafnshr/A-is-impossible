@@ -1522,6 +1522,22 @@ class IndexedDBStorage {
     });
   }
 
+  public async getOfficialQuestionById(questionId: string): Promise<OfficialQuestion | null> {
+    if (this.isMemoryMode) {
+      return (this.memoryStores.official_questions.get(questionId) as OfficialQuestion) || null;
+    }
+    const db = await this.getDB();
+    if (!db) {
+      return (this.memoryStores.official_questions.get(questionId) as OfficialQuestion) || null;
+    }
+    return new Promise((resolve) => {
+      const tx = db.transaction('official_questions', 'readonly');
+      const store = tx.objectStore('official_questions');
+      const req = store.get(questionId);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  }
 
   public async purgeSampleOfficialData(): Promise<void> {
     const sampleLectureIds = ['lec_plasma_proteins', 'lec_erythropoiesis', 'lec_blood_formative_w1'];

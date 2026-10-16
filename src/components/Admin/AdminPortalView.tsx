@@ -41,6 +41,12 @@ import {
   ListOrdered,
   RefreshCw,
   FolderSync,
+  Download,
+  ToggleLeft,
+  ToggleRight,
+  Play,
+  Pause,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 import {
@@ -54,6 +60,12 @@ import {
 import { officialContentService } from '../../services/officialContentService';
 import { parseQuestionsText, parseFileContent, ParseIssue } from '../../services/importer';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { PDFViewerModal } from '../PDF/PDFViewerModal';
+import {
+  extractGoogleDriveFileId,
+  isGoogleDriveUrl,
+  getGoogleDriveViewUrl,
+} from '../../services/googleDrivePdf';
 import {
   OfficialLecture,
   OfficialQuestion,
@@ -125,6 +137,12 @@ const STANDARD_SUBJECTS = [
   { slug: 'biochemistry', title: 'Biochemistry' },
 ];
 
+export const STANDARD_WEEKS = Array.from({ length: 16 }, (_, i) => ({
+  slug: `week-${i + 1}`,
+  number: i + 1,
+  title: `Week ${i + 1}`,
+}));
+
 export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   currentUser,
   onReturnToPlatform,
@@ -142,9 +160,22 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
 
   // Curriculum Filter State
   const [selectedModuleFilter, setSelectedModuleFilter] = useState<string>('all');
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<ContentStatus | 'all'>('all');
+  const [selectedReadinessFilter, setSelectedReadinessFilter] = useState<
+    'all' | 'missing_pdf' | 'missing_questions' | 'complete_published'
+  >('all');
   const [selectedLectureIds, setSelectedLectureIds] = useState<string[]>([]);
   const [lectureSearchQuery, setLectureSearchQuery] = useState('');
+
+  // Bulk Relocate State
+  const [bulkRelocateModule, setBulkRelocateModule] = useState<string>('blood');
+  const [bulkRelocateSubject, setBulkRelocateSubject] = useState<string>('physiology');
+  const [bulkRelocateWeek, setBulkRelocateWeek] = useState<string>('week-1');
+
+  // PDF Preview Modal State (In-App Drive Preview)
+  const [previewDrivePdfUrl, setPreviewDrivePdfUrl] = useState<string | null>(null);
 
   // Lecture Modal State
   const [isLectureModalOpen, setIsLectureModalOpen] = useState(false);
@@ -159,10 +190,17 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   const [questionTrackFilter, setQuestionTrackFilter] = useState<'all' | 'practice' | 'university_exam_style'>('all');
   const [editingQuestion, setEditingQuestion] = useState<OfficialQuestion | null>(null);
   const [selectedLectureQuestionIds, setSelectedLectureQuestionIds] = useState<string[]>([]);
+  const [targetTransferLectureId, setTargetTransferLectureId] = useState<string>('');
 
   // Cloud Sync & SQL Setup State
   const [cloudStatus, setCloudStatus] = useState(() => officialContentService.getCloudStatus());
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+
+  // Global Config & Cloud Gem URLs
+  const [practiceGemUrl, setPracticeGemUrl] = useState<string>('');
+  const [examStyleGemUrl, setExamStyleGemUrl] = useState<string>('');
+  const [isSavingGemUrls, setIsSavingGemUrls] = useState<boolean>(false);
+  const snapshotFileInputRef = useRef<HTMLInputElement>(null);
 
   // In-App Confirm Dialog State
   const [confirmModal, setConfirmModal] = useState<{
@@ -197,6 +235,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   const [newAnnBody, setNewAnnBody] = useState('');
   const [newAnnType, setNewAnnType] = useState<'info' | 'warning' | 'update'>('info');
   const [newAnnUrl, setNewAnnUrl] = useState('');
+  const [editingAnnouncement, setEditingAnnouncement] = useState<OfficialAnnouncement | null>(null);
 
   // QA Queue State
   const [qaQueue, setQaQueue] = useState<
@@ -205,8 +244,10 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       lectureId: string;
       dislikeCount: number;
       reasons: Record<DislikeReasonType, number>;
+      notes: string[];
     }[]
   >([]);
+  const [qaQuestionsLookup, setQaQuestionsLookup] = useState<Record<string, OfficialQuestion>>({});
 
   // Analytics State
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -279,8 +320,23 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       setAnnouncements(fetchedAnnouncements);
       setAnalyticsData(fetchedAnalytics);
       setSecondaryAdmins(getSecondaryAdminEmails());
-      setQaQueue(officialContentService.getDislikedQuestionsQA());
+      const qaList = officialContentService.getDislikedQuestionsQA();
+      setQaQueue(qaList);
+
+      // Populate QA question lookup
+      const qaMap: Record<string, OfficialQuestion> = {};
+      for (const item of qaList) {
+        const q = await officialContentService.getQuestionById(item.questionId);
+        if (q) qaMap[item.questionId] = q;
+      }
+      setQaQuestionsLookup(qaMap);
+
       setCloudStatus(officialContentService.getCloudStatus());
+
+      const pGem = await officialContentService.getConfigValue('practice_gem_url');
+      const eGem = await officialContentService.getConfigValue('exam_style_gem_url');
+      if (pGem) setPracticeGemUrl(pGem);
+      if (eGem) setExamStyleGemUrl(eGem);
 
       if (fetchedLectures.length > 0 && !ingestLectureId) {
         setIngestLectureId(fetchedLectures[0].id);
@@ -294,6 +350,10 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
 
   useEffect(() => {
     loadData();
+    const unsubscribe = officialContentService.subscribe(() => {
+      loadData();
+    });
+    return () => unsubscribe();
   }, [isAuthorized]);
 
   // Unified 6-Type sequential document importer
@@ -1000,10 +1060,330 @@ function countPdfPages(buffer: ArrayBuffer): number {
     await loadData();
   };
 
-  const handleDeleteAnnouncement = async (id: string) => {
-    await officialContentService.deleteAnnouncement(id);
-    showToast('Announcement removed.');
+  const handleDeleteAnnouncement = (id: string) => {
+    setConfirmModal({
+      open: true,
+      title: 'Delete Announcement?',
+      message: 'Are you sure you want to permanently delete this announcement?',
+      confirmLabel: 'Delete',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await officialContentService.deleteAnnouncement(id);
+          showToast('Announcement deleted.');
+          await loadData();
+        } catch {
+          showToast('Failed deleting announcement.');
+        }
+      },
+    });
+  };
+
+  const handleSaveEditedAnnouncement = async () => {
+    if (!editingAnnouncement || !editingAnnouncement.title.trim() || !editingAnnouncement.body.trim()) {
+      showToast('Announcement Title and Body are required.');
+      return;
+    }
+    try {
+      await officialContentService.saveAnnouncement(editingAnnouncement);
+      setEditingAnnouncement(null);
+      showToast('Announcement updated.');
+      await loadData();
+    } catch {
+      showToast('Failed saving announcement.');
+    }
+  };
+
+  // --- Inline & Bulk Relocation Handlers ---
+  const handleInlineRelocateLecture = async (
+    lectureId: string,
+    updates: Partial<Pick<OfficialLecture, 'moduleSlug' | 'subjectSlug' | 'weekSlug'>>
+  ) => {
+    const lec = lectures.find((l) => l.id === lectureId);
+    if (!lec) return;
+    const updated: OfficialLecture = {
+      ...lec,
+      ...updates,
+      weekId: updates.weekSlug || lec.weekId,
+      updatedAt: Date.now(),
+    };
+    await officialContentService.saveOfficialLecture(updated);
+    setLectures((prev) => prev.map((l) => (l.id === lectureId ? updated : l)));
+    showToast(`Relocated "${lec.title}"`);
+    onReloadData?.();
+  };
+
+  const handleBulkRelocate = async () => {
+    if (selectedLectureIds.length === 0) return;
+    try {
+      for (const id of selectedLectureIds) {
+        const lec = lectures.find((l) => l.id === id);
+        if (lec) {
+          await officialContentService.saveOfficialLecture({
+            ...lec,
+            moduleSlug: bulkRelocateModule,
+            subjectSlug: bulkRelocateSubject,
+            weekSlug: bulkRelocateWeek,
+            weekId: bulkRelocateWeek,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+      showToast(`Relocated ${selectedLectureIds.length} lectures.`);
+      setSelectedLectureIds([]);
+      await loadData();
+      onReloadData?.();
+    } catch {
+      showToast('Failed to relocate selected lectures.');
+    }
+  };
+
+  const handleReorderLecture = async (lectureId: string, direction: 'up' | 'down') => {
+    const idx = filteredLectures.findIndex((l) => l.id === lectureId);
+    if (idx < 0) return;
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= filteredLectures.length) return;
+
+    const cur = filteredLectures[idx];
+    const tgt = filteredLectures[targetIdx];
+    const curOrder = cur.displayOrder || idx + 1;
+    const tgtOrder = tgt.displayOrder || targetIdx + 1;
+
+    await officialContentService.saveOfficialLecture({
+      ...cur,
+      displayOrder: tgtOrder,
+      updatedAt: Date.now(),
+    });
+    await officialContentService.saveOfficialLecture({
+      ...tgt,
+      displayOrder: curOrder,
+      updatedAt: Date.now(),
+    });
     await loadData();
+    showToast('Updated lecture order.');
+  };
+
+  const handleCloneLecture = async (lec: OfficialLecture) => {
+    try {
+      showToast(`Cloning "${lec.title}"...`);
+      const cloned = await officialContentService.cloneLecture(lec.id, true);
+      if (cloned) {
+        showToast(`Successfully cloned "${lec.title}".`);
+        await loadData();
+        onReloadData?.();
+      } else {
+        showToast('Failed to clone lecture.');
+      }
+    } catch {
+      showToast('Error cloning lecture.');
+    }
+  };
+
+  // --- Question Transfer Handlers (in Manage Questions Modal) ---
+  const handleBulkMoveQuestions = async (targetLecId: string) => {
+    if (!targetLecId || selectedLectureQuestionIds.length === 0 || !managingQuestionsLecture) {
+      showToast('Please select a target lecture.');
+      return;
+    }
+    try {
+      for (const qId of selectedLectureQuestionIds) {
+        const q = lectureQuestions.find((item) => item.id === qId);
+        if (q) {
+          await officialContentService.saveOfficialQuestion({
+            ...q,
+            lectureId: targetLecId,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+      showToast(`Moved ${selectedLectureQuestionIds.length} questions to target lecture.`);
+      setSelectedLectureQuestionIds([]);
+      const updatedQs = await officialContentService.getQuestionsForLecture(managingQuestionsLecture.id);
+      setLectureQuestions(updatedQs);
+      await loadData();
+    } catch {
+      showToast('Failed moving questions.');
+    }
+  };
+
+  const handleBulkCopyQuestions = async (targetLecId: string) => {
+    if (!targetLecId || selectedLectureQuestionIds.length === 0 || !managingQuestionsLecture) {
+      showToast('Please select a target lecture.');
+      return;
+    }
+    try {
+      for (const qId of selectedLectureQuestionIds) {
+        const q = lectureQuestions.find((item) => item.id === qId);
+        if (q) {
+          await officialContentService.saveOfficialQuestion({
+            ...q,
+            id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            lectureId: targetLecId,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+        }
+      }
+      showToast(`Copied ${selectedLectureQuestionIds.length} questions to target lecture.`);
+      setSelectedLectureQuestionIds([]);
+      await loadData();
+    } catch {
+      showToast('Failed copying questions.');
+    }
+  };
+
+  const handleBulkSwitchTrack = async (newTrack: QuestionVersionType) => {
+    if (selectedLectureQuestionIds.length === 0 || !managingQuestionsLecture) return;
+    try {
+      for (const qId of selectedLectureQuestionIds) {
+        const q = lectureQuestions.find((item) => item.id === qId);
+        if (q) {
+          await officialContentService.saveOfficialQuestion({
+            ...q,
+            versionType: newTrack,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+      showToast(`Switched ${selectedLectureQuestionIds.length} questions to ${newTrack === 'practice' ? 'Practice' : 'Univ Exam Style'}.`);
+      setSelectedLectureQuestionIds([]);
+      const updatedQs = await officialContentService.getQuestionsForLecture(managingQuestionsLecture.id);
+      setLectureQuestions(updatedQs);
+      await loadData();
+    } catch {
+      showToast('Failed switching question tracks.');
+    }
+  };
+
+  const handleClearTrack = (track: QuestionVersionType) => {
+    if (!managingQuestionsLecture) return;
+    const trackQs = lectureQuestions.filter((q) => q.versionType === track);
+    if (trackQs.length === 0) {
+      showToast(`No ${track} questions found to clear.`);
+      return;
+    }
+    setConfirmModal({
+      open: true,
+      title: `Clear All ${track === 'practice' ? 'Practice' : 'Univ Exam Style'} Questions?`,
+      message: `Are you sure you want to delete all ${trackQs.length} ${track} questions in "${managingQuestionsLecture.title}"?`,
+      confirmLabel: `Clear ${trackQs.length} Questions`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          for (const q of trackQs) {
+            await officialContentService.deleteOfficialQuestion(q.id);
+          }
+          const updatedQs = await officialContentService.getQuestionsForLecture(managingQuestionsLecture.id);
+          setLectureQuestions(updatedQs);
+          showToast(`Cleared ${trackQs.length} ${track} questions.`);
+          await loadData();
+        } catch {
+          showToast('Failed clearing track questions.');
+        }
+      },
+    });
+  };
+
+  // --- Actionable QA Queue Handlers ---
+  const handleResolveQA = async (questionId: string) => {
+    try {
+      await officialContentService.resolveQuestionFeedback(questionId);
+      showToast('Question feedback marked resolved and removed from queue.');
+      await loadData();
+    } catch {
+      showToast('Failed resolving question feedback.');
+    }
+  };
+
+  const handleEditQAQuestion = (questionId: string, lectureId: string) => {
+    const q = qaQuestionsLookup[questionId];
+    const lec = lectures.find((l) => l.id === lectureId);
+    if (q && lec) {
+      setManagingQuestionsLecture(lec);
+      setEditingQuestion(q);
+    } else {
+      showToast('Could not locate question in curriculum.');
+    }
+  };
+
+  // --- Announcements Handlers ---
+  const handleToggleAnnouncementActive = async (id: string, current: boolean) => {
+    try {
+      await officialContentService.toggleAnnouncementActive(id, !current);
+      showToast(`Announcement ${!current ? 'activated' : 'paused'}.`);
+      await loadData();
+    } catch {
+      showToast('Failed toggling announcement status.');
+    }
+  };
+
+  // --- Cloud Gem URLs & Snapshot Handlers ---
+  const handleSaveGemUrls = async () => {
+    try {
+      setIsSavingGemUrls(true);
+      await officialContentService.updateConfigKey('practice_gem_url', practiceGemUrl.trim());
+      await officialContentService.updateConfigKey('exam_style_gem_url', examStyleGemUrl.trim());
+      showToast('Cloud AI Gem URLs synchronized successfully!');
+    } catch {
+      showToast('Failed updating Gem URLs.');
+    } finally {
+      setIsSavingGemUrls(false);
+    }
+  };
+
+  const handleExportCurriculumSnapshot = async () => {
+    try {
+      showToast('Generating curriculum snapshot...');
+      const snapshot = await officialContentService.exportCurriculumSnapshot();
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `curriculum_snapshot_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      showToast(`Exported ${snapshot.lectures.length} lectures and ${snapshot.questions.length} questions.`);
+    } catch {
+      showToast('Failed exporting curriculum snapshot.');
+    }
+  };
+
+  const handleImportCurriculumSnapshotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const snapshot = JSON.parse(text);
+      if (!snapshot.lectures || !snapshot.questions) {
+        showToast('Invalid curriculum snapshot format.');
+        return;
+      }
+      setConfirmModal({
+        open: true,
+        title: 'Import Curriculum Snapshot?',
+        message: `Restore and merge ${snapshot.lectures.length} lectures and ${snapshot.questions.length} questions from "${file.name}" into database?`,
+        confirmLabel: 'Restore Snapshot',
+        onConfirm: async () => {
+          setConfirmModal(null);
+          try {
+            showToast('Restoring snapshot...');
+            const res = await officialContentService.importCurriculumSnapshot(snapshot);
+            showToast(`Imported ${res.lecturesCount} lectures and ${res.questionsCount} questions!`);
+            await loadData();
+            onReloadData?.();
+          } catch {
+            showToast('Failed importing snapshot.');
+          }
+        },
+      });
+    } catch (err) {
+      console.error('[Admin] Snapshot parse error:', err);
+      showToast('Failed reading JSON snapshot file.');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
   };
 
   // Filtered lectures for table
@@ -1011,16 +1391,48 @@ function countPdfPages(buffer: ArrayBuffer): number {
     return lectures.filter((lec) => {
       const matchesModule =
         selectedModuleFilter === 'all' || lec.moduleSlug === selectedModuleFilter;
+      const matchesSubject =
+        selectedSubjectFilter === 'all' || lec.subjectSlug === selectedSubjectFilter;
+      const matchesWeek =
+        selectedWeekFilter === 'all' || lec.weekSlug === selectedWeekFilter;
       const matchesStatus =
         selectedStatusFilter === 'all' || lec.status === selectedStatusFilter;
+
+      let matchesReadiness = true;
+      const totalQuestions =
+        (lec.practiceQuestionsCount || 0) + (lec.universityExamStyleQuestionsCount || 0);
+      if (selectedReadinessFilter === 'missing_pdf') {
+        matchesReadiness = !lec.pdfUrl;
+      } else if (selectedReadinessFilter === 'missing_questions') {
+        matchesReadiness = totalQuestions === 0;
+      } else if (selectedReadinessFilter === 'complete_published') {
+        matchesReadiness =
+          lec.status === 'published' && Boolean(lec.pdfUrl) && totalQuestions > 0;
+      }
+
       const matchesSearch =
         !lectureSearchQuery.trim() ||
         lec.title.toLowerCase().includes(lectureSearchQuery.toLowerCase()) ||
         lec.subjectSlug.toLowerCase().includes(lectureSearchQuery.toLowerCase()) ||
         lec.weekSlug.toLowerCase().includes(lectureSearchQuery.toLowerCase());
-      return matchesModule && matchesStatus && matchesSearch;
+      return (
+        matchesModule &&
+        matchesSubject &&
+        matchesWeek &&
+        matchesStatus &&
+        matchesReadiness &&
+        matchesSearch
+      );
     });
-  }, [lectures, selectedModuleFilter, selectedStatusFilter, lectureSearchQuery]);
+  }, [
+    lectures,
+    selectedModuleFilter,
+    selectedSubjectFilter,
+    selectedWeekFilter,
+    selectedStatusFilter,
+    selectedReadinessFilter,
+    lectureSearchQuery,
+  ]);
 
   const statusCounts = useMemo(() => {
     const total = lectures.length;
@@ -1196,7 +1608,32 @@ function countPdfPages(buffer: ArrayBuffer): number {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            ref={snapshotFileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportCurriculumSnapshotFile}
+          />
+          <button
+            type="button"
+            onClick={handleExportCurriculumSnapshot}
+            className="px-3 py-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary text-xs font-semibold border border-subtle transition flex items-center gap-1.5 cursor-pointer"
+            title="Download full curriculum and question database as JSON"
+          >
+            <Download className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Export Curriculum (.json)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => snapshotFileInputRef.current?.click()}
+            className="px-3 py-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary text-xs font-semibold border border-subtle transition flex items-center gap-1.5 cursor-pointer"
+            title="Import curriculum snapshot from JSON"
+          >
+            <FileUp className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Import Snapshot</span>
+          </button>
           <button
             type="button"
             onClick={handleCopySetupSql}
@@ -1204,7 +1641,7 @@ function countPdfPages(buffer: ArrayBuffer): number {
             title="Copy Idempotent Supabase SQL Setup Migration"
           >
             <Copy className="w-3.5 h-3.5 text-cyan-500" />
-            <span>Copy Supabase SQL</span>
+            <span>Copy SQL</span>
           </button>
           <button
             type="button"
@@ -1215,6 +1652,48 @@ function countPdfPages(buffer: ArrayBuffer): number {
             <FolderSync className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
             <span>Sync to Cloud</span>
           </button>
+        </div>
+      </div>
+
+      {/* Cloud AI Gem URLs Config Accordion */}
+      <div className="p-4 rounded-2xl bg-surface border border-subtle space-y-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-cyan-500" />
+            <span className="font-bold text-primary">Cloud AI Gem Custom URLs</span>
+            <span className="text-muted text-[11px]">(Synced to Supabase official_config)</span>
+          </div>
+          <button
+            type="button"
+            disabled={isSavingGemUrls}
+            onClick={handleSaveGemUrls}
+            className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[11px] flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>{isSavingGemUrls ? 'Saving...' : 'Save & Sync Gem URLs'}</span>
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-bold uppercase text-muted font-mono">Practice Questions Gem URL</label>
+            <input
+              type="text"
+              placeholder="https://gemini.google.com/gem/..."
+              value={practiceGemUrl}
+              onChange={(e) => setPracticeGemUrl(e.target.value)}
+              className="w-full mt-1 px-3 py-1.5 rounded-xl bg-subtle border border-subtle text-xs text-primary font-mono focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase text-muted font-mono">University Exam Style Gem URL</label>
+            <input
+              type="text"
+              placeholder="https://gemini.google.com/gem/..."
+              value={examStyleGemUrl}
+              onChange={(e) => setExamStyleGemUrl(e.target.value)}
+              className="w-full mt-1 px-3 py-1.5 rounded-xl bg-subtle border border-subtle text-xs text-primary font-mono focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -1387,9 +1866,9 @@ function countPdfPages(buffer: ArrayBuffer): number {
             )}
           </div>
 
-          {/* Controls Bar: Module Filter + Search + Add Lecture */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5 flex-1">
+          {/* Controls Bar: Multi-Facet Filters + Search + Add Lecture */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               {/* Module Filter */}
               <select
                 aria-label="Filter lectures by module"
@@ -1397,7 +1876,7 @@ function countPdfPages(buffer: ArrayBuffer): number {
                 onChange={(e) => setSelectedModuleFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl bg-surface border border-subtle text-xs font-semibold text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500"
               >
-                <option value="all">All Year 2 Modules</option>
+                <option value="all">All Modules</option>
                 {STANDARD_MODULES.map((m) => (
                   <option key={m.slug} value={m.slug}>
                     {m.title}
@@ -1405,32 +1884,75 @@ function countPdfPages(buffer: ArrayBuffer): number {
                 ))}
               </select>
 
+              {/* Subject Filter */}
+              <select
+                aria-label="Filter lectures by subject"
+                value={selectedSubjectFilter}
+                onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-surface border border-subtle text-xs font-semibold text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              >
+                <option value="all">All Subjects</option>
+                {STANDARD_SUBJECTS.map((s) => (
+                  <option key={s.slug} value={s.slug}>
+                    {s.title}
+                  </option>
+                ))}
+              </select>
+
+              {/* Week Filter (Weeks 1 to 16) */}
+              <select
+                aria-label="Filter lectures by week"
+                value={selectedWeekFilter}
+                onChange={(e) => setSelectedWeekFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-surface border border-subtle text-xs font-semibold text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              >
+                <option value="all">All Weeks (1–16)</option>
+                {STANDARD_WEEKS.map((w) => (
+                  <option key={w.slug} value={w.slug}>
+                    {w.title}
+                  </option>
+                ))}
+              </select>
+
+              {/* Readiness Filter */}
+              <select
+                aria-label="Filter lectures by curriculum readiness"
+                value={selectedReadinessFilter}
+                onChange={(e) => setSelectedReadinessFilter(e.target.value as any)}
+                className="px-3 py-2 rounded-xl bg-surface border border-subtle text-xs font-semibold text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              >
+                <option value="all">All Readiness States</option>
+                <option value="missing_pdf">Missing Slide Deck</option>
+                <option value="missing_questions">Missing Questions (0 Qs)</option>
+                <option value="complete_published">Complete &amp; Published</option>
+              </select>
+
               {/* Search Field */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Filter lectures by title, subject, week..."
+                  placeholder="Search lectures by title, subject, week..."
                   value={lectureSearchQuery}
                   onChange={(e) => setLectureSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 rounded-xl bg-surface border border-subtle text-xs text-primary placeholder-muted focus:outline-none focus:ring-1 focus:ring-cyan-500"
                 />
               </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => handleOpenCreateLecture()}
-              className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition active:scale-95 shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Lecture</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => handleOpenCreateLecture()}
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition active:scale-95 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Lecture</span>
+              </button>
+            </div>
           </div>
 
           {/* Batch Actions Bar (Visible when items are selected) */}
           {selectedLectureIds.length > 0 && (
-            <div className="p-3 px-4 rounded-2xl bg-primary text-canvas flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in slide-in-from-top-2 duration-200">
+            <div className="p-3.5 px-4 rounded-2xl bg-primary text-canvas flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in slide-in-from-top-2 duration-200">
               <div className="flex items-center gap-2.5">
                 <CheckSquare className="w-4 h-4 text-cyan-300" />
                 <span className="text-xs font-bold">
@@ -1438,47 +1960,98 @@ function countPdfPages(buffer: ArrayBuffer): number {
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Bulk Relocator Dropdowns */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold opacity-90">Move to:</span>
+                <select
+                  aria-label="Bulk target module"
+                  value={bulkRelocateModule}
+                  onChange={(e) => setBulkRelocateModule(e.target.value)}
+                  className="px-2 py-1 rounded-lg bg-canvas text-primary text-xs font-semibold"
+                >
+                  {STANDARD_MODULES.map((m) => (
+                    <option key={m.slug} value={m.slug}>
+                      {m.title.split(' ')[0]}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  aria-label="Bulk target subject"
+                  value={bulkRelocateSubject}
+                  onChange={(e) => setBulkRelocateSubject(e.target.value)}
+                  className="px-2 py-1 rounded-lg bg-canvas text-primary text-xs font-semibold"
+                >
+                  {STANDARD_SUBJECTS.map((s) => (
+                    <option key={s.slug} value={s.slug}>
+                      {s.title}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  aria-label="Bulk target week"
+                  value={bulkRelocateWeek}
+                  onChange={(e) => setBulkRelocateWeek(e.target.value)}
+                  className="px-2 py-1 rounded-lg bg-canvas text-primary text-xs font-semibold"
+                >
+                  {STANDARD_WEEKS.map((w) => (
+                    <option key={w.slug} value={w.slug}>
+                      {w.title}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleBulkRelocate}
+                  className="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"
+                >
+                  Relocate Selected
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => handleBatchStatusChange('published')}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-xs"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Publish All</span>
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Publish</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleBatchStatusChange('draft')}
-                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-xs"
                 >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Move to Draft</span>
+                  <Clock className="w-3 h-3" />
+                  <span>Draft</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleBatchStatusChange('hidden')}
-                  className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                  className="px-2.5 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-xs"
                 >
-                  <EyeOff className="w-3.5 h-3.5" />
-                  <span>Hide All</span>
+                  <EyeOff className="w-3 h-3" />
+                  <span>Hide</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleBatchDelete}
-                  className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-xs"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Selected</span>
+                  <Trash2 className="w-3 h-3" />
+                  <span>Delete</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedLectureIds([])}
-                  className="px-2.5 py-1.5 rounded-lg bg-canvas/20 hover:bg-canvas/30 text-canvas font-medium text-xs cursor-pointer transition"
+                  className="px-2 py-1 rounded-lg bg-canvas/20 hover:bg-canvas/30 text-canvas font-medium text-[11px] cursor-pointer transition"
                 >
                   Deselect
                 </button>
@@ -1493,28 +2066,24 @@ function countPdfPages(buffer: ArrayBuffer): number {
                 <BookOpen className="w-12 h-12 text-muted mx-auto stroke-1" />
                 <h3 className="text-sm font-bold text-primary">No Curriculum Lectures Match</h3>
                 <p className="text-xs text-muted max-w-md mx-auto">
-                  {selectedStatusFilter !== 'all'
-                    ? `No lectures with status "${selectedStatusFilter.toUpperCase()}" found.`
+                  {selectedStatusFilter !== 'all' || selectedModuleFilter !== 'all' || selectedSubjectFilter !== 'all' || selectedWeekFilter !== 'all' || selectedReadinessFilter !== 'all'
+                    ? 'No lectures matched your current filters. Clear filters or create a new lecture.'
                     : 'The curriculum starts empty. Create your first lecture or ingest practice questions to populate the student portal.'}
                 </p>
-                {selectedStatusFilter !== 'all' ? (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStatusFilter('all')}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm"
-                  >
-                    <span>View All Lectures</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenCreateLecture()}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Create First Lecture</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStatusFilter('all');
+                    setSelectedModuleFilter('all');
+                    setSelectedSubjectFilter('all');
+                    setSelectedWeekFilter('all');
+                    setSelectedReadinessFilter('all');
+                    setLectureSearchQuery('');
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm"
+                >
+                  <span>Reset All Filters</span>
+                </button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1536,12 +2105,13 @@ function countPdfPages(buffer: ArrayBuffer): number {
                           )}
                         </button>
                       </th>
+                      <th className="py-3 px-2 w-14 font-semibold text-center">Order</th>
                       <th className="py-3 px-4 font-semibold">Lecture Title</th>
-                      <th className="py-3 px-4 font-semibold">Hierarchy Path</th>
-                      <th className="py-3 px-4 font-semibold min-w-[200px]">Lifecycle Status & Quick Actions</th>
+                      <th className="py-3 px-4 font-semibold min-w-[280px]">Location Relocator (Module &gt; Subject &gt; Week)</th>
+                      <th className="py-3 px-4 font-semibold min-w-[190px]">Status &amp; Transition</th>
                       <th className="py-3 px-4 font-semibold">Practice Qs</th>
                       <th className="py-3 px-4 font-semibold">Exam Qs</th>
-                      <th className="py-3 px-4 font-semibold">PDF Slides</th>
+                      <th className="py-3 px-4 font-semibold min-w-[160px]">PDF Slide Deck</th>
                       <th className="py-3 px-4 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
@@ -1568,17 +2138,93 @@ function countPdfPages(buffer: ArrayBuffer): number {
                               )}
                             </button>
                           </td>
+
+                          {/* Reordering Up/Down */}
+                          <td className="py-3 px-2 text-center">
+                            <div className="inline-flex items-center rounded-lg bg-surface border border-subtle overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => handleReorderLecture(lec.id, 'up')}
+                                className="p-1 text-muted hover:text-primary hover:bg-subtle transition cursor-pointer"
+                                title="Move lecture order up"
+                              >
+                                <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <span className="w-px h-3 bg-subtle" />
+                              <button
+                                type="button"
+                                onClick={() => handleReorderLecture(lec.id, 'down')}
+                                className="p-1 text-muted hover:text-primary hover:bg-subtle transition cursor-pointer"
+                                title="Move lecture order down"
+                              >
+                                <ArrowDown className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Lecture Title */}
                           <td className="py-3 px-4 font-bold text-primary min-w-[200px]">
-                            {lec.title}
+                            <div className="space-y-0.5">
+                              <p className="line-clamp-2">{lec.title}</p>
+                              <p className="text-[10px] text-muted font-mono">{lec.slug}</p>
+                            </div>
                           </td>
-                          <td className="py-3 px-4 font-mono text-muted capitalize text-[11px]">
-                            {lec.moduleSlug} &gt; {lec.subjectSlug} &gt; {lec.weekSlug}
-                          </td>
+
+                          {/* Inline Location Relocator (Module > Subject > Week 1-16) */}
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              {/* Status Badge */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <select
+                                aria-label="Change Module"
+                                value={lec.moduleSlug}
+                                onChange={(e) =>
+                                  handleInlineRelocateLecture(lec.id, { moduleSlug: e.target.value })
+                                }
+                                className="px-2 py-1 rounded-lg bg-subtle border border-subtle text-[11px] font-semibold text-primary cursor-pointer max-w-[100px]"
+                              >
+                                {STANDARD_MODULES.map((m) => (
+                                  <option key={m.slug} value={m.slug}>
+                                    {m.title.split(' ')[0]}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="text-muted text-[10px] font-bold">&gt;</span>
+                              <select
+                                aria-label="Change Subject"
+                                value={lec.subjectSlug}
+                                onChange={(e) =>
+                                  handleInlineRelocateLecture(lec.id, { subjectSlug: e.target.value })
+                                }
+                                className="px-2 py-1 rounded-lg bg-subtle border border-subtle text-[11px] font-semibold text-primary cursor-pointer max-w-[105px]"
+                              >
+                                {STANDARD_SUBJECTS.map((s) => (
+                                  <option key={s.slug} value={s.slug}>
+                                    {s.title}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="text-muted text-[10px] font-bold">&gt;</span>
+                              <select
+                                aria-label="Change Week (1 to 16)"
+                                value={lec.weekSlug}
+                                onChange={(e) =>
+                                  handleInlineRelocateLecture(lec.id, { weekSlug: e.target.value })
+                                }
+                                className="px-2 py-1 rounded-lg bg-subtle border border-subtle text-[11px] font-mono font-bold text-cyan-600 dark:text-cyan-400 cursor-pointer"
+                              >
+                                {STANDARD_WEEKS.map((w) => (
+                                  <option key={w.slug} value={w.slug}>
+                                    W{w.number}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+
+                          {/* Status & Transition */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[10px] border ${
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-bold text-[10px] border ${
                                   lec.status === 'published'
                                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                                     : lec.status === 'hidden'
@@ -1592,22 +2238,21 @@ function countPdfPages(buffer: ArrayBuffer): number {
                                 <span className="uppercase">{lec.status}</span>
                               </span>
 
-                              {/* 1-Click Quick Transition Button */}
                               {lec.status === 'draft' && (
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateLectureStatus(lec.id, 'published')}
-                                  title="Publish this lecture immediately for students"
+                                  title="Publish immediately for students"
                                   className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer shadow-xs transition"
                                 >
-                                  Publish Now
+                                  Publish
                                 </button>
                               )}
                               {lec.status === 'published' && (
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateLectureStatus(lec.id, 'draft')}
-                                  title="Move to draft staging (hide from students)"
+                                  title="Move to draft staging"
                                   className="px-2 py-0.5 rounded-md bg-amber-600/10 hover:bg-amber-600/20 text-amber-600 font-bold text-[10px] border border-amber-600/30 cursor-pointer transition"
                                 >
                                   To Draft
@@ -1617,28 +2262,16 @@ function countPdfPages(buffer: ArrayBuffer): number {
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateLectureStatus(lec.id, 'published')}
-                                  title="Restore lecture to published status"
+                                  title="Restore lecture to published"
                                   className="px-2 py-0.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-[10px] cursor-pointer shadow-xs transition"
                                 >
-                                  Restore Live
+                                  Restore
                                 </button>
                               )}
-
-                              {/* Explicit Dropdown Menu */}
-                              <select
-                                aria-label={`Change status for ${lec.title}`}
-                                value={lec.status}
-                                onChange={(e) =>
-                                  handleUpdateLectureStatus(lec.id, e.target.value as ContentStatus)
-                                }
-                                className="px-1.5 py-0.5 rounded bg-subtle border border-subtle text-[10px] text-muted cursor-pointer focus:outline-none"
-                              >
-                                <option value="draft">Draft</option>
-                                <option value="published">Published</option>
-                                <option value="hidden">Hidden</option>
-                              </select>
                             </div>
                           </td>
+
+                          {/* Practice Questions Count */}
                           <td
                             onClick={() => {
                               setQuestionTrackFilter('practice');
@@ -1649,6 +2282,8 @@ function countPdfPages(buffer: ArrayBuffer): number {
                           >
                             {lec.practiceQuestionsCount || 0}
                           </td>
+
+                          {/* University Exam Style Count */}
                           <td
                             onClick={() => {
                               setQuestionTrackFilter('university_exam_style');
@@ -1659,18 +2294,54 @@ function countPdfPages(buffer: ArrayBuffer): number {
                           >
                             {lec.universityExamStyleQuestionsCount || 0}
                           </td>
+
+                          {/* Google Drive PDF Slides Deck Column */}
                           <td className="py-3 px-4">
                             {lec.pdfUrl ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-bold text-[10px]">
-                                <FileText className="w-3 h-3" />
-                                <span>{lec.pdfPageCount || 20} p</span>
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold text-[10px] font-mono">
+                                  <FileText className="w-3 h-3" />
+                                  <span>
+                                    {lec.pdfPageCount && lec.pdfPageCount > 0
+                                      ? `${lec.pdfPageCount}p`
+                                      : 'Drive Deck'}
+                                  </span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDrivePdfUrl(lec.pdfUrl || null)}
+                                  className="p-1 rounded bg-subtle hover:bg-subtle/80 text-cyan-600 dark:text-cyan-400 cursor-pointer"
+                                  title="Preview Slide Deck in interactive reader"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingLecture(lec);
+                                    setIsLectureModalOpen(true);
+                                  }}
+                                  className="p-1 rounded bg-subtle hover:bg-subtle/80 text-muted hover:text-primary cursor-pointer"
+                                  title="Edit Drive Link"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-subtle text-muted text-[10px]">
-                                Pending
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingLecture(lec);
+                                  setIsLectureModalOpen(true);
+                                }}
+                                className="px-2 py-0.5 rounded-md bg-subtle hover:bg-subtle/80 text-muted hover:text-cyan-600 font-semibold text-[10px] border border-subtle transition cursor-pointer"
+                              >
+                                + Add Drive Link
+                              </button>
                             )}
                           </td>
+
+                          {/* Row Actions */}
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
@@ -1682,6 +2353,16 @@ function countPdfPages(buffer: ArrayBuffer): number {
                                 <ListOrdered className="w-3.5 h-3.5" />
                                 <span>Questions ({(lec.practiceQuestionsCount || 0) + (lec.universityExamStyleQuestionsCount || 0)})</span>
                               </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleCloneLecture(lec)}
+                                title="Clone lecture &amp; all questions"
+                                className="p-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-cyan-600 transition cursor-pointer"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1693,6 +2374,7 @@ function countPdfPages(buffer: ArrayBuffer): number {
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleDeleteLecture(lec)}
@@ -2214,44 +2896,125 @@ C) Echocardiogram`}
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {qaQueue.map((item) => (
-                <div
-                  key={item.questionId}
-                  className="p-5 rounded-2xl bg-surface border border-rose-500/30 space-y-3 shadow-xs"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-bold font-mono text-xs">
-                        {item.dislikeCount} Flag{item.dislikeCount > 1 ? 's' : ''}
-                      </span>
-                      <span className="text-xs font-mono text-muted">ID: {item.questionId}</span>
+            <div className="space-y-4">
+              {qaQueue.map((item) => {
+                const q = qaQuestionsLookup[item.questionId];
+                const lec = lectures.find((l) => l.id === item.lectureId);
+
+                return (
+                  <div
+                    key={item.questionId}
+                    className="p-5 sm:p-6 rounded-2xl bg-surface border border-rose-500/30 space-y-4 shadow-xs"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-bold font-mono text-xs">
+                          {item.dislikeCount} Flag{item.dislikeCount > 1 ? 's' : ''}
+                        </span>
+                        <span className="text-xs font-mono text-muted">ID: {item.questionId}</span>
+                        {q?.versionType && (
+                          <span className="px-2 py-0.5 rounded-full bg-subtle text-secondary font-mono text-[10px] font-bold uppercase">
+                            {q.versionType === 'practice' ? 'Practice Drill' : 'Univ Exam Style'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold flex-wrap">
+                        {item.reasons.wrong_answer > 0 && (
+                          <span className="px-2 py-0.5 rounded bg-rose-500/15 text-rose-600">
+                            {item.reasons.wrong_answer} Wrong Answer
+                          </span>
+                        )}
+                        {item.reasons.ambiguous > 0 && (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-600">
+                            {item.reasons.ambiguous} Ambiguous
+                          </span>
+                        )}
+                        {item.reasons.duplicate > 0 && (
+                          <span className="px-2 py-0.5 rounded bg-slate-500/15 text-slate-500">
+                            {item.reasons.duplicate} Duplicate
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                      {item.reasons.wrong_answer > 0 && (
-                        <span className="px-2 py-0.5 rounded bg-rose-500/15 text-rose-600">
-                          {item.reasons.wrong_answer} Wrong Answer
+                    {/* Question Details */}
+                    {q ? (
+                      <div className="space-y-2.5 pt-1">
+                        <p className="text-xs sm:text-sm font-semibold text-primary leading-relaxed">
+                          {q.stem}
+                        </p>
+
+                        {q.options && q.options.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+                            {q.options.map((opt) => (
+                              <div
+                                key={opt.id}
+                                className={`px-3 py-2 rounded-xl border flex items-center gap-2 ${
+                                  opt.isCorrect
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold'
+                                    : 'bg-subtle/50 border-subtle text-secondary'
+                                }`}
+                              >
+                                <span className="font-mono font-bold text-[10px]">{opt.optionLetter})</span>
+                                <span className="flex-1 truncate">{opt.content}</span>
+                                {opt.isCorrect && <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted font-mono">
+                        [Question details loading from database...]
+                      </p>
+                    )}
+
+                    {/* Student Reported Notes */}
+                    {item.notes && item.notes.length > 0 && (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
+                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase font-mono tracking-wider">
+                          Student Reported Notes:
                         </span>
-                      )}
-                      {item.reasons.ambiguous > 0 && (
-                        <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-600">
-                          {item.reasons.ambiguous} Ambiguous
-                        </span>
-                      )}
-                      {item.reasons.duplicate > 0 && (
-                        <span className="px-2 py-0.5 rounded bg-slate-500/15 text-slate-500">
-                          {item.reasons.duplicate} Duplicate
-                        </span>
-                      )}
+                        {item.notes.map((note, nIdx) => (
+                          <p key={nIdx} className="text-amber-900 dark:text-amber-100 text-xs italic">
+                            &ldquo;{note}&rdquo;
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-subtle flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs font-medium text-secondary">
+                        Lecture:{' '}
+                        <strong className="text-primary">
+                          {lec?.title || item.lectureId}
+                        </strong>
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditQAQuestion(item.questionId, item.lectureId)}
+                          className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Edit &amp; Fix Question</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleResolveQA(item.questionId)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Mark Resolved</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  <p className="text-xs font-medium text-secondary">
-                    Lecture: {lectures.find((l) => l.id === item.lectureId)?.title || item.lectureId}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2511,30 +3274,90 @@ C) Echocardiogram`}
 
           {/* Active Announcements List */}
           <div className="space-y-3">
-            {announcements.map((ann) => (
-              <div
-                key={ann.id}
-                className="p-4 rounded-2xl bg-surface border border-subtle flex items-start justify-between gap-4"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-primary text-xs">{ann.title}</span>
-                    <span className="text-[10px] text-muted">
-                      {new Date(ann.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="text-xs text-secondary leading-relaxed">{ann.body}</p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleDeleteAnnouncement(ann.id)}
-                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+            {announcements.length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-surface border border-subtle text-muted text-xs">
+                No announcements broadcasted yet.
               </div>
-            ))}
+            ) : (
+              announcements.map((ann) => {
+                const isActive = ann.isActive !== false;
+                return (
+                  <div
+                    key={ann.id}
+                    className={`p-4 rounded-2xl bg-surface border transition flex flex-col sm:flex-row sm:items-start justify-between gap-4 ${
+                      isActive ? 'border-subtle' : 'border-subtle/50 opacity-75 bg-subtle/20'
+                    }`}
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider font-mono border ${
+                            isActive
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                          }`}
+                        >
+                          {isActive ? 'Active' : 'Paused'}
+                        </span>
+                        <span className="font-bold text-primary text-xs">{ann.title}</span>
+                        <span className="text-[10px] text-muted">
+                          {new Date(ann.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-secondary leading-relaxed">{ann.body}</p>
+                      {ann.targetUrl && (
+                        <div className="text-[11px] font-mono text-cyan-600 dark:text-cyan-400">
+                          Action Link: <span className="underline">{ann.targetUrl}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAnnouncementActive(ann.id, isActive)}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer border ${
+                          isActive
+                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                        }`}
+                        title={isActive ? 'Pause announcement' : 'Activate announcement'}
+                      >
+                        {isActive ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5" />
+                            <span>Pause</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Activate</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingAnnouncement(ann)}
+                        className="p-1.5 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary hover:text-primary border border-subtle transition cursor-pointer"
+                        title="Edit announcement"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-cyan-500" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAnnouncement(ann.id)}
+                        className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition cursor-pointer"
+                        title="Delete announcement"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -2625,9 +3448,9 @@ C) Echocardiogram`}
                     }
                     className="w-full mt-1 px-3 py-2 rounded-xl bg-subtle border border-subtle text-primary cursor-pointer"
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((w) => (
-                      <option key={w} value={`week-${w}`}>
-                        Week {w}
+                    {STANDARD_WEEKS.map((w) => (
+                      <option key={w.slug} value={w.slug}>
+                        {w.title}
                       </option>
                     ))}
                   </select>
@@ -2659,57 +3482,68 @@ C) Echocardiogram`}
                 </div>
               </div>
 
-              {/* PDF Slide Deck Management */}
-              <div className="space-y-1.5 pt-1">
+              {/* Google Drive PDF Slide Deck Management */}
+              <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
-                  <label className="font-bold text-secondary">PDF Slide Deck</label>
+                  <label className="font-bold text-secondary">Google Drive PDF Sharing Link</label>
                   {editingLecture.pdfPageCount !== undefined && editingLecture.pdfPageCount > 0 && (
                     <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
                       {editingLecture.pdfPageCount} {editingLecture.pdfPageCount === 1 ? 'slide' : 'slides'}
-                      {editingLecture.pdfFileSizeBytes ? ` • ${Math.round(editingLecture.pdfFileSizeBytes / 1024)} KB` : ''}
                     </span>
                   )}
                 </div>
+
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="PDF URL or upload file..."
+                    placeholder="https://drive.google.com/file/d/.../view?usp=sharing"
                     value={editingLecture.pdfUrl || ''}
                     onChange={(e) =>
                       setEditingLecture((prev) => ({ ...prev, pdfUrl: e.target.value }))
                     }
-                    className="flex-1 px-3 py-2 rounded-xl bg-subtle border border-subtle text-primary font-mono text-[11px]"
+                    className="flex-1 px-3 py-2 rounded-xl bg-subtle border border-subtle text-primary font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   />
-                  <input
-                    ref={pdfFileInputRef}
-                    type="file"
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={handlePdfUpload}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => pdfFileInputRef.current?.click()}
-                    className="px-3 py-2 rounded-xl bg-subtle hover:bg-subtle/80 text-secondary text-xs font-semibold border border-subtle cursor-pointer shrink-0"
-                  >
-                    Upload File
-                  </button>
+                  {editingLecture.pdfUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDrivePdfUrl(editingLecture.pdfUrl || null)}
+                      className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Test Preview</span>
+                    </button>
+                  )}
                 </div>
+
+                {/* Live Google Drive Detection Badge */}
                 {editingLecture.pdfUrl && (
-                  <div className="flex items-center gap-3 pt-1">
-                    <label className="text-[11px] text-muted font-medium">Slide count:</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={editingLecture.pdfPageCount || 1}
-                      onChange={(e) =>
-                        setEditingLecture((prev) => ({
-                          ...prev,
-                          pdfPageCount: Math.max(1, parseInt(e.target.value, 10) || 1),
-                        }))
-                      }
-                      className="w-20 px-2.5 py-1 rounded-lg bg-subtle border border-subtle text-primary font-mono text-xs"
-                    />
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    {extractGoogleDriveFileId(editingLecture.pdfUrl) ? (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-mono font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Valid Google Drive File ID Detected</span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-amber-500 font-mono">
+                        Direct URL (Non-Drive or custom link)
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] text-muted font-medium">Slide count:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={editingLecture.pdfPageCount || 1}
+                        onChange={(e) =>
+                          setEditingLecture((prev) => ({
+                            ...prev,
+                            pdfPageCount: Math.max(1, parseInt(e.target.value, 10) || 1),
+                          }))
+                        }
+                        className="w-20 px-2.5 py-1 rounded-lg bg-subtle border border-subtle text-primary font-mono text-xs"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -2804,6 +3638,26 @@ C) Echocardiogram`}
                     </button>
                   );
                 })}
+
+                {/* Track Clear Actions */}
+                <div className="flex items-center gap-1.5 pl-2 border-l border-subtle">
+                  <button
+                    type="button"
+                    onClick={() => handleClearTrack('practice')}
+                    title="Clear all practice questions in this lecture"
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] border border-emerald-500/20 transition cursor-pointer"
+                  >
+                    Clear Practice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleClearTrack('university_exam_style')}
+                    title="Clear all university exam style questions in this lecture"
+                    className="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold text-[11px] border border-indigo-500/20 transition cursor-pointer"
+                  >
+                    Clear Exam Style
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
@@ -2841,8 +3695,8 @@ C) Echocardiogram`}
 
             {/* Bulk Selection Bar */}
             {filteredLectureQuestions.length > 0 && (
-              <div className="px-6 py-2.5 bg-subtle/20 border-b border-subtle flex items-center justify-between gap-3 text-xs">
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-secondary hover:text-primary select-none">
+              <div className="px-6 py-2.5 bg-subtle/20 border-b border-subtle flex items-center justify-between gap-3 text-xs flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-secondary hover:text-primary select-none shrink-0">
                   <input
                     type="checkbox"
                     checked={
@@ -2864,18 +3718,79 @@ C) Echocardiogram`}
                 </label>
 
                 {selectedLectureQuestionIds.length > 0 && (
-                  <div className="flex items-center gap-2 animate-in fade-in">
+                  <div className="flex items-center gap-2 flex-wrap animate-in fade-in">
                     <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-md text-[11px]">
                       {selectedLectureQuestionIds.length} Selected
                     </span>
+
+                    {/* Move / Copy Target Lecture Relocator */}
+                    <div className="flex items-center gap-1.5 bg-surface px-2 py-1 rounded-xl border border-subtle">
+                      <select
+                        aria-label="Target lecture for transfer"
+                        value={targetTransferLectureId}
+                        onChange={(e) => setTargetTransferLectureId(e.target.value)}
+                        className="px-2 py-0.5 rounded-lg bg-subtle border border-subtle text-[11px] font-semibold text-primary max-w-[180px] cursor-pointer"
+                      >
+                        <option value="">Target Lecture...</option>
+                        {lectures
+                          .filter((l) => l.id !== managingQuestionsLecture.id)
+                          .map((l) => (
+                            <option key={l.id} value={l.id}>
+                              {l.title.slice(0, 25)}... ({l.subjectSlug} &gt; {l.weekSlug})
+                            </option>
+                          ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        disabled={!targetTransferLectureId}
+                        onClick={() => handleBulkMoveQuestions(targetTransferLectureId)}
+                        className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-[11px] cursor-pointer transition shadow-xs"
+                        title="Move selected questions to another lecture"
+                      >
+                        Move
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={!targetTransferLectureId}
+                        onClick={() => handleBulkCopyQuestions(targetTransferLectureId)}
+                        className="px-2.5 py-1 rounded-lg bg-subtle hover:bg-subtle/80 disabled:opacity-40 disabled:cursor-not-allowed text-secondary hover:text-primary font-bold text-[11px] border border-subtle cursor-pointer transition"
+                        title="Copy selected questions to another lecture"
+                      >
+                        Copy
+                      </button>
+                    </div>
+
+                    {/* Track Switchers */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleBulkSwitchTrack('practice')}
+                        className="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] border border-emerald-500/20 cursor-pointer transition"
+                        title="Convert selected questions to Practice track"
+                      >
+                        To Practice
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBulkSwitchTrack('university_exam_style')}
+                        className="px-2 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] border border-indigo-500/20 cursor-pointer transition"
+                        title="Convert selected questions to University Exam Style track"
+                      >
+                        To Exam Style
+                      </button>
+                    </div>
+
                     <button
                       type="button"
                       onClick={handleBulkDeleteQuestions}
-                      className="px-3 py-1 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
                     >
                       <Trash2 className="w-3 h-3" />
-                      <span>Delete Selected</span>
+                      <span>Delete</span>
                     </button>
+
                     <button
                       type="button"
                       onClick={() => setSelectedLectureQuestionIds([])}
@@ -3834,6 +4749,114 @@ C) Echocardiogram`}
             </div>
           </div>
         </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: EDIT ANNOUNCEMENT
+         ========================================================================= */}
+      {editingAnnouncement && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 animate-in fade-in"
+          onClick={() => setEditingAnnouncement(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl bg-surface border border-subtle p-6 space-y-4 shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-subtle">
+              <h3 className="text-base font-bold text-primary">Edit Announcement</h3>
+              <button
+                type="button"
+                onClick={() => setEditingAnnouncement(null)}
+                className="p-1.5 rounded-full text-muted hover:text-primary hover:bg-subtle cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-secondary">Title</label>
+                <input
+                  type="text"
+                  value={editingAnnouncement.title}
+                  onChange={(e) =>
+                    setEditingAnnouncement((prev) => prev && { ...prev, title: e.target.value })
+                  }
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-subtle border border-subtle text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-secondary">Body Content</label>
+                <textarea
+                  rows={3}
+                  value={editingAnnouncement.body}
+                  onChange={(e) =>
+                    setEditingAnnouncement((prev) => prev && { ...prev, body: e.target.value })
+                  }
+                  className="w-full mt-1 p-3 rounded-xl bg-subtle border border-subtle text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 leading-relaxed"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-secondary">Action URL (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="/lecture/blood/physiology/week-1"
+                  value={editingAnnouncement.targetUrl || ''}
+                  onChange={(e) =>
+                    setEditingAnnouncement((prev) => prev && { ...prev, targetUrl: e.target.value })
+                  }
+                  className="w-full mt-1 px-3 py-2 rounded-xl bg-subtle border border-subtle text-primary focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono text-[11px]"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={editingAnnouncement.isActive !== false}
+                    onChange={(e) =>
+                      setEditingAnnouncement((prev) => prev && { ...prev, isActive: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded text-cyan-600 focus:ring-0 cursor-pointer"
+                  />
+                  <span>Active &amp; Visible to Students</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-subtle">
+              <button
+                type="button"
+                onClick={() => setEditingAnnouncement(null)}
+                className="px-4 py-2 rounded-xl bg-subtle text-secondary font-semibold text-xs cursor-pointer hover:bg-subtle/80"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditedAnnouncement}
+                className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-sm transition active:scale-95"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: GOOGLE DRIVE PDF READER PREVIEW
+         ========================================================================= */}
+      {previewDrivePdfUrl && (
+        <PDFViewerModal
+          isOpen={true}
+          pdfUrl={previewDrivePdfUrl}
+          title="Slide Deck Reader"
+          onClose={() => setPreviewDrivePdfUrl(null)}
+        />
       )}
 
       {/* =========================================================================

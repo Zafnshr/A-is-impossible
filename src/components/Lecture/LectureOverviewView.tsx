@@ -26,6 +26,11 @@ import {
   StudyModeType,
 } from '../../types';
 import { officialContentService } from '../../services/officialContentService';
+import {
+  isGoogleDriveUrl,
+  getGoogleDriveViewUrl,
+  getGoogleDriveDownloadUrl,
+} from '../../services/googleDrivePdf';
 import { PDFViewerModal } from '../PDF/PDFViewerModal';
 import { LectureSlidePreview } from './LectureSlidePreview';
 import { StudySetupModal, StudySessionLaunchConfig } from '../Study/StudySetupModal';
@@ -133,8 +138,12 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
       }
     };
     loadData();
+    const unsubscribe = officialContentService.subscribe(() => {
+      loadData();
+    });
     return () => {
       isMounted = false;
+      unsubscribe();
     };
   }, [moduleSlug, subjectSlug, weekSlug, lectureSlug, currentUserId]);
 
@@ -143,6 +152,11 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
   const handleOpenInNewTab = () => {
     const pdfTarget = activePdfUrl || lecture?.pdfUrl;
     if (!pdfTarget) return;
+
+    if (isGoogleDriveUrl(pdfTarget)) {
+      window.open(getGoogleDriveViewUrl(pdfTarget), '_blank', 'noopener,noreferrer');
+      return;
+    }
 
     // 1. Direct same-origin or absolute URL with .pdf: Opens Chrome native PDF viewer tab directly
     if (
@@ -186,6 +200,11 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
   const handleDownloadPdf = () => {
     const pdfTarget = activePdfUrl || lecture?.pdfUrl;
     if (!pdfTarget) return;
+
+    if (isGoogleDriveUrl(pdfTarget)) {
+      window.open(getGoogleDriveDownloadUrl(pdfTarget), '_blank', 'noopener,noreferrer');
+      return;
+    }
 
     const safeTitle = (lecture?.title || 'Lecture_Slides')
       .replace(/[^a-zA-Z0-9_\-\s]/g, '')
@@ -477,7 +496,13 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
                 <span>Primary Lecture Slides Deck</span>
               </div>
               <span className="text-xs font-mono text-muted">
-                {livePdfPageCount ?? lecture.pdfPageCount ?? 1} Slides
+                {livePdfPageCount && livePdfPageCount > 0
+                  ? `${livePdfPageCount} Slides`
+                  : lecture.pdfPageCount && lecture.pdfPageCount > 0
+                  ? `${lecture.pdfPageCount} Slides`
+                  : isGoogleDriveUrl(activePdfUrl)
+                  ? 'Google Drive Slide Deck'
+                  : 'Slide Deck'}
                 {lecture.pdfFileSizeBytes && lecture.pdfFileSizeBytes > 0
                   ? ` • ${formatPdfSizeBytes(lecture.pdfFileSizeBytes)}`
                   : ''}
@@ -525,7 +550,9 @@ export const LectureOverviewView: React.FC<LectureOverviewViewProps> = ({
             >
               <Eye className="w-4 h-4" />
               <span>
-                Open Slides Reader ({livePdfPageCount ?? lecture.pdfPageCount ?? 1} Slides)
+                {((livePdfPageCount && livePdfPageCount > 0) || (lecture.pdfPageCount && lecture.pdfPageCount > 0))
+                  ? `Open Slides Reader (${livePdfPageCount ?? lecture.pdfPageCount} Slides)`
+                  : 'Open Slides Reader'}
               </span>
             </button>
 

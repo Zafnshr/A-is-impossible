@@ -222,11 +222,24 @@ export default function App() {
     activeSessionRef.current = activeSession;
   }, [activeSession]);
 
-  // Initialize Official Content seed and stores
+  // Initialize Official Content seed, stores, and reactive cross-browser listener
   useEffect(() => {
     officialContentService.initializeOfficialContent().catch((err) => {
       console.warn('[OfficialContent] Init warning:', err);
     });
+
+    const unsubscribe = officialContentService.subscribe(async () => {
+      try {
+        const loadedLecs = await officialContentService.getOfficialLectures();
+        setOfficialLectures(loadedLecs || []);
+      } catch (err) {
+        console.warn('[OfficialContent] Reactive update notice:', err);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // 1. Initial Load from IndexedDB
@@ -616,7 +629,7 @@ export default function App() {
   };
 
   const handleContinueAsGuest = () => {
-    experienceFlags.markVisited();
+    experienceFlags.markFirstRunCompleted();
     setExperienceStage('done');
     setFirstLaunchOpen(false);
   };
@@ -633,7 +646,7 @@ export default function App() {
   };
 
   const handleFirstLaunchGoogle = async () => {
-    experienceFlags.markVisited();
+    experienceFlags.markFirstRunCompleted();
     setExperienceStage('done');
     setFirstLaunchOpen(false);
     await handleSignInWithGoogle();
@@ -2160,32 +2173,18 @@ export default function App() {
         <CinematicIntro
           onComplete={() => {
             experienceFlags.markIntroSeen();
-            if (!experienceFlags.onboardingDone()) {
-              setExperienceStage('onboarding');
-            } else if (!experienceFlags.hasVisited()) {
-              setExperienceStage('welcome');
-            } else {
-              setExperienceStage('done');
-            }
+            setExperienceStage('onboarding');
           }}
         />
       )}
 
-      {/* 2. Returning User Fast Branding Intro (~1.2s, auto-continues when ready) */}
+      {/* 2. Returning User Fast Branding Intro (~1.2s, auto-continues directly to website) */}
       {experienceStage === 'quick' && (
         <QuickIntro
           theme={settings.theme || 'dark'}
           isAppReady={isReady}
           onComplete={() => {
-            if (!experienceFlags.hasVisited()) {
-              if (!experienceFlags.onboardingDone()) {
-                setExperienceStage('onboarding');
-              } else {
-                setExperienceStage('welcome');
-              }
-            } else {
-              setExperienceStage('done');
-            }
+            setExperienceStage('done');
           }}
         />
       )}
@@ -2194,20 +2193,12 @@ export default function App() {
       {experienceStage === 'onboarding' && (
         <OnboardingContainer
           onComplete={() => {
-            experienceFlags.markOnboardingDone();
-            if (!experienceFlags.hasVisited()) {
-              setExperienceStage('welcome');
-            } else {
-              setExperienceStage('done');
-            }
+            experienceFlags.markFirstRunCompleted();
+            setExperienceStage('welcome');
           }}
           onSkip={() => {
-            experienceFlags.markOnboardingDone();
-            if (!experienceFlags.hasVisited()) {
-              setExperienceStage('welcome');
-            } else {
-              setExperienceStage('done');
-            }
+            experienceFlags.markFirstRunCompleted();
+            setExperienceStage('welcome');
           }}
         />
       )}

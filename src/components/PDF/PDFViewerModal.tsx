@@ -21,9 +21,16 @@ import {
   ChevronDown,
   Layers,
   BookOpen,
+  FileText,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { officialContentService } from '../../services/officialContentService';
+import {
+  isGoogleDriveUrl,
+  getGoogleDriveEmbedPreviewUrl,
+  getGoogleDriveViewUrl,
+  getGoogleDriveDownloadUrl,
+} from '../../services/googleDrivePdf';
 
 // Configure Mozilla PDF.js worker
 if (typeof window !== 'undefined') {
@@ -328,6 +335,8 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
   subjectName,
   weekNumber,
 }) => {
+  const isDrive = isGoogleDriveUrl(pdfUrl);
+
   // Navigation & Scale state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
@@ -392,6 +401,12 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
   // Load PDF Document
   useEffect(() => {
     if (!isOpen || !pdfUrl) return;
+
+    if (isGoogleDriveUrl(pdfUrl)) {
+      setIsLoading(true);
+      setLoadError(null);
+      return;
+    }
 
     let isMounted = true;
     setIsLoading(true);
@@ -593,6 +608,12 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
   const handleOpenInNewTab = () => {
     if (!pdfUrl) return;
 
+    // 0. Google Drive PDF View URL
+    if (isGoogleDriveUrl(pdfUrl)) {
+      window.open(getGoogleDriveViewUrl(pdfUrl), '_blank');
+      return;
+    }
+
     // 1. Direct same-origin or absolute URL with .pdf: Opens Chrome native PDF viewer tab directly
     if (
       pdfUrl.startsWith('/') ||
@@ -635,6 +656,12 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
   // Safe Named File Download
   const handleDownloadPdf = () => {
     if (!pdfUrl) return;
+
+    // 0. Google Drive Direct Download
+    if (isGoogleDriveUrl(pdfUrl)) {
+      window.open(getGoogleDriveDownloadUrl(pdfUrl), '_blank');
+      return;
+    }
 
     const safeTitle = (title || 'Lecture_Slides')
       .replace(/[^a-zA-Z0-9_\-\s]/g, '')
@@ -868,205 +895,241 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
             </div>
           </div>
 
-          {/* Toggle Slide Thumbnails Drawer Button */}
-          <button
-            type="button"
-            onClick={() => setShowThumbnails((prev) => !prev)}
-            className={`p-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold ${
-              showThumbnails
-                ? 'bg-cyan-600 text-white shadow-sm'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-            }`}
-            title="Toggle Slide Thumbnails (T)"
-          >
-            <LayoutGrid className="w-4 h-4" />
-            <span className="hidden xl:inline">Slides ({totalPages})</span>
-          </button>
-        </div>
-
-        {/* Center: Slide Navigator & Mode Selector */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Slide Navigator Controls */}
-          <div className="flex items-center bg-slate-800/90 rounded-xl border border-slate-700/60 p-1 shadow-inner">
+          {/* Toggle Slide Thumbnails Drawer Button (Canvas Only) */}
+          {!isDrive && (
             <button
               type="button"
-              disabled={currentPage <= 1}
-              onClick={() => scrollToSlide(currentPage - 1)}
-              className="p-1 rounded-lg hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer text-slate-300 hover:text-white"
-              title="Previous Slide (← / PageUp)"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            {/* Jump Input */}
-            <form onSubmit={handleJumpSubmit} className="flex items-center px-2 gap-1 text-xs font-mono font-bold">
-              <input
-                type="text"
-                value={jumpInput}
-                onChange={(e) => setJumpInput(e.target.value)}
-                onBlur={handleJumpSubmit}
-                className="w-10 text-center bg-slate-900 border border-slate-700 rounded-md py-0.5 text-white focus:outline-none focus:border-cyan-500 font-mono text-xs"
-              />
-              <span className="text-slate-500">/</span>
-              <span className="text-slate-400">{totalPages}</span>
-            </form>
-
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => scrollToSlide(currentPage + 1)}
-              className="p-1 rounded-lg hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer text-slate-300 hover:text-white"
-              title="Next Slide (→ / PageDown / Space)"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* View Mode Toggle: Continuous vs Single Slide */}
-          <div className="hidden lg:flex items-center bg-slate-800/90 rounded-xl border border-slate-700/60 p-1 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setViewMode('continuous')}
-              className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'continuous'
+              onClick={() => setShowThumbnails((prev) => !prev)}
+              className={`p-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold ${
+                showThumbnails
                   ? 'bg-cyan-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
               }`}
-              title="Continuous Vertical Scroll (M)"
+              title="Toggle Slide Thumbnails (T)"
             >
-              <Columns className="w-3.5 h-3.5" />
-              <span>Scroll</span>
+              <LayoutGrid className="w-4 h-4" />
+              <span className="hidden xl:inline">Slides ({totalPages})</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('single')}
-              className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'single'
-                  ? 'bg-cyan-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Single Slide Presentation Mode (M)"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Slide</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Zoom Controls, Search, Fullscreen, External & Close */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Zoom Group */}
-          <div className="hidden sm:flex items-center bg-slate-800/90 rounded-xl border border-slate-700/60 p-1">
-            <button
-              type="button"
-              onClick={handleZoomOut}
-              className="p-1 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
-              title="Zoom Out (-)"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleResetZoom}
-              className="px-2 text-[11px] font-mono text-slate-300 hover:text-cyan-400 font-bold cursor-pointer"
-              title="Reset Zoom to 100% (0)"
-            >
-              {Math.round(scale * 100)}%
-            </button>
-
-            <button
-              type="button"
-              onClick={handleZoomIn}
-              className="p-1 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
-              title="Zoom In (+)"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Fit Presets */}
-          <div className="hidden md:flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handleFitWidth}
-              className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold border border-slate-700/60 transition cursor-pointer"
-              title="Fit to Window Width (W)"
-            >
-              Fit Width
-            </button>
-            <button
-              type="button"
-              onClick={handleFitPage}
-              className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold border border-slate-700/60 transition cursor-pointer"
-              title="Fit Slide to Screen Height (P)"
-            >
-              Fit Page
-            </button>
-          </div>
-
-          {/* In-Document Search Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              setSearchOpen(!searchOpen);
-              if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
-            }}
-            className={`p-2 rounded-xl transition cursor-pointer relative ${
-              searchOpen
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60'
-            }`}
-            title="Find in PDF (Ctrl+F)"
-          >
-            <Search className="w-4 h-4" />
-            {searchResults.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full ring-2 ring-slate-900" />
-            )}
-          </button>
-
-          {/* Keyboard Shortcuts Helper */}
-          <button
-            type="button"
-            onClick={() => setShowShortcutsModal(true)}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 transition cursor-pointer hidden lg:flex"
-            title="Keyboard Shortcuts (?)"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
-
-          {/* Direct PDF Download / External View */}
-          {pdfUrl && (
-            <>
-              <button
-                type="button"
-                onClick={handleOpenInNewTab}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition cursor-pointer hidden sm:flex"
-                title="Open PDF in new browser tab"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition cursor-pointer hidden sm:flex"
-                title="Download Slide Deck (.pdf)"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-            </>
           )}
-
-
-
-
         </div>
+
+        {/* Center: Slide Navigator or Google Drive Badge */}
+        {isDrive ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-bold font-mono">
+            <FileText className="w-3.5 h-3.5" />
+            <span>Google Drive Reader</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Slide Navigator Controls */}
+            <div className="flex items-center bg-slate-800/90 rounded-xl border border-slate-700/60 p-1 shadow-inner">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => scrollToSlide(currentPage - 1)}
+                className="p-1 rounded-lg hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer text-slate-300 hover:text-white"
+                title="Previous Slide (← / PageUp)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Jump Input */}
+              <form onSubmit={handleJumpSubmit} className="flex items-center px-2 gap-1 text-xs font-mono font-bold">
+                <input
+                  type="text"
+                  value={jumpInput}
+                  onChange={(e) => setJumpInput(e.target.value)}
+                  onBlur={handleJumpSubmit}
+                  className="w-10 text-center bg-slate-900 border border-slate-700 rounded-md py-0.5 text-white focus:outline-none focus:border-cyan-500 font-mono text-xs"
+                />
+                <span className="text-slate-500">/</span>
+                <span className="text-slate-400">{totalPages}</span>
+              </form>
+
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => scrollToSlide(currentPage + 1)}
+                className="p-1 rounded-lg hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer text-slate-300 hover:text-white"
+                title="Next Slide (→ / PageDown / Space)"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* View Mode Toggle: Continuous vs Single Slide */}
+            <div className="hidden lg:flex items-center bg-slate-800/90 rounded-xl border border-slate-700/60 p-1 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setViewMode('continuous')}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'continuous'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Continuous Vertical Scroll (M)"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span>Scroll</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('single')}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'single'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Single Slide Presentation Mode (M)"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Slide</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Right: Controls */}
+        {isDrive ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleOpenInNewTab}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition cursor-pointer"
+              title="Open in Google Drive"
+            >
+              <ExternalLink className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">Open in Drive</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition cursor-pointer shadow-sm"
+              title="Download PDF"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Download</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+              title="Close Reader (Esc)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Zoom Group */}
+            <div className="hidden sm:flex items-center bg-slate-800/90 rounded-xl border border-slate-700/60 p-1">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                className="p-1 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                title="Zoom Out (-)"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetZoom}
+                className="px-2 text-[11px] font-mono text-slate-300 hover:text-cyan-400 font-bold cursor-pointer"
+                title="Reset Zoom to 100% (0)"
+              >
+                {Math.round(scale * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                className="p-1 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                title="Zoom In (+)"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Fit Presets */}
+            <div className="hidden md:flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleFitWidth}
+                className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold border border-slate-700/60 transition cursor-pointer"
+                title="Fit to Window Width (W)"
+              >
+                Fit Width
+              </button>
+              <button
+                type="button"
+                onClick={handleFitPage}
+                className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold border border-slate-700/60 transition cursor-pointer"
+                title="Fit Slide to Screen Height (P)"
+              >
+                Fit Page
+              </button>
+            </div>
+
+            {/* In-Document Search Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setSearchOpen(!searchOpen);
+                if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
+              }}
+              className={`p-2 rounded-xl transition cursor-pointer relative ${
+                searchOpen
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60'
+              }`}
+              title="Find in PDF (Ctrl+F)"
+            >
+              <Search className="w-4 h-4" />
+              {searchResults.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full ring-2 ring-slate-900" />
+              )}
+            </button>
+
+            {/* Keyboard Shortcuts Helper */}
+            <button
+              type="button"
+              onClick={() => setShowShortcutsModal(true)}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 transition cursor-pointer hidden lg:flex"
+              title="Keyboard Shortcuts (?)"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+
+            {/* Direct PDF Download / External View */}
+            {pdfUrl && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleOpenInNewTab}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition cursor-pointer hidden sm:flex"
+                  title="Open PDF in new browser tab"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition cursor-pointer hidden sm:flex"
+                  title="Download Slide Deck (.pdf)"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </header>
 
       {/* ============================================================== */}
       {/* IN-DOCUMENT SEARCH DOCK (Screen Flow 5.2 Floating Dock)         */}
       {/* ============================================================== */}
-      {searchOpen && (
+      {!isDrive && searchOpen && (
         <div className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between gap-4 animate-in slide-in-from-top-2 z-20 shadow-xl">
           <div className="flex items-center gap-3 flex-1 max-w-lg">
             <Search className="w-4 h-4 text-amber-400 shrink-0" />
@@ -1140,171 +1203,191 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* BODY CONTENT: THUMBNAILS DRAWER + CANVAS SCROLLER VIEWPORT     */}
+      {/* BODY CONTENT: GOOGLE DRIVE EMBED IFRAME or CANVAS SCROLLER     */}
       {/* ============================================================== */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Collapsible Thumbnails Drawer */}
-        {showThumbnails && (
-          <aside className="w-64 sm:w-72 border-r border-slate-800 bg-slate-900/95 flex flex-col shrink-0 z-10 backdrop-blur-md animate-in slide-in-from-left duration-200">
-            <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <LayoutGrid className="w-4 h-4 text-cyan-400" />
-                <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  Slide Deck ({totalPages})
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowThumbnails(false)}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                <ThumbnailCard
-                  key={pageNum}
-                  pageNum={pageNum}
-                  pdfDoc={pdfDocRef.current}
-                  isActive={currentPage === pageNum}
-                  onClick={() => scrollToSlide(pageNum)}
-                />
-              ))}
-            </div>
-          </aside>
-        )}
-
-        {/* Central Viewport */}
-        <main
-          ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-950 flex flex-col items-center py-8 px-4 relative select-none"
-        >
-          {/* Initial Loading Screen */}
+      {isDrive ? (
+        <div className="flex-1 w-full h-full relative bg-slate-950 flex flex-col items-center justify-center">
           {isLoading && (
-            <div className="my-auto flex flex-col items-center gap-4 text-slate-400">
-              <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
-              <div className="text-center space-y-1">
-                <h4 className="text-sm font-bold text-white">Initializing High-Performance Canvas Engine</h4>
-                <p className="text-xs text-slate-500 font-mono">
-                  Loading slide deck into virtualized GPU pipeline...
-                </p>
-              </div>
+            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs flex flex-col items-center justify-center gap-3 text-cyan-400 z-10">
+              <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+              <span className="text-xs font-mono font-bold text-slate-300">
+                Loading Google Drive Reader...
+              </span>
             </div>
           )}
-
-          {/* Loading Error Notice */}
-          {loadError && (
-            <div className="my-auto max-w-lg p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4 shadow-2xl">
-              <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
-              <div className="space-y-1">
-                <h4 className="text-sm font-bold text-white">Direct Canvas Render Notice</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Direct cross-origin client rendering was intercepted. You can view or download the slides
-                  securely using native viewing options:
-                </p>
-              </div>
-              {pdfUrl && (
-                <div className="flex items-center justify-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleOpenInNewTab}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-sm cursor-pointer"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open in Browser Viewer</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadPdf}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 shadow-sm cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download PDF</span>
-                  </button>
+          <iframe
+            src={pdfUrl ? getGoogleDriveEmbedPreviewUrl(pdfUrl) : ''}
+            className="w-full h-full border-0"
+            allow="autoplay; fullscreen"
+            title={title}
+            onLoad={() => setIsLoading(false)}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Left Collapsible Thumbnails Drawer */}
+          {showThumbnails && (
+            <aside className="w-64 sm:w-72 border-r border-slate-800 bg-slate-900/95 flex flex-col shrink-0 z-10 backdrop-blur-md animate-in slide-in-from-left duration-200">
+              <div className="p-3.5 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Slide Deck ({totalPages})
+                  </span>
                 </div>
-              )}
-            </div>
-          )}
+                <button
+                  type="button"
+                  onClick={() => setShowThumbnails(false)}
+                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-          {/* Mode 1: Continuous Vertical Scroller (TRD 5.1 & 5.3 Virtualized Scroller) */}
-          {!isLoading && !loadError && viewMode === 'continuous' && (
-            <div className="w-full flex flex-col items-center gap-8 pb-20">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-                // TRD 5.3 Virtualization Buffer Window: current ± 1 slides
-                const isBuffered = Math.abs(pageNum - currentPage) <= 1;
-                const matchesForThisPage = searchResults.filter((m) => m.page === pageNum);
-
-                return (
-                  <VirtualizedSlide
+              <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                  <ThumbnailCard
                     key={pageNum}
                     pageNum={pageNum}
                     pdfDoc={pdfDocRef.current}
-                    scale={scale}
                     isActive={currentPage === pageNum}
-                    isBuffered={isBuffered}
-                    width={slideDimensions.width}
-                    height={slideDimensions.height}
-                    searchMatchesForPage={matchesForThisPage}
-                    activeMatch={activeMatch}
-                    onInView={(visiblePage) => {
-                      setCurrentPage(visiblePage);
-                    }}
+                    onClick={() => scrollToSlide(pageNum)}
                   />
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            </aside>
           )}
 
-          {/* Mode 2: Single Slide Presentation Mode */}
-          {!isLoading && !loadError && viewMode === 'single' && (
-            <div className="my-auto relative flex items-center justify-center">
-              {/* Previous Slide Floating Hover Arrow */}
-              {currentPage > 1 && (
-                <button
-                  type="button"
-                  onClick={() => scrollToSlide(currentPage - 1)}
-                  className="absolute left-[-56px] top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-slate-900/80 hover:bg-cyan-600 text-slate-300 hover:text-white border border-slate-800 shadow-xl transition cursor-pointer backdrop-blur-md"
-                  title="Previous Slide"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-              )}
+          {/* Central Viewport */}
+          <main
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-950 flex flex-col items-center py-8 px-4 relative select-none"
+          >
+            {/* Initial Loading Screen */}
+            {isLoading && (
+              <div className="my-auto flex flex-col items-center gap-4 text-slate-400">
+                <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
+                <div className="text-center space-y-1">
+                  <h4 className="text-sm font-bold text-white">Initializing High-Performance Canvas Engine</h4>
+                  <p className="text-xs text-slate-500 font-mono">
+                    Loading slide deck into virtualized GPU pipeline...
+                  </p>
+                </div>
+              </div>
+            )}
 
-              <VirtualizedSlide
-                pageNum={currentPage}
-                pdfDoc={pdfDocRef.current}
-                scale={scale}
-                isActive={true}
-                isBuffered={true}
-                width={slideDimensions.width}
-                height={slideDimensions.height}
-                searchMatchesForPage={searchResults.filter((m) => m.page === currentPage)}
-                activeMatch={activeMatch}
-                onInView={() => {}}
-              />
+            {/* Loading Error Notice */}
+            {loadError && (
+              <div className="my-auto max-w-lg p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4 shadow-2xl">
+                <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">Direct Canvas Render Notice</h4>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Direct cross-origin client rendering was intercepted. You can view or download the slides
+                    securely using native viewing options:
+                  </p>
+                </div>
+                {pdfUrl && (
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenInNewTab}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-sm cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open in Browser Viewer</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadPdf}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 shadow-sm cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download PDF</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
-              {/* Next Slide Floating Hover Arrow */}
-              {currentPage < totalPages && (
-                <button
-                  type="button"
-                  onClick={() => scrollToSlide(currentPage + 1)}
-                  className="absolute right-[-56px] top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-slate-900/80 hover:bg-cyan-600 text-slate-300 hover:text-white border border-slate-800 shadow-xl transition cursor-pointer backdrop-blur-md"
-                  title="Next Slide"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              )}
-            </div>
-          )}
-        </main>
-      </div>
+            {/* Mode 1: Continuous Vertical Scroller (TRD 5.1 & 5.3 Virtualized Scroller) */}
+            {!isLoading && !loadError && viewMode === 'continuous' && (
+              <div className="w-full flex flex-col items-center gap-8 pb-20">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                  // TRD 5.3 Virtualization Buffer Window: current ± 1 slides
+                  const isBuffered = Math.abs(pageNum - currentPage) <= 1;
+                  const matchesForThisPage = searchResults.filter((m) => m.page === pageNum);
+
+                  return (
+                    <VirtualizedSlide
+                      key={pageNum}
+                      pageNum={pageNum}
+                      pdfDoc={pdfDocRef.current}
+                      scale={scale}
+                      isActive={currentPage === pageNum}
+                      isBuffered={isBuffered}
+                      width={slideDimensions.width}
+                      height={slideDimensions.height}
+                      searchMatchesForPage={matchesForThisPage}
+                      activeMatch={activeMatch}
+                      onInView={(visiblePage) => {
+                        setCurrentPage(visiblePage);
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Mode 2: Single Slide Presentation Mode */}
+            {!isLoading && !loadError && viewMode === 'single' && (
+              <div className="my-auto relative flex items-center justify-center">
+                {/* Previous Slide Floating Hover Arrow */}
+                {currentPage > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => scrollToSlide(currentPage - 1)}
+                    className="absolute left-[-56px] top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-slate-900/80 hover:bg-cyan-600 text-slate-300 hover:text-white border border-slate-800 shadow-xl transition cursor-pointer backdrop-blur-md"
+                    title="Previous Slide"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                )}
+
+                <VirtualizedSlide
+                  pageNum={currentPage}
+                  pdfDoc={pdfDocRef.current}
+                  scale={scale}
+                  isActive={true}
+                  isBuffered={true}
+                  width={slideDimensions.width}
+                  height={slideDimensions.height}
+                  searchMatchesForPage={searchResults.filter((m) => m.page === currentPage)}
+                  activeMatch={activeMatch}
+                  onInView={() => {}}
+                />
+
+                {/* Next Slide Floating Hover Arrow */}
+                {currentPage < totalPages && (
+                  <button
+                    type="button"
+                    onClick={() => scrollToSlide(currentPage + 1)}
+                    className="absolute right-[-56px] top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-slate-900/80 hover:bg-cyan-600 text-slate-300 hover:text-white border border-slate-800 shadow-xl transition cursor-pointer backdrop-blur-md"
+                    title="Next Slide"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                )}
+              </div>
+            )}
+          </main>
+        </div>
+      )}
 
       {/* ============================================================== */}
       {/* FLOATING BOTTOM HUD STATUS PILL & QUICK RETURN BUTTON          */}
       {/* ============================================================== */}
-      {!isLoading && !loadError && (
+      {!isLoading && !loadError && !isDrive && (
         <>
 
 
