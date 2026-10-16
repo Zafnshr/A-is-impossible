@@ -58,22 +58,40 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
   onNavigateToOfficialContent,
 }) => {
   const initialYear = initialLocation?.year || getDefaultYear();
-  const initialModule = initialLocation?.module || getDefaultModule(initialYear);
-  const initialSubject = initialLocation?.subject || getDefaultSubject(initialYear, initialModule);
+  const initialModule = initialLocation?.module || '';
+  const initialSubject = initialLocation?.subject || '';
 
-  // Explorer selection path
+  // Explorer selection path - no default opened module in personal decks page
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [selectedModule, setSelectedModule] = useState<string>(initialModule);
   const [selectedSubject, setSelectedSubject] = useState<string>(initialSubject);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Compressible suggestions banner state (persisted)
+  const [isOtherDecksCollapsed, setIsOtherDecksCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('a_plus_other_decks_compressed') === 'true';
+  });
+
+  const toggleOtherDecksCollapsed = () => {
+    setIsOtherDecksCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('a_plus_other_decks_compressed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   useEffect(() => {
-    if (initialLocation?.year && initialLocation?.module && initialLocation?.subject) {
+    if (initialLocation?.year) {
       setSelectedYear(initialLocation.year);
-      setSelectedModule(initialLocation.module);
-      setSelectedSubject(initialLocation.subject);
+      setSelectedModule(initialLocation.module || '');
+      setSelectedSubject(initialLocation.subject || '');
       setExpandedYears((prev) => ({ ...prev, [initialLocation.year!]: true }));
-      setExpandedModules((prev) => ({ ...prev, [initialLocation.module!]: true }));
+      if (initialLocation.module) {
+        setExpandedModules((prev) => ({ ...prev, [initialLocation.module!]: true }));
+      }
     }
   }, [initialLocation]);
 
@@ -84,12 +102,12 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
   // Delete modal state
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
 
-  // Expand state for accordion / tree
+  // Expand state for accordion / tree - no default opened module unless specified in initialLocation
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({
     [initialYear]: true,
   });
-  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({
-    [initialModule]: true,
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>(() => {
+    return initialModule ? { [initialModule]: true } : {};
   });
 
   const toggleYear = (yr: string) => {
@@ -102,7 +120,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
 
   const academicYears = getAcademicYears();
   const availableModules = getModulesForYear(selectedYear);
-  const availableSubjects = getSubjectsForModule(selectedYear, selectedModule);
+  const availableSubjects = selectedModule ? getSubjectsForModule(selectedYear, selectedModule) : [];
 
   // Filtered decks for right pane
   const filteredDecks = useMemo(() => {
@@ -115,6 +133,12 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
           d.module.toLowerCase().includes(q) ||
           d.year.toLowerCase().includes(q)
         );
+      }
+      if (!selectedModule) {
+        return d.year === selectedYear;
+      }
+      if (!selectedSubject) {
+        return d.year === selectedYear && d.module === selectedModule;
       }
       return (
         d.year === selectedYear &&
@@ -163,6 +187,7 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
             {academicYears.map((yr) => {
               const isYearOpen = expandedYears[yr] ?? (yr === selectedYear);
               const modulesForYr = getModulesForYear(yr);
+              const yrDecksCount = decks.filter((d) => d.year === yr).length;
 
               return (
                 <div key={yr} className="space-y-1">
@@ -170,14 +195,9 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                     onClick={() => {
                       setSelectedYear(yr);
                       toggleYear(yr);
-                      if (modulesForYr.length > 0) {
-                        setSelectedModule(modulesForYr[0]);
-                        const subj = getSubjectsForModule(yr, modulesForYr[0]);
-                        if (subj.length > 0) setSelectedSubject(subj[0]);
-                      }
                     }}
                     className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-bold flex items-center justify-between transition ${
-                      selectedYear === yr
+                      selectedYear === yr && !selectedModule
                         ? 'bg-cyan-50 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-800'
                         : 'text-secondary hover:bg-subtle'
                     }`}
@@ -190,22 +210,48 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                       )}
                       <span>{yr}</span>
                     </div>
+                    <span className="text-[10px] font-mono text-muted">{yrDecksCount}</span>
                   </button>
 
                   {/* Modules under selected year */}
                   {isYearOpen && (
                     <div className="pl-4 space-y-1 border-l border-subtle ml-3">
+                      {/* All Modules option */}
+                      <button
+                        onClick={() => {
+                          setSelectedModule('');
+                          setSelectedSubject('');
+                        }}
+                        className={`w-full px-2 py-1 rounded text-left text-[11px] font-semibold flex items-center justify-between transition ${
+                          selectedYear === yr && !selectedModule
+                            ? 'text-cyan-600 dark:text-cyan-400 bg-subtle font-bold'
+                            : 'text-secondary hover:text-primary'
+                        }`}
+                      >
+                        <span className="truncate">All Modules</span>
+                        <span className="text-[10px] font-mono text-muted">{yrDecksCount}</span>
+                      </button>
+
                       {modulesForYr.map((mod) => {
-                        const isModOpen = expandedModules[mod] ?? (mod === selectedModule);
+                        const isModOpen = Boolean(expandedModules[mod]);
                         const subjectsForMod = getSubjectsForModule(yr, mod);
+                        const modDecksCount = decks.filter((d) => d.year === yr && d.module === mod).length;
 
                         return (
                           <div key={mod} className="space-y-1">
                             <button
                               onClick={() => {
-                                setSelectedModule(mod);
+                                const nextOpen = !isModOpen;
                                 toggleModule(mod);
-                                if (subjectsForMod.length > 0) setSelectedSubject(subjectsForMod[0]);
+                                if (nextOpen) {
+                                  setSelectedModule(mod);
+                                  if (subjectsForMod.length > 0) setSelectedSubject(subjectsForMod[0]);
+                                } else {
+                                  if (selectedModule === mod) {
+                                    setSelectedModule('');
+                                    setSelectedSubject('');
+                                  }
+                                }
                               }}
                               className={`w-full px-2 py-1 rounded text-left text-[11px] font-semibold flex items-center justify-between transition ${
                                 selectedModule === mod
@@ -214,11 +260,18 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                               }`}
                             >
                               <span className="truncate">{mod}</span>
-                              {isModOpen ? (
-                                <ChevronDown className="w-3 h-3 text-cyan-500 shrink-0" />
-                              ) : (
-                                <ChevronRight className="w-3 h-3 text-muted shrink-0" />
-                              )}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {modDecksCount > 0 && (
+                                  <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold px-1.5 py-0.2 rounded-full bg-cyan-500/10">
+                                    {modDecksCount}
+                                  </span>
+                                )}
+                                {isModOpen ? (
+                                  <ChevronDown className="w-3 h-3 text-cyan-500 shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-3 h-3 text-muted shrink-0" />
+                                )}
+                              </div>
                             </button>
 
                             {/* Subjects under module */}
@@ -227,7 +280,10 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
                                 {subjectsForMod.map((subj) => (
                                   <button
                                     key={subj}
-                                    onClick={() => setSelectedSubject(subj)}
+                                    onClick={() => {
+                                      setSelectedModule(mod);
+                                      setSelectedSubject(subj);
+                                    }}
                                     className={`w-full px-2 py-1 rounded text-left text-[11px] truncate transition ${
                                       selectedSubject === subj && selectedModule === mod
                                         ? 'bg-cyan-600 text-white font-bold'
@@ -256,10 +312,23 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
           <div className="p-3.5 rounded-xl bg-surface border border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-card">
             <div className="flex items-center gap-1.5 text-secondary font-mono truncate">
               <span className="text-primary font-bold">{selectedYear}</span>
-              <span>→</span>
-              <span className="text-cyan-600 dark:text-cyan-400 font-semibold">{selectedModule}</span>
-              <span>→</span>
-              <span className="text-primary font-bold">{selectedSubject}</span>
+              {selectedModule ? (
+                <>
+                  <span>→</span>
+                  <span className="text-cyan-600 dark:text-cyan-400 font-semibold">{selectedModule}</span>
+                  {selectedSubject && (
+                    <>
+                      <span>→</span>
+                      <span className="text-primary font-bold">{selectedSubject}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span>→</span>
+                  <span className="text-muted italic">All Modules</span>
+                </>
+              )}
             </div>
 
             <div className="relative w-full sm:w-60">
@@ -278,51 +347,82 @@ export const LibraryExplorer: React.FC<LibraryExplorerProps> = ({
           {filteredDecks.length === 0 ? (
             <div className="space-y-4">
               {decks.length > 0 && (
-                <div className="p-4 rounded-2xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/80 space-y-3">
-                  <div className="flex items-center gap-2 text-cyan-950 dark:text-cyan-200 font-bold text-xs">
-                    <Sparkles className="w-4 h-4 text-cyan-500" />
-                    <span>You have {decks.length} deck(s) available in other curriculum subjects:</span>
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/80 space-y-3 transition-all">
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={toggleOtherDecksCollapsed}
+                      className="flex items-center gap-2 text-cyan-950 dark:text-cyan-200 font-bold text-xs text-left cursor-pointer hover:opacity-80 transition select-none min-w-0"
+                    >
+                      <Sparkles className="w-4 h-4 text-cyan-500 shrink-0" />
+                      <span className="truncate">
+                        You have {decks.length} deck(s) available in other curriculum subjects:
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleOtherDecksCollapsed}
+                      className="px-2.5 py-1 rounded-xl bg-surface/80 hover:bg-surface border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition shrink-0 shadow-xs"
+                      title={isOtherDecksCollapsed ? 'Expand suggestions' : 'Compress suggestions'}
+                    >
+                      <span>{isOtherDecksCollapsed ? 'Expand' : 'Compress'}</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isOtherDecksCollapsed ? '-rotate-90' : ''
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {decks.slice(0, 4).map((d) => (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedYear(d.year);
-                          setSelectedModule(d.module);
-                          setSelectedSubject(d.subject);
-                          setExpandedYears((prev) => ({ ...prev, [d.year]: true }));
-                          setExpandedModules((prev) => ({ ...prev, [d.module]: true }));
-                        }}
-                        className="p-3 rounded-xl bg-surface border border-cyan-500/30 hover:border-cyan-500 text-left transition flex items-center justify-between gap-2 shadow-sm cursor-pointer group"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">
-                            {d.year} • {d.module} • {d.subject}
+
+                  {!isOtherDecksCollapsed && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5 animate-in fade-in duration-150">
+                      {decks.slice(0, 4).map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedYear(d.year);
+                            setSelectedModule(d.module);
+                            setSelectedSubject(d.subject);
+                            setExpandedYears((prev) => ({ ...prev, [d.year]: true }));
+                            setExpandedModules((prev) => ({ ...prev, [d.module]: true }));
+                          }}
+                          className="p-3 rounded-xl bg-surface border border-cyan-500/30 hover:border-cyan-500 text-left transition flex items-center justify-between gap-2 shadow-sm cursor-pointer group"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">
+                              {d.year} • {d.module} • {d.subject}
+                            </div>
+                            <div className="text-xs font-bold text-primary truncate group-hover:text-cyan-600 transition">
+                              {d.lectureName}
+                            </div>
                           </div>
-                          <div className="text-xs font-bold text-primary truncate group-hover:text-cyan-600 transition">
-                            {d.lectureName}
-                          </div>
-                        </div>
-                        <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
-                          Jump →
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                          <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 shrink-0">
+                            Jump →
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               <div className="p-10 text-center rounded-2xl bg-surface border border-dashed border-subtle space-y-3">
                 <BookOpen className="w-10 h-10 text-muted mx-auto" />
-                <h3 className="text-sm font-bold text-primary">No Decks in {selectedModule} → {selectedSubject}</h3>
+                <h3 className="text-sm font-bold text-primary">
+                  {selectedModule && selectedSubject
+                    ? `No Decks in ${selectedModule} → ${selectedSubject}`
+                    : selectedModule
+                    ? `No Decks in ${selectedModule}`
+                    : `No Personal Decks in ${selectedYear}`}
+                </h3>
                 <p className="text-xs text-secondary max-w-sm mx-auto">
                   Create a new lecture deck here, import external files, or explore the step-by-step workflow guide.
                 </p>
                 <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
                   <button
-                    onClick={() => onCreateDeckPrompt(selectedYear, selectedModule, selectedSubject)}
+                    onClick={() => onCreateDeckPrompt(selectedYear, selectedModule || undefined, selectedSubject || undefined)}
                     className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer"
                   >
                     Create Deck Here
